@@ -3,6 +3,7 @@ import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
+import { getMessaging, Messaging } from 'firebase/messaging';
 
 // Configuration Firebase
 // Remplacez ces valeurs par vos propres credentials Firebase
@@ -21,6 +22,7 @@ let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
 let storage: FirebaseStorage;
+let messaging: Messaging;
 
 if (typeof window !== 'undefined') {
   // Client-side only
@@ -33,10 +35,17 @@ if (typeof window !== 'undefined') {
   auth = getAuth(app);
   db = getFirestore(app);
   storage = getStorage(app);
+
+  // Initialiser Firebase Messaging pour les notifications push
+  try {
+    messaging = getMessaging(app);
+  } catch (error) {
+    console.warn('[Firebase] Messaging non disponible:', error);
+  }
 }
 
 // Export des instances Firebase
-export { app, auth, db, storage };
+export { app, auth, db, storage, messaging };
 
 // Helper pour vérifier si Firebase est configuré
 export function isFirebaseConfigured(): boolean {

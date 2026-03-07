@@ -197,6 +197,71 @@ function isStaticAsset(url) {
   return false;
 }
 
+// ===== NOTIFICATIONS PUSH FCM =====
+
+// Gérer les événements push entrants (notifications reçues en arrière-plan)
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  const data = event.data.json();
+  console.log('[SW] Notification push reçue:', data);
+
+  const options = {
+    body: data.notification?.body || '',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-96x96.png',
+    vibrate: [200, 100, 200],
+    tag: data.data?.type || 'default',
+    data: data.data || {},
+    actions: [
+      {
+        action: 'view',
+        title: 'Voir',
+        icon: '/icons/icon-96x96.png',
+      },
+      {
+        action: 'close',
+        title: 'Fermer',
+        icon: '/icons/icon-96x96.png',
+      },
+    ],
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.notification?.title || 'Notification', options)
+  );
+});
+
+// Gérer les clics sur les notifications
+self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notification cliquée:', event);
+
+  event.notification.close();
+
+  if (event.action === 'close') {
+    return;
+  }
+
+  // Action par défaut ou "Voir"
+  const data = event.notification.data;
+  let url = '/dashboard';
+
+  // Navigation selon le type de notification
+  if (data.type === 'sale' && data.invoiceId) {
+    url = `/sales/print/${data.invoiceId}`;
+  } else if ((data.type === 'stock' || data.type === 'stock_low' || data.type === 'stock_out') && data.productId) {
+    url = '/stock';
+  }
+
+  event.waitUntil(
+    clients.openWindow(url).then((window) => {
+      if (window) {
+        window.focus();
+      }
+    })
+  );
+});
+
 // Écouter les messages du client
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {

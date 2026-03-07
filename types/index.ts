@@ -29,6 +29,7 @@ export interface User {
   companyIds: string[]; // Liste des entreprises accessibles
   currentCompanyId: string; // Entreprise actuellement sélectionnée
   permissions?: Permission[]; // Pour les employés avec permissions granulaires
+  fcmTokens?: FCMToken[]; // Tokens FCM pour les notifications push
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,6 +62,30 @@ export interface Company {
 
   createdAt: Date;
   updatedAt: Date;
+}
+
+// ==================== FCM NOTIFICATIONS ====================
+
+export interface FCMToken {
+  token: string;
+  deviceInfo?: {
+    userAgent?: string;
+    platform?: string;
+    lastSeen?: Date;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type NotificationType = 'new_sale' | 'stock_alert' | 'stock_out';
+
+export interface PushNotification {
+  type: NotificationType;
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+  companyId: string;
+  targetRole: 'admin' | 'all';
 }
 
 // ==================== CLIENT & SUPPLIER ====================

@@ -269,6 +269,32 @@ export function useProducts() {
       // Mettre à jour le state et le cache
       setProducts((prev) => prev.map((p) => (p.id === id ? updatedProduct : p)));
       await productsCache.upsertProduct(updatedProduct);
+
+      // ===== NOUVEAU: Envoyer notification si stock faible ou épuisé =====
+      if (status === 'out' || status === 'low') {
+        try {
+          const { notifyOutOfStock, notifyLowStock } = await import('@/lib/services/notifications');
+
+          if (status === 'out') {
+            await notifyOutOfStock({
+              productId: id,
+              productName: updatedProduct.name,
+            }, user.currentCompanyId);
+            console.log('[updateProduct] Alerte de rupture envoyée');
+          } else {
+            await notifyLowStock({
+              productId: id,
+              productName: updatedProduct.name,
+              currentStock: updatedProduct.currentStock,
+              threshold: updatedProduct.alertThreshold,
+            }, user.currentCompanyId);
+            console.log('[updateProduct] Alerte de stock faible envoyée');
+          }
+        } catch (notifError) {
+          console.error('[updateProduct] Erreur lors de l\'envoi de la notification:', notifError);
+          // Ne pas échouer la mise à jour si la notification échoue
+        }
+      }
     } catch (err) {
       console.error('Erreur lors de la mise à jour du produit:', err);
       throw new Error('Erreur lors de la mise à jour du produit');

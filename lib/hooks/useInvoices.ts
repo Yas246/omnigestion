@@ -509,6 +509,22 @@ export function useInvoices() {
       // Rafraîchir la liste
       await fetchInvoices();
 
+      // ===== NOUVEAU: Envoyer notification aux admins =====
+      try {
+        const { notifyNewSale } = await import('@/lib/services/notifications');
+        await notifyNewSale({
+          invoiceId: result.id,
+          invoiceNumber: result.invoiceNumber,
+          total: result.total,
+          employeeName: user.displayName || user.email || 'Employé',
+          clientName: data.clientName,
+        }, user.currentCompanyId);
+        console.log('[createInvoice] Notification de vente envoyée aux admins');
+      } catch (notifError) {
+        console.error('[createInvoice] Erreur lors de l\'envoi de la notification:', notifError);
+        // Ne pas échouer la transaction si la notification échoue
+      }
+
       return result;
     } catch (err: any) {
       console.error('Erreur lors de la création de la facture:', err);

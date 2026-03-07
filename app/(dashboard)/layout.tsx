@@ -8,6 +8,7 @@ import { Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { NotificationPermission } from "@/components/notification-permission";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -71,6 +72,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <Header onMenuClick={() => setMobileMenuOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
       </div>
+
+      {/* Composant de permission FCM - uniquement pour les admins */}
+      {user?.role === 'admin' && <NotificationPermission />}
     </div>
   );
 }
