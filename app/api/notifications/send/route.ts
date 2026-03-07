@@ -12,6 +12,7 @@ import type { PushNotification } from '@/types';
 export async function POST(request: NextRequest) {
   try {
     const notification: PushNotification = await request.json();
+    console.log('[API Notifications] Notification reçue:', notification);
 
     // Validation basique des champs requis
     if (!notification.companyId || !notification.title || !notification.body) {
@@ -26,6 +27,8 @@ export async function POST(request: NextRequest) {
       .collection('users')
       .where('companyIds', 'array-contains', notification.companyId)
       .get();
+
+    console.log(`[API Notifications] ${usersSnapshot.size} utilisateur(s) trouvé(s) pour la compagnie ${notification.companyId}`);
 
     if (usersSnapshot.empty) {
       return NextResponse.json(
@@ -56,11 +59,14 @@ export async function POST(request: NextRequest) {
     });
 
     if (tokens.length === 0) {
+      console.log('[API Notifications] Aucun token FCM trouvé - les admins n\'ont pas encore activé les notifications');
       return NextResponse.json(
         { error: 'Aucun token FCM trouvé pour les utilisateurs ciblés' },
         { status: 404 }
       );
     }
+
+    console.log(`[API Notifications] ${tokens.length} token(s) FCM collecté(s)`);
 
     // Envoyer la notification via FCM (multicast pour plusieurs tokens)
     const messaging = getMessaging();
@@ -74,6 +80,8 @@ export async function POST(request: NextRequest) {
     };
 
     const response = await messaging.sendEachForMulticast(message);
+
+    console.log(`[API Notifications] Notification envoyée: ${response.successCount} succès, ${response.failureCount} échecs`);
 
     // Nettoyer les tokens expirés
     const failedTokens: string[] = [];
