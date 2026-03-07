@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Printer } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface InvoiceItem {
   productName: string;
@@ -56,12 +57,16 @@ interface Company {
 export default function PrintInvoicePage() {
   const params = useParams();
   const { user } = useAuth();
+  const router = useRouter();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasPrinted = useRef(false);
   const hasClosed = useRef(false);
+
+  // Détecter si c'est Chrome mobile
+  const isChromeMobile = typeof window !== 'undefined' && /Chrome/.test(navigator.userAgent) && /Mobile|Android|iPhone|iPad|iPod/.test(navigator.userAgent);
 
   useEffect(() => {
     // Définir le titre du document avec le numéro de facture
@@ -96,12 +101,15 @@ export default function PrintInvoicePage() {
               hasPrinted.current = true;
               setTimeout(() => {
                 window.print();
-                setTimeout(() => {
-                  if (!hasClosed.current) {
-                    hasClosed.current = true;
-                    window.close();
-                  }
-                }, 1000);
+                // Ne pas fermer la fenêtre sur Chrome mobile (c'est la fenêtre principale)
+                if (!isChromeMobile) {
+                  setTimeout(() => {
+                    if (!hasClosed.current) {
+                      hasClosed.current = true;
+                      window.close();
+                    }
+                  }, 1000);
+                }
               }, 500);
             }
 
@@ -159,13 +167,15 @@ export default function PrintInvoicePage() {
           setTimeout(() => {
             window.print();
 
-            // Fermer l'onglet après l'impression (ou annulation)
-            setTimeout(() => {
-              if (!hasClosed.current) {
-                hasClosed.current = true;
-                window.close();
-              }
-            }, 1000);
+            // Fermer l'onglet après l'impression (sauf sur Chrome mobile)
+            if (!isChromeMobile) {
+              setTimeout(() => {
+                if (!hasClosed.current) {
+                  hasClosed.current = true;
+                  window.close();
+                }
+              }, 1000);
+            }
           }, 500);
         }
 
@@ -180,10 +190,10 @@ export default function PrintInvoicePage() {
     loadData();
   }, [params.id, user]);
 
-  // Écouter l'événement afterprint pour fermer la fenêtre
+  // Écouter l'événement afterprint pour fermer la fenêtre (sauf Chrome mobile)
   useEffect(() => {
     const handleAfterPrint = () => {
-      if (!hasClosed.current) {
+      if (!hasClosed.current && !isChromeMobile) {
         hasClosed.current = true;
         setTimeout(() => {
           window.close();
@@ -195,7 +205,7 @@ export default function PrintInvoicePage() {
     return () => {
       window.removeEventListener('afterprint', handleAfterPrint);
     };
-  }, []);
+  }, [isChromeMobile]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price);
@@ -225,22 +235,49 @@ export default function PrintInvoicePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        {isChromeMobile && (
+          <Button onClick={() => router.back()} variant="outline" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Retour
+          </Button>
+        )}
       </div>
     );
   }
 
   if (error || !invoice) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <p className="text-destructive">{error || 'Facture non trouvée'}</p>
+        {isChromeMobile && (
+          <Button onClick={() => router.back()} variant="outline" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Retour
+          </Button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="invoice-container">
+    <div className="print-container">
+      {/* Bouton de retour uniquement visible sur Chrome mobile et en mode non-impression */}
+      {isChromeMobile && (
+        <div className="no-print flex items-center gap-2 p-4 bg-background border-b">
+          <Button onClick={() => router.back()} variant="outline" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Retour
+          </Button>
+          <Button onClick={() => window.print()} size="sm">
+            <Printer className="mr-2 h-4 w-4" />
+            Imprimer
+          </Button>
+        </div>
+      )}
+
+      <div className="invoice-container">
       {/* En-tête entreprise */}
       {company && (
         <div className="print-header">
@@ -386,6 +423,7 @@ export default function PrintInvoicePage() {
       <div className="legal-section">
         <p>Généré par Omnigestion - {format(new Date(), 'PPP', { locale: fr })} à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
       </div>
+      </div>
 
       <style jsx global>{`
         @page {
@@ -403,11 +441,19 @@ export default function PrintInvoicePage() {
           background: white;
         }
 
+        .print-container {
+          min-height: 100vh;
+        }
+
         .invoice-container {
           max-width: 210mm;
           margin: 0 auto;
           padding: 20px;
           background: white;
+        }
+
+        .no-print {
+          display: block;
         }
 
         .print-header {
@@ -613,6 +659,11 @@ export default function PrintInvoicePage() {
         @media print {
           /* Masquer les éléments d'interface spécifiques */
           nav, header, footer, aside, .no-print {
+            display: none !important;
+          }
+
+          /* Masquer explicitement les boutons de navigation */
+          .no-print {
             display: none !important;
           }
 

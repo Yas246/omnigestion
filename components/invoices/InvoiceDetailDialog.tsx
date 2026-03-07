@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useRouter } from 'next/navigation';
 import type { Invoice, Company } from '@/types';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { Button } from '@/components/ui/button';
@@ -45,11 +46,15 @@ export function InvoiceDetailDialog({
   onEdit,
 }: InvoiceDetailDialogProps) {
   const { settings } = useSettings();
+  const router = useRouter();
   const [isPrinting, setIsPrinting] = useState(false);
 
   // Utiliser les paramètres de facturation existants
   const showTax = settings?.invoice?.showTax ?? true;
   const showUnitPrice = settings?.invoice?.showUnitPrice ?? true;
+
+  // Détecter si c'est Chrome mobile
+  const isChromeMobile = typeof window !== 'undefined' && /Chrome/.test(navigator.userAgent) && /Mobile|Android|iPhone|iPad|iPod/.test(navigator.userAgent);
 
   // Précharger la page d'impression dans le cache du service worker
   // Cela permet d'imprimer même en mode hors ligne
@@ -107,8 +112,14 @@ export function InvoiceDetailDialog({
       console.error('Erreur lors du stockage des données d\'impression:', error);
     }
 
-    // Ouvrir la page d'impression dans un nouvel onglet
-    window.open(`/sales/print/${invoice.id}`, '_blank');
+    // Sur Chrome mobile, naviguer vers la page au lieu d'ouvrir un nouvel onglet
+    // (Chrome bloque window.print() dans les nouveaux onglets)
+    if (isChromeMobile) {
+      router.push(`/sales/print/${invoice.id}`);
+    } else {
+      // Sur desktop et autres mobiles (Firefox, Safari), ouvrir un nouvel onglet
+      window.open(`/sales/print/${invoice.id}`, '_blank');
+    }
   };
 
   const getStatusBadge = (status: string) => {
