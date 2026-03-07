@@ -133,19 +133,23 @@ export function useFCM() {
 
       // Générer le token FCM
       try {
+        console.log('[useFCM] Génération du token FCM avec VAPID_KEY:', VAPID_KEY ? 'configurée' : 'NON configurée');
+
         const fcmToken = await getToken(messaging, {
           vapidKey: VAPID_KEY,
         });
 
         if (!fcmToken) {
+          console.error('[useFCM] Échec de la génération du token FCM - token vide');
           setError('Impossible de générer le token FCM');
           setLoading(false);
           return;
         }
 
-        console.log('[useFCM] Token FCM généré:', fcmToken.substring(0, 20) + '...');
+        console.log('[useFCM] Token FCM généré avec succès:', fcmToken.substring(0, 20) + '...');
         await saveToken(fcmToken);
       } catch (err: any) {
+        console.error('[useFCM] Erreur lors de la génération du token:', err);
         if (err.code === 'messaging/permission-blocked') {
           setError('Notifications bloquées');
           setPermissionStatus('denied');

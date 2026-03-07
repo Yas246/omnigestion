@@ -50,18 +50,18 @@ export async function notifyNewSale(data: SaleNotificationData, companyId: strin
     });
 
     if (!response.ok) {
+      // 404 (aucun token FCM) n'est pas une erreur critique - c'est normal si personne n'a activé les notifications
+      if (response.status === 404) {
+        console.log('[notifyNewSale] Aucun admin n\'a activé les notifications FCM (normal au premier lancement)');
+        return { success: true, message: 'Notifications non configurées (ignoré)' };
+      }
+
       const errorText = await response.text();
       let error;
       try {
         error = JSON.parse(errorText);
       } catch {
         error = { message: errorText };
-      }
-
-      // 404 (aucun token FCM) n'est pas une erreur critique - c'est normal si personne n'a activé les notifications
-      if (response.status === 404) {
-        console.log('[notifyNewSale] Aucun admin n\'a activé les notifications FCM (normal au premier lancement)');
-        return { success: true, message: 'Notifications non configurées (ignoré)' };
       }
 
       console.error('[notifyNewSale] Erreur lors de l\'envoi:', response.status, error);
@@ -104,18 +104,18 @@ export async function notifyLowStock(data: StockAlertData, companyId: string) {
     });
 
     if (!response.ok) {
+      // 404 (aucun token FCM) n'est pas une erreur critique
+      if (response.status === 404) {
+        console.log('[notifyLowStock] Aucun admin n\'a activé les notifications FCM (normal au premier lancement)');
+        return { success: true, message: 'Notifications non configurées (ignoré)' };
+      }
+
       const errorText = await response.text();
       let error;
       try {
         error = JSON.parse(errorText);
       } catch {
         error = { message: errorText };
-      }
-
-      // 404 (aucun token FCM) n'est pas une erreur critique
-      if (response.status === 404) {
-        console.log('[notifyLowStock] Aucun admin n\'a activé les notifications FCM (normal au premier lancement)');
-        return { success: true, message: 'Notifications non configurées (ignoré)' };
       }
 
       console.error('[notifyLowStock] Erreur lors de l\'envoi:', response.status, error);
@@ -158,18 +158,18 @@ export async function notifyOutOfStock(data: Omit<StockAlertData, 'currentStock'
     });
 
     if (!response.ok) {
+      // 404 (aucun token FCM) n'est pas une erreur critique
+      if (response.status === 404) {
+        console.log('[notifyOutOfStock] Aucun admin n\'a activé les notifications FCM (normal au premier lancement)');
+        return { success: true, message: 'Notifications non configurées (ignoré)' };
+      }
+
       const errorText = await response.text();
       let error;
       try {
         error = JSON.parse(errorText);
       } catch {
         error = { message: errorText };
-      }
-
-      // 404 (aucun token FCM) n'est pas une erreur critique
-      if (response.status === 404) {
-        console.log('[notifyOutOfStock] Aucun admin n\'a activé les notifications FCM (normal au premier lancement)');
-        return { success: true, message: 'Notifications non configurées (ignoré)' };
       }
 
       console.error('[notifyOutOfStock] Erreur lors de l\'envoi:', response.status, error);

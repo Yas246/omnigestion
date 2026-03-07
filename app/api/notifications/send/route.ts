@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
     // Filtrer par rôle et collecter les tokens FCM
     const tokens: string[] = [];
     const userIds: string[] = [];
+    let adminsCount = 0;
+    let usersWithTokens = 0;
 
     usersSnapshot.docs.forEach((doc) => {
       const user = doc.data();
@@ -47,16 +49,26 @@ export async function POST(request: NextRequest) {
       // Filtrer par rôle (admin uniquement par défaut)
       if (notification.targetRole === 'admin' && user.role !== 'admin') return;
 
-      // Collecter les tokens FCM
-      if (user.fcmTokens && Array.isArray(user.fcmTokens)) {
-        user.fcmTokens.forEach((fcmToken: any) => {
-          if (fcmToken.token) {
-            tokens.push(fcmToken.token);
-            userIds.push(doc.id);
+      if (user.role === 'admin') {
+        adminsCount++;
+        console.log(`[API Notifications] Admin trouvé: ${doc.id}, a ${user.fcmTokens?.length || 0} tokens`);
+
+        // Collecter les tokens FCM
+        if (user.fcmTokens && Array.isArray(user.fcmTokens)) {
+          if (user.fcmTokens.length > 0) {
+            usersWithTokens++;
           }
-        });
+          user.fcmTokens.forEach((fcmToken: any) => {
+            if (fcmToken.token) {
+              tokens.push(fcmToken.token);
+              userIds.push(doc.id);
+            }
+          });
+        }
       }
     });
+
+    console.log(`[API Notifications] ${adminsCount} admin(s) trouvé(s), ${usersWithTokens} avec des tokens FCM`);
 
     if (tokens.length === 0) {
       console.log('[API Notifications] Aucun token FCM trouvé - les admins n\'ont pas encore activé les notifications');
