@@ -12,6 +12,7 @@ import {
   query,
   where,
   orderBy,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db, COLLECTIONS, SUB_COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
@@ -27,6 +28,7 @@ export function useProducts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCacheLoaded, setIsCacheLoaded] = useState(false);
+  const [realtimeUnsubscribe, setRealtimeUnsubscribe] = useState<(() => void) | null>(null);
 
   /**
    * Charge tous les produits depuis Firestore (sans pagination)
@@ -121,6 +123,50 @@ export function useProducts() {
       fetchProducts();
     }
   }, [user?.currentCompanyId, isCacheLoaded, fetchProducts]);
+
+  // ===== NOUVEAU: Écouter les changements de produits en temps réel =====
+  useEffect(() => {
+    if (!user?.currentCompanyId) return;
+
+    console.log('[useProducts] Setting up real-time listener for products');
+
+    const productsRef = collection(db, COLLECTIONS.companyProducts(user.currentCompanyId));
+
+    const unsubscribe = onSnapshot(
+      productsRef,
+      async (snapshot) => {
+        console.log('[useProducts] Real-time update received:', snapshot.docChanges.length, 'changes');
+
+        const updatedProducts = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        } as Product));
+
+        // Mettre à jour le state
+        setProducts(updatedProducts);
+
+        // Mettre à jour le cache IndexedDB
+        try {
+          await productsCache.setProducts(updatedProducts);
+          console.log('[useProducts] Cache updated with real-time data');
+        } catch (cacheError) {
+          console.error('[useProducts] Error updating cache:', cacheError);
+        }
+      },
+      (error) => {
+        console.error('[useProducts] Real-time listener error:', error);
+        setError('Erreur lors de l\'écoute des modifications en temps réel');
+      }
+    );
+
+    setRealtimeUnsubscribe(() => unsubscribe);
+
+    // Cleanup: se désabonner quand le composant se démonte ou qu'on change de compagnie
+    return () => {
+      console.log('[useProducts] Cleaning up real-time listener');
+      unsubscribe();
+    };
+  }, [user?.currentCompanyId]);
 
   /**
    * Récupère un produit par ID (depuis le cache ou Firestore)
@@ -266,9 +312,11 @@ export function useProducts() {
 
       const updatedProduct = { ...products.find(p => p.id === id)!, ...productData, ...(status && { status }), updatedAt: new Date() as any };
 
-      // Mettre à jour le state et le cache
-      setProducts((prev) => prev.map((p) => (p.id === id ? updatedProduct : p)));
+      // NOTE: Le state sera mis à jour automatiquement par l'écouteur onSnapshot
+      // On met seulement à jour le cache IndexedDB pour le mode offline
       await productsCache.upsertProduct(updatedProduct);
+
+      console.log('[updateProduct] Product updated in Firestore, real-time listener will sync state');
 
       // ===== NOUVEAU: Envoyer notification si stock faible ou épuisé =====
       if (status === 'out' || status === 'low') {

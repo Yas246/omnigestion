@@ -195,6 +195,9 @@ export function useInvoices() {
     // Variable pour stocker les mises à jour de produits (pour le cache IndexedDB)
     const productUpdates: Array<{ productId: string; newStock: number; deduction: number }> = [];
 
+    // Variable pour collecter les alertes de stock à envoyer après la transaction
+    const stockAlerts: Array<{ productId: string; productName: string; newStock: number; threshold: number; status: 'out' | 'low' }> = [];
+
     try {
       const result = await runTransaction(db, async (transaction) => {
         // 1. Valider les prix (anti-perte)
@@ -248,10 +251,24 @@ export function useInvoices() {
             deduction: item.quantity,
           });
 
+          // Déterminer le nouveau statut
+          const newStatus = newStock === 0 ? 'out' : newStock <= productData.alertThreshold ? 'low' : 'ok';
+
+          // Collecter les alertes de stock (si le statut change vers 'low' ou 'out')
+          if (newStatus === 'out' || newStatus === 'low') {
+            stockAlerts.push({
+              productId: item.productId,
+              productName: item.productName,
+              newStock,
+              threshold: productData.alertThreshold,
+              status: newStatus,
+            });
+          }
+
           // Mettre à jour le produit
           transaction.update(productRef, {
             currentStock: newStock,
-            status: newStock === 0 ? 'out' : newStock <= productData.alertThreshold ? 'low' : 'ok',
+            status: newStatus,
             updatedAt: new Date(),
           });
 
@@ -523,6 +540,34 @@ export function useInvoices() {
       } catch (notifError) {
         console.error('[createInvoice] Erreur lors de l\'envoi de la notification:', notifError);
         // Ne pas échouer la transaction si la notification échoue
+      }
+
+      // ===== NOUVEAU: Envoyer notifications d'alertes de stock =====
+      if (stockAlerts.length > 0) {
+        try {
+          const { notifyOutOfStock, notifyLowStock } = await import('@/lib/services/notifications');
+
+          for (const alert of stockAlerts) {
+            if (alert.status === 'out') {
+              await notifyOutOfStock({
+                productId: alert.productId,
+                productName: alert.productName,
+              }, user.currentCompanyId);
+              console.log(`[createInvoice] Alerte rupture de stock envoyée pour: ${alert.productName}`);
+            } else {
+              await notifyLowStock({
+                productId: alert.productId,
+                productName: alert.productName,
+                currentStock: alert.newStock,
+                threshold: alert.threshold,
+              }, user.currentCompanyId);
+              console.log(`[createInvoice] Alerte stock faible envoyée pour: ${alert.productName} (${alert.newStock} / ${alert.threshold})`);
+            }
+          }
+        } catch (stockNotifError) {
+          console.error('[createInvoice] Erreur lors de l\'envoi des notifications de stock:', stockNotifError);
+          // Ne pas échouer la transaction si les notifications échouent
+        }
       }
 
       return result;
