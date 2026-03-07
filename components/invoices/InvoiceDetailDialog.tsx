@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { Invoice, Company } from '@/types';
@@ -24,13 +24,13 @@ import {
 } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { FileText, Printer, Share, Mail, Edit } from 'lucide-react';
-import { InvoicePrintDialog } from './InvoicePrintDialog';
 
 interface InvoiceDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   invoice: Invoice | null;
   company: Company | null;
+  onPrint?: (invoice: Invoice) => void;
   onShare?: (invoice: Invoice) => void;
   onEdit?: (invoice: Invoice) => void;
 }
@@ -40,22 +40,75 @@ export function InvoiceDetailDialog({
   onOpenChange,
   invoice,
   company,
+  onPrint,
   onShare,
   onEdit,
 }: InvoiceDetailDialogProps) {
   const { settings } = useSettings();
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
 
   // Utiliser les paramètres de facturation existants
   const showTax = settings?.invoice?.showTax ?? true;
   const showUnitPrice = settings?.invoice?.showUnitPrice ?? true;
 
+  // Précharger la page d'impression dans le cache du service worker
+  // Cela permet d'imprimer même en mode hors ligne
+  useEffect(() => {
+    if (open && invoice && typeof window !== 'undefined' && navigator.onLine) {
+      // Précharger la page d'impression pour la mettre en cache via prefetch
+      const prefetchTimeout = setTimeout(() => {
+        const printUrl = `/sales/print/${invoice.id}`;
+        console.log('[InvoiceDetailDialog] Préchargement de la page d\'impression:', printUrl);
+
+        // Créer un lien de prefetch dynamique
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = printUrl;
+        link.as = 'document';
+
+        // Ajouter au head du document
+        document.head.appendChild(link);
+
+        // Nettoyer après le chargement
+        link.onload = () => {
+          console.log('[InvoiceDetailDialog] Page d\'impression préchargée avec succès');
+          // Garder le lien pour le cache, mais on pourrait le supprimer si voulu
+          setTimeout(() => {
+            if (link.parentNode) {
+              link.parentNode.removeChild(link);
+            }
+          }, 1000);
+        };
+
+        link.onerror = () => {
+          console.warn('[InvoiceDetailDialog] Impossible de précharger la page d\'impression');
+          if (link.parentNode) {
+            link.parentNode.removeChild(link);
+          }
+        };
+      }, 300); // Petit délai pour ne pas surcharger
+
+      return () => clearTimeout(prefetchTimeout);
+    }
+  }, [open, invoice]);
+
   if (!invoice) return null;
 
   const handlePrint = async () => {
-    // Ouvrir la modal d'impression (fonctionne offline)
-    setIsPrintDialogOpen(true);
+    // Stocker les données de la facture et l'entreprise dans sessionStorage pour l'impression hors ligne
+    try {
+      const printData = {
+        invoice,
+        company,
+        timestamp: Date.now(),
+      };
+      sessionStorage.setItem(`invoice_print_${invoice.id}`, JSON.stringify(printData));
+    } catch (error) {
+      console.error('Erreur lors du stockage des données d\'impression:', error);
+    }
+
+    // Ouvrir la page d'impression dans un nouvel onglet
+    window.open(`/sales/print/${invoice.id}`, '_blank');
   };
 
   const getStatusBadge = (status: string) => {
@@ -280,14 +333,6 @@ export function InvoiceDetailDialog({
           </div>
         </div>
       </DialogContent>
-
-      {/* Modal d'impression (fonctionne offline) */}
-      <InvoicePrintDialog
-        open={isPrintDialogOpen}
-        onOpenChange={setIsPrintDialogOpen}
-        invoice={invoice}
-        company={company}
-      />
     </Dialog>
   );
 }

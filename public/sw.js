@@ -1,6 +1,6 @@
 // Omnigestion Service Worker
 // Cache des assets statiques uniquement - PAS de cache Firestore/API
-// v5: Modal d'impression offline - plus de nouvel onglet
+// v5: Prefetch des pages d'impression pour support hors ligne
 
 const CACHE_NAME = 'omnigestion-v5';
 const STATIC_CACHE = 'omnigestion-static-v5';

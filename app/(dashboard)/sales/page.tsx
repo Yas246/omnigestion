@@ -134,6 +134,11 @@ export default function SalesPage() {
     }
   };
 
+  const handlePrintInvoice = (invoice: Invoice) => {
+    // Ouvrir la page d'impression dans un nouvel onglet
+    window.open(`/sales/print/${invoice.id}`, '_blank');
+  };
+
   // Calculer les statistiques du jour
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -303,6 +308,7 @@ export default function SalesPage() {
         onOpenChange={setIsDetailDialogOpen}
         invoice={selectedInvoice}
         company={company}
+        onPrint={handlePrintInvoice}
       />
     </div>
   );
