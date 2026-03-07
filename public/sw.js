@@ -1,9 +1,9 @@
 // Omnigestion Service Worker
 // Cache des assets statiques uniquement - PAS de cache Firestore/API
-// v5: Prefetch des pages d'impression pour support hors ligne
+// v6: Ne pas intercepter les requêtes Firebase (évite les erreurs hors ligne)
 
-const CACHE_NAME = 'omnigestion-v5';
-const STATIC_CACHE = 'omnigestion-static-v5';
+const CACHE_NAME = 'omnigestion-v6';
+const STATIC_CACHE = 'omnigestion-static-v6';
 
 // Assets à mettre en cache statique (pages, JS, CSS, images)
 const STATIC_ASSETS = [
@@ -63,10 +63,10 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // NE PAS cacher les requêtes Firestore/API
+  // NE PAS intercepter les requêtes Firestore/API
+  // Ne PAS utiliser event.respondWith() - laisser le navigateur gérer directement
   if (shouldBypassCache(url)) {
-    console.log('[SW] Bypass cache:', request.url);
-    event.respondWith(fetch(request));
+    // Ne rien faire - laisser passer la requête normalement sans interception
     return;
   }
 
