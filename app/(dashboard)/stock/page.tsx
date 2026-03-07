@@ -77,10 +77,20 @@ export default function StockPage() {
 
   // Mettre à jour la liste filtrée quand les produits changent
   useEffect(() => {
-    if (!selectedWarehouse) {
-      setFilteredProducts(products);
-    }
-  }, [products, selectedWarehouse]);
+    const updateFilteredProducts = async () => {
+      if (!selectedWarehouse) {
+        // "Tous les dépôts" : il faut recalculer les quantités depuis stockLocations
+        const productsWithQuantities = await filterByWarehouse(null);
+        setFilteredProducts(productsWithQuantities);
+      } else {
+        // Un dépôt spécifique est sélectionné
+        const productsWithQuantities = await filterByWarehouse(selectedWarehouse);
+        setFilteredProducts(productsWithQuantities);
+      }
+    };
+
+    updateFilteredProducts();
+  }, [products, selectedWarehouse, filterByWarehouse]);
 
   // Charger les statistiques globales depuis Firestore
   const fetchGlobalStats = async () => {

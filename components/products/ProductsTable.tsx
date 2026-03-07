@@ -66,6 +66,7 @@ export function ProductsTable({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'ok' | 'low' | 'out' | 'inactive'>('all');
+  const [displayLimit, setDisplayLimit] = useState(20); // Pagination: afficher 20 produits par défaut
 
   // Filtrer les produits par recherche et statut (côté client)
   const getFilteredProducts = () => {
@@ -107,8 +108,17 @@ export function ProductsTable({
 
   const filteredProducts = getFilteredProducts();
 
+  // Pagination: n'afficher que les premiers produits
+  const displayedProducts = filteredProducts.slice(0, displayLimit);
+  const hasMoreToDisplay = filteredProducts.length > displayLimit;
+
+  const handleLoadMore = () => {
+    setDisplayLimit((prev) => prev + 20);
+  };
+
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
+    setDisplayLimit(20); // Reset pagination quand la recherche change
   };
 
   const handleClearSearch = () => {
@@ -261,7 +271,7 @@ export function ProductsTable({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredProducts.map((product) => (
+              displayedProducts.map((product) => (
                 <TableRow key={product.id}>
                   <TableCell>
                     <div className="flex flex-col">
@@ -357,7 +367,19 @@ export function ProductsTable({
         </Table>
       </div>
 
-      {/* Charger plus */}
+      {/* Charger plus (pagination locale) */}
+      {hasMoreToDisplay && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={handleLoadMore}
+          >
+            Afficher plus de produits ({displayLimit} / {filteredProducts.length})
+          </Button>
+        </div>
+      )}
+
+      {/* Charger plus (pagination Firestore) */}
       {hasMore && onLoadMore && (
         <div className="flex justify-center">
           <Button

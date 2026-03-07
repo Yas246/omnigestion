@@ -47,6 +47,9 @@ export function useProducts() {
       (doc) => ({ id: doc.id, ...doc.data() } as Product)
     );
 
+    // Trier par nom pour garantir l'ordre alphabétique (même si orderBy est utilisé)
+    productsData.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+
     console.log('[useProducts] fetchAllProducts: loaded', productsData.length, 'products');
 
     // Sauvegarder dans IndexedDB
@@ -69,6 +72,9 @@ export function useProducts() {
       console.log('[useProducts] loadFromCache: cache empty');
       return null;
     }
+
+    // Trier par nom pour garantir l'ordre alphabétique
+    cachedProducts.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
 
     console.log('[useProducts] loadFromCache: loaded', cachedProducts.length, 'products from cache');
     return cachedProducts;
@@ -350,10 +356,23 @@ export function useProducts() {
     if (!warehouseId) {
       const productsWithQuantities = await fetchProductStockLocations(products);
       setProductsWithStock(productsWithQuantities);
-      return productsWithQuantities.map((p, index) => ({
-        ...p,
-        displayQuantity: p.warehouseQuantities?.reduce((sum, wq) => sum + wq.quantity, 0) || p.currentStock,
-      }));
+
+      const result = productsWithQuantities.map((p) => {
+        // Calculer la somme des quantités par dépôt
+        const totalFromStockLocations = p.warehouseQuantities?.reduce((sum, wq) => sum + wq.quantity, 0) || 0;
+
+        // Utiliser la somme SI elle existe et est > 0, sinon utiliser currentStock
+        const displayQuantity = totalFromStockLocations > 0 ? totalFromStockLocations : p.currentStock;
+
+        console.log(`[filterByWarehouse] ${p.name}: currentStock=${p.currentStock}, totalFromStockLocations=${totalFromStockLocations}, displayQuantity=${displayQuantity}`);
+
+        return {
+          ...p,
+          displayQuantity,
+        };
+      });
+
+      return result;
     }
 
     const filtered = await Promise.all(
@@ -428,6 +447,8 @@ export function useProducts() {
         warehousesSnapshot.docs.map(doc => [doc.id, doc.data()])
       );
 
+      console.log('[fetchProductStockLocations] Chargement pour', productsToLoad.length, 'produits');
+
       const productWithStock = await Promise.all(
         productsToLoad.map(async (product) => {
           try {
@@ -436,6 +457,8 @@ export function useProducts() {
                 collection(db, SUB_COLLECTIONS.productStockLocations(user.currentCompanyId, product.id))
               )
             );
+
+            console.log(`[fetchProductStockLocations] ${product.name}: ${stockSnapshot.docs.length} stockLocations trouvés`);
 
             const warehouseQuantities = stockSnapshot.docs.map((doc) => {
               const warehouseData = warehousesMap.get(doc.data().warehouseId);
@@ -446,8 +469,13 @@ export function useProducts() {
               };
             });
 
+            // Calculer la somme totale
+            const totalQuantity = warehouseQuantities.reduce((sum, wq) => sum + wq.quantity, 0);
+            console.log(`[fetchProductStockLocations] ${product.name}: Somme = ${totalQuantity} (${warehouseQuantities.map(w => `${w.warehouseName}: ${w.quantity}`).join(', ')})`);
+
             return { ...product, warehouseQuantities };
-          } catch {
+          } catch (err) {
+            console.error(`[fetchProductStockLocations] Erreur pour ${product.name}:`, err);
             return { ...product, warehouseQuantities: [] };
           }
         })
@@ -455,7 +483,7 @@ export function useProducts() {
 
       return productWithStock;
     } catch (err) {
-      console.error('Erreur lors du chargement des répartitions:', err);
+      console.error('[fetchProductStockLocations] Erreur globale:', err);
       return productsToLoad.map(p => ({ ...p, warehouseQuantities: [] }));
     }
   };

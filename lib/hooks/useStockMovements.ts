@@ -242,17 +242,27 @@ export function useStockMovements() {
         const stockSnapshot = await getDocs(stockRef);
 
         if (stockSnapshot.empty) {
-          throw new Error('Répartition de stock non trouvée pour ce dépôt');
+          // Créer la répartition de stock si elle n'existe pas (cas des produits importés)
+          const newStockRef = doc(collection(db, SUB_COLLECTIONS.productStockLocations(user.currentCompanyId, productId)));
+          transaction.set(newStockRef, {
+            productId,
+            warehouseId,
+            quantity,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          console.log(`[recordInMovement] Création répartition de stock pour produit ${productId} dans dépôt ${warehouseId}: ${quantity}`);
+        } else {
+          // Mettre à jour la répartition existante
+          const stockDoc = stockSnapshot.docs[0];
+          const stockData = stockDoc.data();
+          const newQuantity = stockData.quantity + quantity;
+
+          transaction.update(stockDoc.ref, {
+            quantity: newQuantity,
+            updatedAt: new Date(),
+          });
         }
-
-        const stockDoc = stockSnapshot.docs[0];
-        const stockData = stockDoc.data();
-        const newQuantity = stockData.quantity + quantity;
-
-        transaction.update(stockDoc.ref, {
-          quantity: newQuantity,
-          updatedAt: new Date(),
-        });
 
         // 2. Mettre à jour le stock total du produit
         const productRef = doc(db, COLLECTIONS.companyProducts(user.currentCompanyId), productId);
@@ -347,14 +357,14 @@ export function useStockMovements() {
         const stockSnapshot = await getDocs(stockRef);
 
         if (stockSnapshot.empty) {
-          throw new Error('Répartition de stock non trouvée pour ce dépôt');
+          throw new Error(`Répartition de stock non trouvée pour le dépôt ${warehouseId}. Veuillez d'abord approvisionner ce produit dans ce dépôt.`);
         }
 
         const stockDoc = stockSnapshot.docs[0];
         const stockData = stockDoc.data();
 
         if (stockData.quantity < quantity) {
-          throw new Error(`Stock insuffisant (${stockData.quantity} ${stockData.unit} disponibles)`);
+          throw new Error(`Stock insuffisant (${stockData.quantity} disponibles pour ${quantity} demandés)`);
         }
 
         const newQuantity = stockData.quantity - quantity;
