@@ -24,13 +24,13 @@ import {
 } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { FileText, Printer, Share, Mail, Edit } from 'lucide-react';
+import { InvoicePrintDialog } from './InvoicePrintDialog';
 
 interface InvoiceDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   invoice: Invoice | null;
   company: Company | null;
-  onPrint?: (invoice: Invoice) => void;
   onShare?: (invoice: Invoice) => void;
   onEdit?: (invoice: Invoice) => void;
 }
@@ -40,12 +40,12 @@ export function InvoiceDetailDialog({
   onOpenChange,
   invoice,
   company,
-  onPrint,
   onShare,
   onEdit,
 }: InvoiceDetailDialogProps) {
   const { settings } = useSettings();
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
 
   // Utiliser les paramètres de facturation existants
   const showTax = settings?.invoice?.showTax ?? true;
@@ -54,20 +54,8 @@ export function InvoiceDetailDialog({
   if (!invoice) return null;
 
   const handlePrint = async () => {
-    // Stocker les données de la facture et l'entreprise dans sessionStorage pour l'impression hors ligne
-    try {
-      const printData = {
-        invoice,
-        company,
-        timestamp: Date.now(),
-      };
-      sessionStorage.setItem(`invoice_print_${invoice.id}`, JSON.stringify(printData));
-    } catch (error) {
-      console.error('Erreur lors du stockage des données d\'impression:', error);
-    }
-
-    // Ouvrir la page d'impression dans un nouvel onglet
-    window.open(`/sales/print/${invoice.id}`, '_blank');
+    // Ouvrir la modal d'impression (fonctionne offline)
+    setIsPrintDialogOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -292,6 +280,14 @@ export function InvoiceDetailDialog({
           </div>
         </div>
       </DialogContent>
+
+      {/* Modal d'impression (fonctionne offline) */}
+      <InvoicePrintDialog
+        open={isPrintDialogOpen}
+        onOpenChange={setIsPrintDialogOpen}
+        invoice={invoice}
+        company={company}
+      />
     </Dialog>
   );
 }

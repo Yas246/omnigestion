@@ -1,9 +1,9 @@
 // Omnigestion Service Worker
 // Cache des assets statiques uniquement - PAS de cache Firestore/API
-// v4: Cache First avec fallback /dashboard pour navigation hors ligne
+// v5: Modal d'impression offline - plus de nouvel onglet
 
-const CACHE_NAME = 'omnigestion-v4';
-const STATIC_CACHE = 'omnigestion-static-v4';
+const CACHE_NAME = 'omnigestion-v5';
+const STATIC_CACHE = 'omnigestion-static-v5';
 
 // Assets à mettre en cache statique (pages, JS, CSS, images)
 const STATIC_ASSETS = [
