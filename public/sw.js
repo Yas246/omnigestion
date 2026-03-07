@@ -1,8 +1,9 @@
 // Omnigestion Service Worker
 // Cache des assets statiques uniquement - PAS de cache Firestore/API
+// v2: Ajout support images Cloudinary pour logo entreprise
 
-const CACHE_NAME = 'omnigestion-v1';
-const STATIC_CACHE = 'omnigestion-static-v1';
+const CACHE_NAME = 'omnigestion-v2';
+const STATIC_CACHE = 'omnigestion-static-v2';
 
 // Assets à mettre en cache statique (pages, JS, CSS, images)
 const STATIC_ASSETS = [
@@ -15,8 +16,8 @@ const STATIC_ASSETS = [
 // Assets à ne JAMAIS cacher (Firestore, API, IndexedDB)
 const DYNAMIC_PATTERNS = [
   /\/_next\/data\/.*/, // Next.js data requests
-  /\/api\/.*/, // API routes
-  /firebaseio\.com/, // Firebase
+  /\/api\/.*/, // API routes (sauf si spécifié ailleurs)
+  /firebaseio\.com/, // Firebase Realtime Database
   /firestore\.googleapis\.com/, // Firestore API
   /googleapis\.com\/identitytoolkit/, // Firebase Auth
 ];
@@ -143,9 +144,15 @@ function isStaticAsset(url) {
     return true;
   }
 
-  // Images et icônes
+  // Images et icônes locales
   if (url.pathname.startsWith('/icons/') ||
       url.pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|ico)$/)) {
+    return true;
+  }
+
+  // Cloudinary images (logo uploadé dans les paramètres, etc.)
+  if (url.hostname.includes('res.cloudinary.com') ||
+      url.href.includes('res.cloudinary.com')) {
     return true;
   }
 

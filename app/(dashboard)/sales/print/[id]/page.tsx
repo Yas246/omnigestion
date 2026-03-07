@@ -72,13 +72,54 @@ export default function PrintInvoicePage() {
 
   useEffect(() => {
     async function loadData() {
-      if (!params.id || !user?.currentCompanyId) {
+      if (!params.id) {
         setError('Impossible de charger la facture');
         setLoading(false);
         return;
       }
 
       try {
+        // Essayer de charger depuis sessionStorage d'abord (mode hors ligne)
+        const cachedData = sessionStorage.getItem(`invoice_print_${params.id}`);
+        if (cachedData) {
+          const { invoice: cachedInvoice, company: cachedCompany, timestamp } = JSON.parse(cachedData);
+
+          // Vérifier que les données ne sont pas trop vieilles (24h max)
+          const age = Date.now() - timestamp;
+          if (age < 24 * 60 * 60 * 1000) {
+            console.log('[Print] Données chargées depuis sessionStorage (mode hors ligne)');
+            setInvoice(cachedInvoice);
+            setCompany(cachedCompany);
+
+            // Imprimer automatiquement
+            if (!hasPrinted.current) {
+              hasPrinted.current = true;
+              setTimeout(() => {
+                window.print();
+                setTimeout(() => {
+                  if (!hasClosed.current) {
+                    hasClosed.current = true;
+                    window.close();
+                  }
+                }, 1000);
+              }, 500);
+            }
+
+            setLoading(false);
+            return;
+          } else {
+            // Données trop vieilles, les supprimer
+            sessionStorage.removeItem(`invoice_print_${params.id}`);
+          }
+        }
+
+        // Si pas de données cached ou trop vieilles, charger depuis Firestore
+        if (!user?.currentCompanyId) {
+          setError('Impossible de charger la facture');
+          setLoading(false);
+          return;
+        }
+
         // Récupérer la facture
         const invoiceRef = doc(db, 'companies', user.currentCompanyId, 'invoices', params.id as string);
         const invoiceSnap = await getDoc(invoiceRef);

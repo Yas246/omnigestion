@@ -54,6 +54,18 @@ export function InvoiceDetailDialog({
   if (!invoice) return null;
 
   const handlePrint = async () => {
+    // Stocker les données de la facture et l'entreprise dans sessionStorage pour l'impression hors ligne
+    try {
+      const printData = {
+        invoice,
+        company,
+        timestamp: Date.now(),
+      };
+      sessionStorage.setItem(`invoice_print_${invoice.id}`, JSON.stringify(printData));
+    } catch (error) {
+      console.error('Erreur lors du stockage des données d\'impression:', error);
+    }
+
     // Ouvrir la page d'impression dans un nouvel onglet
     window.open(`/sales/print/${invoice.id}`, '_blank');
   };
