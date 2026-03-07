@@ -17,6 +17,16 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, CloudOff, RefreshCw, Cloud } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Type pour le résultat de création de facture (avec ou sans pending)
+type InvoiceCreateResult = {
+  id: string;
+  invoiceNumber: string;
+  total: number;
+  status: string;
+  remainingAmount: number;
+  pending?: boolean;
+};
+
 export default function SalesPage() {
   const {
     invoices,
@@ -60,10 +70,10 @@ export default function SalesPage() {
   const handleCreateInvoice = async (data: any) => {
     setIsSubmitting(true);
     try {
-      const result = await createInvoiceOffline(data);
+      const result = await createInvoiceOffline(data) as InvoiceCreateResult;
 
       // Si la facture est en attente (hors ligne)
-      if (result.pending) {
+      if ('pending' in result && result.pending) {
         toast.success(
           `Facture créée (en attente de synchronisation)`,
           {

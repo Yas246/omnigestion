@@ -6,7 +6,7 @@
 import { offlineInvoices } from '@/lib/indexeddb/offline-invoices';
 import type { InvoiceCreateInput } from '@/lib/hooks/useInvoices';
 
-interface SyncOptions {
+export interface SyncOptions {
   onSyncStart?: (count: number) => void;
   onSyncProgress?: (current: number, total: number) => void;
   onSyncComplete?: (success: number, failed: number) => void;
