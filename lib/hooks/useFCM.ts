@@ -135,8 +135,23 @@ export function useFCM() {
       try {
         console.log('[useFCM] Génération du token FCM avec VAPID_KEY:', VAPID_KEY ? 'configurée' : 'NON configurée');
 
+        // Récupérer ou enregistrer le service worker existant
+        let swRegistration;
+        try {
+          swRegistration = await navigator.serviceWorker.getRegistration();
+          if (!swRegistration) {
+            console.log('[useFCM] Aucun SW trouvé, enregistrement de /sw.js');
+            swRegistration = await navigator.serviceWorker.register('/sw.js');
+          }
+          console.log('[useFCM] Service Worker utilisé:', swRegistration);
+        } catch (swError) {
+          console.error('[useFCM] Erreur enregistrement SW:', swError);
+          throw new Error('Impossible d\'enregistrer le service worker');
+        }
+
         const fcmToken = await getToken(messaging, {
           vapidKey: VAPID_KEY,
+          serviceWorkerRegistration: swRegistration,
         });
 
         if (!fcmToken) {
