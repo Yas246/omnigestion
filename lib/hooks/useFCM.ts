@@ -23,24 +23,30 @@ export function useFCM() {
    * Demander la permission de notification au navigateur
    */
   const requestPermission = async (): Promise<boolean> => {
+    console.log('[useFCM] État actuel des notifications:', Notification.permission);
+
     if (!('Notification' in window)) {
       setError('Les notifications ne sont pas supportées par ce navigateur');
       return false;
     }
 
     if (Notification.permission === 'granted') {
+      console.log('[useFCM] Permission déjà accordée');
       setPermissionStatus('granted');
       return true;
     }
 
     if (Notification.permission === 'denied') {
+      console.error('[useFCM] Permission refusée par l\'utilisateur');
       setPermissionStatus('denied');
       setError('Notifications bloquées par l\'utilisateur');
       return false;
     }
 
     try {
+      console.log('[useFCM] Demande de permission en cours...');
       const permission = await Notification.requestPermission();
+      console.log('[useFCM] Permission accordée:', permission);
       setPermissionStatus(permission);
 
       if (permission === 'granted') {
@@ -154,15 +160,18 @@ export function useFCM() {
             swRegistration = await navigator.serviceWorker.register('/sw.js');
           }
           console.log('[useFCM] Service Worker utilisé:', swRegistration);
+          console.log('[useFCM] PushManager disponible?', !!swRegistration.pushManager);
         } catch (swError) {
           console.error('[useFCM] Erreur enregistrement SW:', swError);
           throw new Error('Impossible d\'enregistrer le service worker');
         }
 
+        console.log('[useFCM] Appel à getToken() avec VAPID_KEY...');
         const fcmToken = await getToken(messaging, {
           vapidKey: VAPID_KEY,
           serviceWorkerRegistration: swRegistration,
         });
+        console.log('[useFCM] getToken() réussi!');
 
         if (!fcmToken) {
           console.error('[useFCM] Échec de la génération du token FCM - token vide');
@@ -175,9 +184,20 @@ export function useFCM() {
         await saveToken(fcmToken);
       } catch (err: any) {
         console.error('[useFCM] Erreur lors de la génération du token:', err);
+        console.error('[useFCM] Erreur name:', err.name);
+        console.error('[useFCM] Erreur message:', err.message);
+        console.error('[useFCM] Erreur code:', err.code);
+        console.error('[useFCM] Notification permission:', Notification.permission);
+
         if (err.code === 'messaging/permission-blocked') {
           setError('Notifications bloquées');
           setPermissionStatus('denied');
+        } else if (err.name === 'AbortError' && err.message.includes('push service error')) {
+          setError('Erreur du service push - vérifiez que les notifications sont autorisées');
+          console.error('[useFCM] Push service error - peut-être causé par:');
+          console.error('  - Un adblocker ou extension de confidentialité');
+          console.error('  - Notifications bloquées dans les paramètres Chrome');
+          console.error('  - VPN ou proxy');
         } else {
           throw err;
         }
