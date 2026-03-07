@@ -1,0 +1,173 @@
+// Omnigestion Service Worker
+// Cache des assets statiques uniquement - PAS de cache Firestore/API
+
+const CACHE_NAME = 'omnigestion-v1';
+const STATIC_CACHE = 'omnigestion-static-v1';
+
+// Assets à mettre en cache statique (pages, JS, CSS, images)
+const STATIC_ASSETS = [
+  '/',
+  '/offline',
+  '/manifest.json',
+  // Les icônes seront ajoutées automatiquement lors de l'installation
+];
+
+// Assets à ne JAMAIS cacher (Firestore, API, IndexedDB)
+const DYNAMIC_PATTERNS = [
+  /\/_next\/data\/.*/, // Next.js data requests
+  /\/api\/.*/, // API routes
+  /firebaseio\.com/, // Firebase
+  /firestore\.googleapis\.com/, // Firestore API
+  /googleapis\.com\/identitytoolkit/, // Firebase Auth
+];
+
+// Installation du Service Worker
+self.addEventListener('install', (event) => {
+  console.log('[SW] Installation');
+
+  event.waitUntil(
+    caches.open(STATIC_CACHE).then((cache) => {
+      console.log('[SW] Mise en cache des assets statiques');
+      return cache.addAll(STATIC_ASSETS);
+    })
+  );
+
+  self.skipWaiting();
+});
+
+// Activation du Service Worker
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activation');
+
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          // Supprimer les anciens caches
+          if (cacheName !== STATIC_CACHE && cacheName !== CACHE_NAME) {
+            console.log('[SW] Suppression de l\'ancien cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+
+  self.clients.claim();
+});
+
+// Stratégie de cache pour les requêtes
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // NE PAS cacher les requêtes Firestore/API
+  if (shouldBypassCache(url)) {
+    console.log('[SW] Bypass cache:', request.url);
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  // Pour les assets statiques (_next/static/, icons, etc.)
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) {
+          return cached;
+        }
+
+        return fetch(request).then((response) => {
+          // Mettre en cache les assets statiques
+          if (response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
+        }).catch(() => {
+          // Fallback pour les assets statiques
+          return new Response('Asset non disponible', { status: 503 });
+        });
+      })
+    );
+    return;
+  }
+
+  // Pour les pages HTML : Network First avec fallback cache
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Mettre en cache la réponse si succès
+          if (response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Offline : retourner la page cached ou offline.html
+          return caches.match(request).then((cached) => {
+            if (cached) {
+              return cached;
+            }
+            return caches.match('/offline').then((offlinePage) => {
+              return offlinePage || new Response('Hors ligne', { status: 503 });
+            });
+          });
+        })
+    );
+    return;
+  }
+
+  // Par défaut : Network First
+  event.respondWith(
+    fetch(request)
+      .then((response) => response)
+      .catch(() => caches.match(request))
+  );
+});
+
+// Vérifier si une URL doit contourner le cache
+function shouldBypassCache(url) {
+  return DYNAMIC_PATTERNS.some(pattern => pattern.test(url.href));
+}
+
+// Vérifier si c'est un asset statique
+function isStaticAsset(url) {
+  // Assets Next.js statiques
+  if (url.pathname.startsWith('/_next/static/')) {
+    return true;
+  }
+
+  // Images et icônes
+  if (url.pathname.startsWith('/icons/') ||
+      url.pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|ico)$/)) {
+    return true;
+  }
+
+  // Manifeste
+  if (url.pathname === '/manifest.json') {
+    return true;
+  }
+
+  return false;
+}
+
+// Écouter les messages du client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+
+  if (event.data && event.data.type === 'CACHE_URLS') {
+    event.waitUntil(
+      caches.open(STATIC_CACHE).then((cache) => {
+        return cache.addAll(event.data.urls);
+      })
+    );
+  }
+});

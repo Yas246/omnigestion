@@ -1,0 +1,31 @@
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // Routes publiques (non protégées)
+  const publicPaths = ['/login', '/register', '/forgot-password'];
+  const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
+
+  // Vérifier si l'utilisateur est authentifié via le cookie de session
+  const sessionCookie = request.cookies.get('firebase-session');
+
+  // Rediriger vers login si pas de session et route protégée
+  if (!sessionCookie && !isPublicPath && pathname.startsWith('/dashboard')) {
+    const loginUrl = new URL('/login', request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Rediriger vers dashboard si déjà connecté et route publique
+  if (sessionCookie && isPublicPath) {
+    const dashboardUrl = new URL('/dashboard', request.url);
+    return NextResponse.redirect(dashboardUrl);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+};

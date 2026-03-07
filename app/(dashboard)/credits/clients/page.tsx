@@ -1,0 +1,245 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Plus, DollarSign, Calendar } from 'lucide-react';
+import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { PermissionGate } from '@/components/auth';
+import { CreditPaymentDialog } from '@/components/credits/CreditPaymentDialog';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+// Custom hook pour le debouncing
+function useDebounce(value: string, delay: number): string {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+type StatusFilter = 'all' | 'active' | 'partial' | 'overdue' | 'paid';
+
+export default function CreditsPage() {
+  const { credits, loading, addPayment } = useClientCredits();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active'); // Par défaut: uniquement les actifs
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCredit, setSelectedCredit] = useState<any>(null);
+
+  // Debouncing de 300ms pour la recherche
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('fr-FR').format(price);
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, { label: string; variant: any }> = {
+      active: { label: 'En cours', variant: 'default' },
+      partial: { label: 'Payé partiel', variant: 'secondary' },
+      paid: { label: 'Payé', variant: 'outline' },
+      overdue: { label: 'En retard', variant: 'destructive' },
+      cancelled: { label: 'Annulé', variant: 'outline' },
+    };
+    return labels[status] || { label: status, variant: 'outline' };
+  };
+
+  const filteredCredits = credits.filter((credit) => {
+    const matchesStatus = statusFilter === 'all' || credit.status === statusFilter;
+    // Ne filtrer que si la recherche est vide ou a minimum 3 caractères
+    if (debouncedSearchQuery.length > 0 && debouncedSearchQuery.length < 3) {
+      return false; // Masquer tous les résultats si moins de 3 caractères
+    }
+    const matchesSearch =
+      debouncedSearchQuery === '' ||
+      credit.clientName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      credit.invoiceNumber?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
+
+  // Crédits actifs uniquement (ni payés, ni annulés) pour les statistiques
+  const activeCredits = credits.filter((c) => c.status !== 'paid' && c.status !== 'cancelled');
+  const totalCredits = activeCredits.reduce((sum, c) => sum + c.amount, 0);
+  const totalPaid = activeCredits.reduce((sum, c) => sum + c.amountPaid, 0);
+  const totalRemaining = activeCredits.reduce((sum, c) => sum + c.remainingAmount, 0);
+
+  const handlePayment = async (data: any) => {
+    if (!selectedCredit) return;
+    try {
+      await addPayment(selectedCredit.id, data);
+      setShowPaymentDialog(false);
+      setSelectedCredit(null);
+    } catch (error: any) {
+      console.error('Erreur lors du paiement:', error);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* En-tête */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Crédits clients</h1>
+          <p className="text-muted-foreground">
+            Suivi et gestion des créances clients
+          </p>
+        </div>
+      </div>
+
+      {/* Statistiques */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total créances</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatPrice(totalCredits)} FCFA</div>
+            <p className="text-xs text-muted-foreground">{activeCredits.length} crédit(s) actif(s)</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total payé</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{formatPrice(totalPaid)} FCFA</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Reste à percevoir</CardTitle>
+            <DollarSign className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{formatPrice(totalRemaining)} FCFA</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filtres */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Liste des crédits</CardTitle>
+            <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
+              <Input
+                placeholder="Rechercher client, facture... (min. 3 caractères)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full sm:w-64"
+              />
+              <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous</SelectItem>
+                  <SelectItem value="active">En cours</SelectItem>
+                  <SelectItem value="partial">Payé partiel</SelectItem>
+                  <SelectItem value="overdue">En retard</SelectItem>
+                  <SelectItem value="paid">Payé</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredCredits.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              {debouncedSearchQuery ? 'Aucun crédit trouvé' : 'Aucun crédit trouvé'}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {filteredCredits.map((credit) => (
+                <div
+                  key={credit.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="font-medium">{credit.clientName}</span>
+                      {credit.invoiceNumber && (
+                        <span className="text-sm text-muted-foreground">
+                          Facture {credit.invoiceNumber}
+                        </span>
+                      )}
+                      <Badge variant={getStatusLabel(credit.status).variant}>
+                        {getStatusLabel(credit.status).label}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="text-muted-foreground">
+                        Total : {formatPrice(credit.amount)} FCFA
+                      </span>
+                      <span className="text-green-600">
+                        Payé : {formatPrice(credit.amountPaid)} FCFA
+                      </span>
+                      <span className="text-orange-600 font-medium">
+                        Reste : {formatPrice(credit.remainingAmount)} FCFA
+                      </span>
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(credit.date), 'dd/MM/yyyy', { locale: fr })}
+                      </span>
+                      {credit.dueDate && (
+                        <span className="text-muted-foreground">
+                          Échéance : {format(new Date(credit.dueDate), 'dd/MM/yyyy', { locale: fr })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <PermissionGate module="credits" action="payment">
+                    {credit.status !== 'paid' && credit.status !== 'cancelled' && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setSelectedCredit(credit);
+                          setShowPaymentDialog(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Enregistrer paiement
+                      </Button>
+                    )}
+                  </PermissionGate>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog de paiement */}
+      <CreditPaymentDialog
+        open={showPaymentDialog}
+        onOpenChange={(open) => {
+          setShowPaymentDialog(open);
+          if (!open) setSelectedCredit(null);
+        }}
+        credit={selectedCredit}
+        onSubmit={handlePayment}
+      />
+    </div>
+  );
+}
