@@ -1,9 +1,9 @@
 // Omnigestion Service Worker
 // Cache des assets statiques uniquement - PAS de cache Firestore/API
-// v6: Ne pas intercepter les requêtes Firebase (évite les erreurs hors ligne)
+// v7: Support FCM push notifications + synchronisation temps réel avec localStorage
 
-const CACHE_NAME = 'omnigestion-v6';
-const STATIC_CACHE = 'omnigestion-static-v6';
+const CACHE_NAME = 'omnigestion-v7';
+const STATIC_CACHE = 'omnigestion-static-v7';
 
 // Assets à mettre en cache statique (pages, JS, CSS, images)
 const STATIC_ASSETS = [

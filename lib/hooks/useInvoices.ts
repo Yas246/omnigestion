@@ -516,6 +516,9 @@ export function useInvoices() {
             };
             await productsCache.upsertProduct(updatedProduct);
             console.log('[createInvoice] Produit mis à jour dans le cache:', cachedProduct.name, `${cachedProduct.currentStock} → ${update.newStock}`);
+
+            // Notifier useProducts que le cache a changé
+            localStorage.setItem(`products_updated_${user.currentCompanyId}`, Date.now().toString());
           }
         }
       } catch (cacheError) {

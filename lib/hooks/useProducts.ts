@@ -28,7 +28,6 @@ export function useProducts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCacheLoaded, setIsCacheLoaded] = useState(false);
-  const [realtimeUnsubscribe, setRealtimeUnsubscribe] = useState<(() => void) | null>(null);
 
   /**
    * Charge tous les produits depuis Firestore (sans pagination)
@@ -124,47 +123,24 @@ export function useProducts() {
     }
   }, [user?.currentCompanyId, isCacheLoaded, fetchProducts]);
 
-  // ===== NOUVEAU: Écouter les changements de produits en temps réel =====
+  // ===== NOUVEAU: Écouter les mises à jour du cache IndexedDB =====
   useEffect(() => {
-    if (!user?.currentCompanyId) return;
-
-    console.log('[useProducts] Setting up real-time listener for products');
-
-    const productsRef = collection(db, COLLECTIONS.companyProducts(user.currentCompanyId));
-
-    const unsubscribe = onSnapshot(
-      productsRef,
-      async (snapshot) => {
-        console.log('[useProducts] Real-time update received:', snapshot.docChanges.length, 'changes');
-
-        const updatedProducts = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        } as Product));
-
-        // Mettre à jour le state
-        setProducts(updatedProducts);
-
-        // Mettre à jour le cache IndexedDB
-        try {
-          await productsCache.setProducts(updatedProducts);
-          console.log('[useProducts] Cache updated with real-time data');
-        } catch (cacheError) {
-          console.error('[useProducts] Error updating cache:', cacheError);
-        }
-      },
-      (error) => {
-        console.error('[useProducts] Real-time listener error:', error);
-        setError('Erreur lors de l\'écoute des modifications en temps réel');
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === `products_updated_${user?.currentCompanyId}`) {
+        console.log('[useProducts] Cache updated event received, reloading from cache');
+        // Recharger depuis le cache IndexedDB qui vient d'être mis à jour
+        loadFromCache().then((cached) => {
+          if (cached) {
+            setProducts(cached);
+          }
+        });
       }
-    );
+    };
 
-    setRealtimeUnsubscribe(() => unsubscribe);
+    window.addEventListener('storage', handleStorageChange);
 
-    // Cleanup: se désabonner quand le composant se démonte ou qu'on change de compagnie
     return () => {
-      console.log('[useProducts] Cleaning up real-time listener');
-      unsubscribe();
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [user?.currentCompanyId]);
 
@@ -312,11 +288,9 @@ export function useProducts() {
 
       const updatedProduct = { ...products.find(p => p.id === id)!, ...productData, ...(status && { status }), updatedAt: new Date() as any };
 
-      // NOTE: Le state sera mis à jour automatiquement par l'écouteur onSnapshot
-      // On met seulement à jour le cache IndexedDB pour le mode offline
+      // Mettre à jour le state et le cache
+      setProducts((prev) => prev.map((p) => (p.id === id ? updatedProduct : p)));
       await productsCache.upsertProduct(updatedProduct);
-
-      console.log('[updateProduct] Product updated in Firestore, real-time listener will sync state');
 
       // ===== NOUVEAU: Envoyer notification si stock faible ou épuisé =====
       if (status === 'out' || status === 'low') {
