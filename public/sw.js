@@ -1,13 +1,14 @@
 // Omnigestion Service Worker
 // Cache des assets statiques uniquement - PAS de cache Firestore/API
-// v2: Ajout support images Cloudinary pour logo entreprise
+// v4: Cache First avec fallback /dashboard pour navigation hors ligne
 
-const CACHE_NAME = 'omnigestion-v2';
-const STATIC_CACHE = 'omnigestion-static-v2';
+const CACHE_NAME = 'omnigestion-v4';
+const STATIC_CACHE = 'omnigestion-static-v4';
 
 // Assets à mettre en cache statique (pages, JS, CSS, images)
 const STATIC_ASSETS = [
   '/',
+  '/dashboard',
   '/offline',
   '/manifest.json',
   // Les icônes seront ajoutées automatiquement lors de l'installation
@@ -69,7 +70,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Pour les assets statiques (_next/static/, icons, etc.)
+  // Pour les assets statiques (_next/static/, icons, etc.) : Cache First
   if (isStaticAsset(url)) {
     event.respondWith(
       caches.match(request).then((cached) => {
@@ -87,7 +88,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         }).catch(() => {
-          // Fallback pour les assets statiques
+          // Fallback pour les assets statiques - retourner une réponse vide ou placeholder
           return new Response('Asset non disponible', { status: 503 });
         });
       })
@@ -95,31 +96,58 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Pour les pages HTML : Network First avec fallback cache
+  // Pour les pages HTML : Cache First (permet navigation hors ligne)
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Mettre en cache la réponse si succès
-          if (response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return response;
-        })
-        .catch(() => {
-          // Offline : retourner la page cached ou offline.html
-          return caches.match(request).then((cached) => {
-            if (cached) {
-              return cached;
+      caches.match(request).then((cached) => {
+        // Servir depuis le cache si disponible (rapide et fonctionne offline)
+        if (cached) {
+          // Mettre à jour en arrière-plan (stale-while-revalidate)
+          fetch(request).then((response) => {
+            if (response.status === 200) {
+              const responseClone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseClone);
+              });
             }
-            return caches.match('/offline').then((offlinePage) => {
-              return offlinePage || new Response('Hors ligne', { status: 503 });
+          }).catch(() => {
+            // Ignorer les erreurs de fetch en arrière-plan
+          });
+          return cached;
+        }
+
+        // Pas dans le cache : aller sur le réseau
+        return fetch(request)
+          .then((response) => {
+            // Mettre en cache pour la prochaine fois
+            if (response.status === 200) {
+              const responseClone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseClone);
+              });
+            }
+            return response;
+          })
+          .catch(() => {
+            // Hors ligne et page non visitée auparavant
+            // Retourner le dashboard depuis le cache comme fallback (page principale pour les utilisateurs connectés)
+            return caches.match('/dashboard').then((dashboardPage) => {
+              if (dashboardPage) {
+                return dashboardPage;
+              }
+              // Fallback vers la racine si dashboard pas dispo
+              return caches.match('/').then((homePage) => {
+                if (homePage) {
+                  return homePage;
+                }
+                // Dernier recours : page offline
+                return caches.match('/offline').then((offlinePage) => {
+                  return offlinePage || new Response('Application non disponible hors ligne pour le moment', { status: 503 });
+                });
+              });
             });
           });
-        })
+      })
     );
     return;
   }
@@ -139,14 +167,19 @@ function shouldBypassCache(url) {
 
 // Vérifier si c'est un asset statique
 function isStaticAsset(url) {
-  // Assets Next.js statiques
-  if (url.pathname.startsWith('/_next/static/')) {
+  // Assets Next.js statiques et dynamiques (chunks, JS, CSS)
+  if (url.pathname.startsWith('/_next/')) {
     return true;
   }
 
   // Images et icônes locales
   if (url.pathname.startsWith('/icons/') ||
       url.pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|ico)$/)) {
+    return true;
+  }
+
+  // Fichiers JavaScript et CSS
+  if (url.pathname.match(/\.(js|css)$/)) {
     return true;
   }
 

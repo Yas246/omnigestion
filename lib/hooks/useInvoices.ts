@@ -23,6 +23,8 @@ import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useSettings } from './useSettings';
 import { productsCache } from '@/lib/indexeddb/db';
+import { offlineInvoices } from '@/lib/indexeddb/offline-invoices';
+import { invoiceSync, type SyncOptions } from '@/lib/services/invoice-sync';
 import type { Invoice, InvoiceItem } from '@/types';
 
 const INVOICES_PER_PAGE = 50;
@@ -67,11 +69,45 @@ export function useInvoices() {
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // États pour la gestion offline
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingInvoicesCount, setPendingInvoicesCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null);
+
   useEffect(() => {
     if (user?.currentCompanyId) {
       fetchInvoices();
     }
   }, [user]);
+
+  // Écouter les événements de connexion
+  useEffect(() => {
+    const updateOnlineStatus = () => {
+      const online = navigator.onLine;
+      setIsOnline(online);
+
+      if (online && pendingInvoicesCount > 0) {
+        // Tentative de synchronisation automatique quand on passe en ligne
+        syncPendingInvoices();
+      }
+    };
+
+    // Initialiser le statut
+    updateOnlineStatus();
+
+    // Écouter les événements
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // Mettre à jour le compteur de factures en attente
+    updatePendingCount();
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+    };
+  }, [pendingInvoicesCount]);
 
   // Filtrer les factures en fonction de la recherche
   useEffect(() => {
@@ -527,6 +563,76 @@ export function useInvoices() {
     }
   };
 
+  /**
+   * Mettre à jour le compteur de factures en attente
+   */
+  const updatePendingCount = async () => {
+    const count = await offlineInvoices.getPendingCount();
+    setPendingInvoicesCount(count);
+  };
+
+  /**
+   * Créer une facture (avec support offline)
+   */
+  const createInvoiceOffline = async (data: InvoiceCreateInput) => {
+    if (!user?.currentCompanyId) throw new Error('Utilisateur non connecté');
+
+    // Vérifier si on est hors ligne
+    if (!navigator.onLine) {
+      console.log('[createInvoice] Mode hors ligne - stockage local');
+
+      // Stocker localement
+      const pendingId = await offlineInvoices.addPendingInvoice(data);
+
+      // Mettre à jour le compteur
+      await updatePendingCount();
+
+      // Retourner un résultat simulé
+      return {
+        id: pendingId,
+        invoiceNumber: `PENDING-${pendingId}`,
+        total: data.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
+        status: 'pending' as const,
+        remainingAmount: 0,
+        pending: true,
+      };
+    }
+
+    // Mode en ligne - utiliser la création normale
+    return await createInvoice(data);
+  };
+
+  /**
+   * Synchroniser les factures en attente
+   */
+  const syncPendingInvoices = async () => {
+    if (isSyncing || !navigator.onLine) {
+      return;
+    }
+
+    try {
+      setIsSyncing(true);
+
+      const result = await invoiceSync.syncPendingInvoices(createInvoice);
+
+      // Mettre à jour le compteur
+      await updatePendingCount();
+
+      // Rafraîchir la liste des factures
+      if (result.success > 0) {
+        await fetchInvoices();
+      }
+
+      return result;
+    } catch (error) {
+      console.error('[syncPendingInvoices] Erreur:', error);
+      throw error;
+    } finally {
+      setIsSyncing(false);
+      setSyncProgress(null);
+    }
+  };
+
   return {
     invoices,
     loading,
@@ -539,5 +645,12 @@ export function useInvoices() {
     createInvoice,
     updateInvoice,
     deleteInvoice,
+    // Nouvelles fonctions offline
+    createInvoiceOffline,
+    syncPendingInvoices,
+    // États offline
+    isOnline,
+    pendingInvoicesCount,
+    isSyncing,
   };
 }

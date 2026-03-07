@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useInvoices } from '@/lib/hooks/useInvoices';
 import { useClientCredits } from '@/lib/hooks/useClientCredits';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -13,7 +13,9 @@ import { InvoiceTable } from '@/components/invoices/InvoiceTable';
 import { InvoiceDetailDialog } from '@/components/invoices/InvoiceDetailDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, FileText, TrendingUp, DollarSign, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, CloudOff, RefreshCw, Cloud } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function SalesPage() {
   const {
@@ -25,8 +27,12 @@ export default function SalesPage() {
     setSearchQuery,
     fetchInvoices,
     loadMore,
-    createInvoice,
+    createInvoiceOffline,
     deleteInvoice,
+    isOnline,
+    pendingInvoicesCount,
+    isSyncing,
+    syncPendingInvoices,
   } = useInvoices();
 
   const { credits } = useClientCredits();
@@ -39,12 +45,65 @@ export default function SalesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Effet pour la synchronisation automatique
+  useEffect(() => {
+    if (isOnline && pendingInvoicesCount > 0 && !isSyncing) {
+      // Afficher une notification de synchronisation
+      const syncTimer = setTimeout(() => {
+        syncPendingInvoices();
+      }, 2000);
+
+      return () => clearTimeout(syncTimer);
+    }
+  }, [isOnline, pendingInvoicesCount]);
+
   const handleCreateInvoice = async (data: any) => {
     setIsSubmitting(true);
     try {
-      await createInvoice(data);
+      const result = await createInvoiceOffline(data);
+
+      // Si la facture est en attente (hors ligne)
+      if (result.pending) {
+        toast.success(
+          `Facture créée (en attente de synchronisation)`,
+          {
+            description: `La facture sera synchronisée lorsque vous serez en ligne`,
+            action: {
+              label: 'Voir',
+              onClick: () => {
+                // Ouvrir la liste des factures en attente
+              },
+            },
+          }
+        );
+      } else {
+        toast.success('Facture créée avec succès');
+      }
+
+      setIsDialogOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || 'Erreur lors de la création de la facture');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    try {
+      const result = await syncPendingInvoices();
+
+      if (result && result.total > 0) {
+        toast.success(
+          `Synchronisation terminée: ${result.success} facture(s) synchronisée(s)`,
+          result.failed > 0 ? {
+            description: `${result.failed} facture(s) n'ont pas pu être synchronisée(s)`,
+          } : undefined
+        );
+      } else {
+        toast.info('Aucune facture à synchroniser');
+      }
+    } catch (error: any) {
+      toast.error('Erreur lors de la synchronisation');
     }
   };
 
@@ -93,18 +152,53 @@ export default function SalesPage() {
     <div className="space-y-6">
       {/* En-tête */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Ventes</h1>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">Ventes</h1>
+
+            {/* Indicateur de statut hors ligne */}
+            {!isOnline && (
+              <Badge variant="secondary" className="gap-1.5">
+                <CloudOff className="h-3.5 w-3.5" />
+                Hors ligne
+              </Badge>
+            )}
+
+            {/* Indicateur de factures en attente */}
+            {pendingInvoicesCount > 0 && (
+              <Badge variant="outline" className="gap-1.5 border-orange-500 text-orange-600 hover:bg-orange-50">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {pendingInvoicesCount} facture(s) en attente
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">
             Gérez vos factures et vos ventes
           </p>
         </div>
-        <PermissionGate module="sales" action="create">
-          <Button onClick={() => setIsDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nouvelle facture
-          </Button>
-        </PermissionGate>
+
+        <div className="flex items-center gap-2">
+          {/* Bouton de synchronisation manuelle */}
+          {pendingInvoicesCount > 0 && isOnline && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncNow}
+              disabled={isSyncing}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Synchronisation...' : 'Synchroniser'}
+            </Button>
+          )}
+
+          <PermissionGate module="sales" action="create">
+            <Button onClick={() => setIsDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nouvelle facture
+            </Button>
+          </PermissionGate>
+        </div>
       </div>
 
       {/* Statistiques du jour */}
