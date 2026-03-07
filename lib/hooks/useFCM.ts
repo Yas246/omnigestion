@@ -135,6 +135,16 @@ export function useFCM() {
       try {
         console.log('[useFCM] Génération du token FCM avec VAPID_KEY:', VAPID_KEY ? 'configurée' : 'NON configurée');
 
+        if (!VAPID_KEY) {
+          console.error('[useFCM] VAPID_KEY non définie dans .env.local');
+          setError('VAPID_KEY non configurée - contactez l\'administrateur');
+          setLoading(false);
+          return;
+        }
+
+        console.log('[useFCM] VAPID_KEY (premiers caractères):', VAPID_KEY.substring(0, 20) + '...');
+        console.log('[useFCM] VAPID_KEY longueur:', VAPID_KEY.length, 'caractères');
+
         // Récupérer ou enregistrer le service worker existant
         let swRegistration;
         try {
