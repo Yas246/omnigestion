@@ -17,7 +17,6 @@ import {
 import { db, COLLECTIONS, SUB_COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useSettings } from './useSettings';
-import { productsCache } from '@/lib/indexeddb/db';
 import type { Product } from '@/types';
 
 export function useProducts() {
@@ -52,36 +51,11 @@ export function useProducts() {
 
     console.log('[useProducts] fetchAllProducts: loaded', productsData.length, 'products');
 
-    // Sauvegarder dans IndexedDB
-    await productsCache.setProducts(productsData);
-
     return productsData;
   };
 
   /**
-   * Charge les produits depuis IndexedDB
-   */
-  const loadFromCache = async (): Promise<Product[] | null> => {
-    if (!user?.currentCompanyId) return null;
-
-    console.log('[useProducts] loadFromCache: loading from IndexedDB');
-
-    const cachedProducts = await productsCache.getProductsByCompany(user.currentCompanyId);
-
-    if (cachedProducts.length === 0) {
-      console.log('[useProducts] loadFromCache: cache empty');
-      return null;
-    }
-
-    // Trier par nom pour garantir l'ordre alphabétique
-    cachedProducts.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
-
-    console.log('[useProducts] loadFromCache: loaded', cachedProducts.length, 'products from cache');
-    return cachedProducts;
-  };
-
-  /**
-   * Charge les produits (avec gestion du cache)
+   * Charge les produits (toujours depuis Firestore)
    */
   const fetchProducts = useCallback(async (forceRefresh = false) => {
     if (!user?.currentCompanyId) return;
@@ -90,30 +64,10 @@ export function useProducts() {
     setError(null);
 
     try {
-      let productsData: Product[];
-
-      if (!forceRefresh) {
-        // Essayer de charger depuis le cache
-        const cached = await loadFromCache();
-
-        // Vérifier si le cache est périmé
-        const isExpired = await productsCache.isCacheExpired(user.currentCompanyId);
-
-        if (cached && !isExpired) {
-          // Cache valide, l'utiliser
-          productsData = cached;
-          console.log('[useProducts] fetchProducts: using cache (', productsData.length, 'products)');
-        } else {
-          // Cache périmé ou vide, recharger depuis Firestore
-          productsData = await fetchAllProducts();
-        }
-      } else {
-        // Force refresh, charger depuis Firestore
-        productsData = await fetchAllProducts();
-      }
+      // Toujours charger depuis Firestore (plus de cache)
+      const productsData = await fetchAllProducts();
 
       setProducts(productsData);
-      setIsCacheLoaded(true);
     } catch (err) {
       console.error('Erreur lors du chargement des produits:', err);
       setError('Erreur lors du chargement des produits');
@@ -124,54 +78,24 @@ export function useProducts() {
 
   // Charger les produits au démarrage
   useEffect(() => {
-    if (user?.currentCompanyId && !isCacheLoaded) {
+    if (user?.currentCompanyId) {
       fetchProducts();
     }
-  }, [user?.currentCompanyId, isCacheLoaded, fetchProducts]);
-
-  // ===== NOUVEAU: Écouter les mises à jour du cache IndexedDB =====
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === `products_updated_${user?.currentCompanyId}`) {
-        console.log('[useProducts] Cache updated event received, reloading from cache');
-        // Recharger depuis le cache IndexedDB qui vient d'être mis à jour
-        loadFromCache().then((cached) => {
-          if (cached) {
-            setProducts(cached);
-          }
-        });
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [user?.currentCompanyId]);
+  }, [user?.currentCompanyId, fetchProducts]);
 
   /**
-   * Récupère un produit par ID (depuis le cache ou Firestore)
+   * Récupère un produit par ID (depuis Firestore)
    */
   const getProduct = async (id: string): Promise<Product | null> => {
     if (!user?.currentCompanyId) return null;
 
     try {
-      // Essayer le cache d'abord
-      const cached = await productsCache.getProductById(id);
-      if (cached) {
-        return cached;
-      }
-
-      // Sinon, charger depuis Firestore
+      // Charger depuis Firestore
       const docRef = doc(db, COLLECTIONS.companyProducts(user.currentCompanyId), id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
-        const product = { id: docSnap.id, ...docSnap.data() } as Product;
-        // Mettre en cache
-        await productsCache.upsertProduct(product);
-        return product;
+        return { id: docSnap.id, ...docSnap.data() } as Product;
       }
       return null;
     } catch (err) {
@@ -253,9 +177,8 @@ export function useProducts() {
         updatedAt: new Date() as any,
       };
 
-      // Mettre à jour le state et le cache
+      // Mettre à jour le state
       setProducts((prev) => [newProduct, ...prev]);
-      await productsCache.upsertProduct(newProduct);
 
       return newProduct;
     } catch (err) {
@@ -294,9 +217,8 @@ export function useProducts() {
 
       const updatedProduct = { ...products.find(p => p.id === id)!, ...productData, ...(status && { status }), updatedAt: new Date() as any };
 
-      // Mettre à jour le state et le cache
+      // Mettre à jour le state
       setProducts((prev) => prev.map((p) => (p.id === id ? updatedProduct : p)));
-      await productsCache.upsertProduct(updatedProduct);
 
       // ===== NOUVEAU: Envoyer notification si stock faible ou épuisé =====
       if (status === 'out' || status === 'low') {
@@ -338,9 +260,8 @@ export function useProducts() {
     try {
       await deleteDoc(doc(db, COLLECTIONS.companyProducts(user.currentCompanyId), id));
 
-      // Mettre à jour le state et le cache
+      // Mettre à jour le state
       setProducts((prev) => prev.filter((p) => p.id !== id));
-      await productsCache.deleteProduct(id);
     } catch (err) {
       console.error('Erreur lors de la suppression du produit:', err);
       throw new Error('Erreur lors de la suppression du produit');
@@ -458,7 +379,7 @@ export function useProducts() {
               )
             );
 
-            console.log(`[fetchProductStockLocations] ${product.name}: ${stockSnapshot.docs.length} stockLocations trouvés`);
+            console.log(`[fetchProductStockLocations] ${product.name}: ${stockSnapshot.docs.length} stock_locations trouvés`);
 
             const warehouseQuantities = stockSnapshot.docs.map((doc) => {
               const warehouseData = warehousesMap.get(doc.data().warehouseId);

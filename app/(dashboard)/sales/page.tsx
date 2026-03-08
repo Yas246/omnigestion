@@ -11,6 +11,7 @@ import type { Invoice } from '@/types';
 import { InvoiceDialog } from '@/components/invoices/InvoiceDialog';
 import { InvoiceTable } from '@/components/invoices/InvoiceTable';
 import { InvoiceDetailDialog } from '@/components/invoices/InvoiceDetailDialog';
+import { StockTransferModal } from '@/components/sales/StockTransferModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +44,8 @@ export default function SalesPage() {
     pendingInvoicesCount,
     isSyncing,
     syncPendingInvoices,
+    checkStockBeforeInvoice,
+    executeStockTransfers,
   } = useInvoices();
 
   const { credits } = useClientCredits();
@@ -54,6 +57,9 @@ export default function SalesPage() {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [pendingInvoiceData, setPendingInvoiceData] = useState<any>(null);
+  const [stockTransferProducts, setStockTransferProducts] = useState<any[]>([]);
 
   // Effet pour la synchronisation automatique
   useEffect(() => {
@@ -68,8 +74,29 @@ export default function SalesPage() {
   }, [isOnline, pendingInvoicesCount]);
 
   const handleCreateInvoice = async (data: any) => {
+    if (!user?.currentCompanyId) {
+      toast.error('Utilisateur non connecté');
+      return;
+    }
+
     setIsSubmitting(true);
+
     try {
+      // 1. Vérifier le stock avant création
+      const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+      const stockCheck = await checkStockBeforeInvoice(data.items, primaryWarehouseId);
+
+      // 2. Si des produits nécessitent un transfert, afficher la modale
+      if (stockCheck.productsNeedingTransfer.length > 0) {
+        // Sauvegarder les données de la facture en attente
+        setPendingInvoiceData(data);
+        setStockTransferProducts(stockCheck.productsNeedingTransfer);
+        setIsTransferModalOpen(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 3. Si pas de transfert nécessaire, créer directement la facture
       const result = await createInvoiceOffline(data) as InvoiceCreateResult;
 
       // Si la facture est en attente (hors ligne)
@@ -96,6 +123,41 @@ export default function SalesPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleTransferConfirm = async (transfers: Array<{ productId: string; fromWarehouseId: string; quantity: number }>) => {
+    if (!settings?.stock?.defaultWarehouseId || !pendingInvoiceData) {
+      toast.error('Erreur de configuration');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // 1. Exécuter les transferts
+      await executeStockTransfers(transfers, settings.stock.defaultWarehouseId);
+
+      // 2. Créer la facture
+      const result = await createInvoiceOffline(pendingInvoiceData) as InvoiceCreateResult;
+
+      toast.success('Transferts effectués et facture créée avec succès');
+
+      // Fermer les modales
+      setIsTransferModalOpen(false);
+      setIsDialogOpen(false);
+      setPendingInvoiceData(null);
+      setStockTransferProducts([]);
+    } catch (error: any) {
+      toast.error(error.message || 'Erreur lors des transferts ou de la création de la facture');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTransferCancel = () => {
+    setIsTransferModalOpen(false);
+    setPendingInvoiceData(null);
+    setStockTransferProducts([]);
   };
 
   const handleSyncNow = async () => {
@@ -309,6 +371,15 @@ export default function SalesPage() {
         invoice={selectedInvoice}
         company={company}
         onPrint={handlePrintInvoice}
+      />
+
+      {/* Modal de transfert de stock */}
+      <StockTransferModal
+        open={isTransferModalOpen}
+        onClose={handleTransferCancel}
+        products={stockTransferProducts}
+        onConfirm={handleTransferConfirm}
+        isLoading={isSubmitting}
       />
     </div>
   );

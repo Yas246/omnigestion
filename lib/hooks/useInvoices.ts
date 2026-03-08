@@ -19,10 +19,9 @@ import {
   runTransaction,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db, COLLECTIONS } from '@/lib/firebase';
+import { db, COLLECTIONS, SUB_COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useSettings } from './useSettings';
-import { productsCache } from '@/lib/indexeddb/db';
 import { offlineInvoices } from '@/lib/indexeddb/offline-invoices';
 import { invoiceSync, type SyncOptions } from '@/lib/services/invoice-sync';
 import type { Invoice, InvoiceItem } from '@/types';
@@ -186,6 +185,283 @@ export function useInvoices() {
   };
 
   /**
+   * Vérifier le stock avant création de facture et retourner les produits nécessitant un transfert
+   */
+  const checkStockBeforeInvoice = async (
+    items: InvoiceItem[],
+    primaryWarehouseId: string | undefined
+  ): Promise<{
+    canCreateInvoice: boolean;
+    productsNeedingTransfer: Array<{
+      productId: string;
+      productName: string;
+      requiredQuantity: number;
+      availableInPrimary: number;
+      missingQuantity: number;
+      availableInOtherWarehouses: Array<{
+        warehouseId: string;
+        warehouseName: string;
+        availableQuantity: number;
+      }>;
+    }>;
+  }> => {
+    if (!user?.currentCompanyId) {
+      throw new Error('Utilisateur non connecté');
+    }
+
+    const productsNeedingTransfer: Array<{
+      productId: string;
+      productName: string;
+      requiredQuantity: number;
+      availableInPrimary: number;
+      missingQuantity: number;
+      availableInOtherWarehouses: Array<{
+        warehouseId: string;
+        warehouseName: string;
+        availableQuantity: number;
+      }>;
+    }> = [];
+
+    // Récupérer tous les entrepôts
+    const warehousesSnapshot = await getDocs(
+      query(collection(db, COLLECTIONS.companyWarehouses(user.currentCompanyId)))
+    );
+    const warehouses = warehousesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    console.log(`[checkStockBeforeInvoice] Dépôt principal: ${primaryWarehouseId}`);
+    console.log(`[checkStockBeforeInvoice] ${warehouses.length} dépôts trouvés:`, warehouses.map(w => `${w.name} (${w.id})`).join(', '));
+
+    // Pour chaque produit de la facture
+    for (const item of items) {
+      if (!item.productId) continue;
+
+      // Récupérer le produit
+      const productRef = doc(db, COLLECTIONS.companyProducts(user.currentCompanyId), item.productId);
+      const productSnap = await getDoc(productRef);
+
+      if (!productSnap.exists()) {
+        throw new Error(`Produit non trouvé: ${item.productName}`);
+      }
+
+      const productData = productSnap.data();
+      console.log(`[checkStockBeforeInvoice] ✅ Produit trouvé: ${item.productName}, companyId: "${user.currentCompanyId}" (longueur: ${user.currentCompanyId.length})`);
+
+      // Calculer la quantité totale requise pour ce produit
+      const totalRequired = items
+        .filter(i => i.productId === item.productId)
+        .reduce((sum, i) => sum + i.quantity, 0);
+
+      // Récupérer le stock dans le dépôt principal
+      const primaryStockRef = query(
+        collection(db, `companies/${user.currentCompanyId}/products/${item.productId}/stock_locations`),
+        where('warehouseId', '==', primaryWarehouseId || '')
+      );
+      const primaryStockSnap = await getDocs(primaryStockRef);
+
+      let availableInPrimary = 0;
+      if (!primaryStockSnap.empty) {
+        const stockData = primaryStockSnap.docs[0].data();
+        availableInPrimary = stockData.quantity || 0;
+      }
+
+      // DEBUG: Récupérer TOUTES les stock_locations pour voir ce qui existe
+      console.log(`[checkStockBeforeInvoice] Recherche stock_locations pour productId: ${item.productId}`);
+      console.log(`[checkStockBeforeInvoice] CompanyId: "${user.currentCompanyId}"`);
+      console.log(`[checkStockBeforeInvoice] Chemin complet: companies/${user.currentCompanyId}/products/${item.productId}/stock_locations`);
+
+      const allStockLocationsRef = collection(
+        db,
+        `companies/${user.currentCompanyId}/products/${item.productId}/stock_locations`
+      );
+      const allStockSnap = await getDocs(allStockLocationsRef);
+      console.log(`[checkStockBeforeInvoice] Toutes les stock_locations pour ${item.productName} (${item.productId}): ${allStockSnap.size} trouvées`);
+
+      if (allStockSnap.size === 0) {
+        console.log(`[checkStockBeforeInvoice] ⚠️ ATTENTION: Aucune stockLocation trouvée alors qu'elles devraient exister !`);
+        console.log(`[checkStockBeforeInvoice] Vérifie dans Firebase Console: companies/${user.currentCompanyId}/products/${item.productId}/stock_locations`);
+      }
+
+      allStockSnap.docs.forEach(doc => {
+        const data = doc.data();
+        console.log(`  - Dépôt ID: ${data.warehouseId}, Quantité: ${data.quantity}`);
+      });
+
+      // Vérifier si le stock est insuffisant dans le dépôt principal
+      if (availableInPrimary < totalRequired) {
+        const missingQuantity = totalRequired - availableInPrimary;
+
+        // Chercher dans les autres dépôts
+        const otherWarehousesStock: Array<{
+          warehouseId: string;
+          warehouseName: string;
+          availableQuantity: number;
+        }> = [];
+
+        for (const warehouse of warehouses) {
+          // Ignorer le dépôt principal
+          if (warehouse.id === primaryWarehouseId) continue;
+
+          console.log(`[checkStockBeforeInvoice] Vérification dépôt ${warehouse.name} (${warehouse.id}) pour ${item.productName}...`);
+
+          // Récupérer le stock dans ce dépôt
+          const stockRef = query(
+            collection(db, `companies/${user.currentCompanyId}/products/${item.productId}/stock_locations`),
+            where('warehouseId', '==', warehouse.id)
+          );
+          const stockSnap = await getDocs(stockRef);
+
+          console.log(`[checkStockBeforeInvoice] StockSnap size: ${stockSnap.size} pour dépôt ${warehouse.name}`);
+
+          if (!stockSnap.empty) {
+            const stockData = stockSnap.docs[0].data();
+            const availableQuantity = stockData.quantity || 0;
+
+            console.log(`[checkStockBeforeInvoice] Trouvé ${availableQuantity} unités dans ${warehouse.name}`);
+
+            if (availableQuantity > 0) {
+              otherWarehousesStock.push({
+                warehouseId: warehouse.id,
+                warehouseName: warehouse.name,
+                availableQuantity,
+              });
+            }
+          } else {
+            console.log(`[checkStockBeforeInvoice] Aucun stock trouvé pour ${item.productName} dans ${warehouse.name}`);
+          }
+        }
+
+        // Trier par quantité disponible (décroissant)
+        otherWarehousesStock.sort((a, b) => b.availableQuantity - a.availableQuantity);
+
+        productsNeedingTransfer.push({
+          productId: item.productId,
+          productName: item.productName,
+          requiredQuantity: totalRequired,
+          availableInPrimary,
+          missingQuantity,
+          availableInOtherWarehouses: otherWarehousesStock,
+        });
+      }
+    }
+
+    // Vérifier si tous les produits ont un stock suffisant (même avec transferts)
+    const allProductsHaveStock = productsNeedingTransfer.every(
+      p => p.availableInOtherWarehouses.reduce((sum, w) => sum + w.availableQuantity, 0) >= p.missingQuantity
+    );
+
+    return {
+      canCreateInvoice: allProductsHaveStock,
+      productsNeedingTransfer,
+    };
+  };
+
+  /**
+   * Effectuer les transferts de stock automatiquement
+   */
+  const executeStockTransfers = async (
+    transfers: Array<{ productId: string; fromWarehouseId: string; quantity: number }>,
+    primaryWarehouseId: string
+  ): Promise<void> => {
+    if (!user?.currentCompanyId) {
+      throw new Error('Utilisateur non connecté');
+    }
+
+    await runTransaction(db, async (transaction) => {
+      for (const transfer of transfers) {
+        const { productId, fromWarehouseId, quantity } = transfer;
+
+        // 1. Récupérer et déduire du dépôt source
+        const fromStockRef = query(
+          collection(db, `companies/${user.currentCompanyId}/products/${productId}/stock_locations`),
+          where('warehouseId', '==', fromWarehouseId)
+        );
+        const fromStockSnap = await getDocs(fromStockRef);
+
+        if (fromStockSnap.empty) {
+          throw new Error(`Stock non trouvé dans le dépôt source pour le produit ${productId}`);
+        }
+
+        const fromStockDoc = fromStockSnap.docs[0];
+        const fromStockData = fromStockDoc.data();
+
+        if (fromStockData.quantity < quantity) {
+          throw new Error(`Stock insuffisant dans le dépôt source (${fromStockData.quantity} < ${quantity})`);
+        }
+
+        const newFromQuantity = fromStockData.quantity - quantity;
+        transaction.update(fromStockDoc.ref, {
+          quantity: newFromQuantity,
+          updatedAt: new Date(),
+        });
+
+        // 2. Ajouter au dépôt principal (ou créer si n'existe pas)
+        const toStockRef = query(
+          collection(db, `companies/${user.currentCompanyId}/products/${productId}/stock_locations`),
+          where('warehouseId', '==', primaryWarehouseId)
+        );
+        const toStockSnap = await getDocs(toStockRef);
+
+        if (toStockSnap.empty) {
+          // Créer la répartition dans le dépôt principal
+          const newStockRef = doc(collection(db, `companies/${user.currentCompanyId}/products/${productId}/stock_locations`));
+          transaction.set(newStockRef, {
+            productId,
+            warehouseId: primaryWarehouseId,
+            quantity,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        } else {
+          // Mettre à jour la répartition existante
+          const toStockDoc = toStockSnap.docs[0];
+          const toStockData = toStockDoc.data();
+          const newToQuantity = toStockData.quantity + quantity;
+
+          transaction.update(toStockDoc.ref, {
+            quantity: newToQuantity,
+            updatedAt: new Date(),
+          });
+        }
+
+        // 3. Créer le mouvement de transfert
+        const movementsCollection = collection(db, COLLECTIONS.companyStockMovements(user.currentCompanyId));
+
+        // Mouvement de sortie
+        const fromMovementRef = doc(movementsCollection);
+        transaction.set(fromMovementRef, {
+          companyId: user.currentCompanyId,
+          productId,
+          warehouseId: fromWarehouseId,
+          type: 'transfer',
+          quantity: -quantity,
+          reason: 'Transfert automatique pour vente',
+          referenceType: 'auto_transfer_for_sale',
+          userId: user.id,
+          createdAt: new Date(),
+        });
+
+        // Mouvement d'entrée
+        const toMovementRef = doc(movementsCollection);
+        transaction.set(toMovementRef, {
+          companyId: user.currentCompanyId,
+          productId,
+          warehouseId: primaryWarehouseId,
+          type: 'transfer',
+          quantity: quantity,
+          reason: 'Transfert automatique pour vente',
+          referenceType: 'auto_transfer_for_sale',
+          userId: user.id,
+          createdAt: new Date(),
+        });
+
+        console.log(`[executeStockTransfers] Transféré ${quantity} unités de ${productId} de ${fromWarehouseId} vers ${primaryWarehouseId}`);
+      }
+    });
+
+    console.log(`[executeStockTransfers] ${transfers.length} transfert(s) effectué(s) avec succès`);
+  };
+
+  /**
    * Créer une nouvelle facture avec validation des prix et transaction atomique
    */
   const createInvoice = async (data: InvoiceCreateInput) => {
@@ -236,12 +512,27 @@ export function useInvoices() {
           }
 
           const productData = productSnap.data();
-          const currentStock = productData.currentStock || 0;
 
-          if (currentStock < item.quantity) {
-            throw new Error(
-              `Stock insuffisant pour ${item.productName}: ${currentStock} ${item.unit} disponibles`
+          // Vérifier le stock dans le dépôt principal (après transferts éventuels)
+          const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+          if (primaryWarehouseId) {
+            const primaryStockRef = query(
+              collection(db, `companies/${user.currentCompanyId}/products/${item.productId}/stock_locations`),
+              where('warehouseId', '==', primaryWarehouseId)
             );
+            const primaryStockSnap = await getDocs(primaryStockRef);
+
+            let availableInPrimary = 0;
+            if (!primaryStockSnap.empty) {
+              const stockData = primaryStockSnap.docs[0].data();
+              availableInPrimary = stockData.quantity || 0;
+            }
+
+            if (availableInPrimary < item.quantity) {
+              throw new Error(
+                `Stock insuffisant dans le dépôt principal pour ${item.productName}: ${availableInPrimary} ${item.unit} disponibles (besoin de ${item.quantity})`
+              );
+            }
           }
 
           const newStock = currentStock - item.quantity;
@@ -251,7 +542,7 @@ export function useInvoices() {
             deduction: item.quantity,
           });
 
-          // Déterminer le nouveau statut
+          // Déterminer le nouveau statut basé sur le stock total
           const newStatus = newStock === 0 ? 'out' : newStock <= productData.alertThreshold ? 'low' : 'ok';
 
           // Collecter les alertes de stock (si le statut change vers 'low' ou 'out')
@@ -272,13 +563,38 @@ export function useInvoices() {
             updatedAt: new Date(),
           });
 
-          // Créer le mouvement de stock (sortie)
+          // Mettre à jour les stock_locations du dépôt principal
+          if (primaryWarehouseId) {
+            const primaryStockRef = query(
+              collection(db, `companies/${user.currentCompanyId}/products/${item.productId}/stock_locations`),
+              where('warehouseId', '==', primaryWarehouseId)
+            );
+            const primaryStockSnap = await getDocs(primaryStockRef);
+
+            if (!primaryStockSnap.empty) {
+              // Déduire du dépôt principal
+              const primaryStockDoc = primaryStockSnap.docs[0];
+              const primaryStockData = primaryStockDoc.data();
+              const newPrimaryQuantity = primaryStockData.quantity - item.quantity;
+
+              transaction.update(primaryStockDoc.ref, {
+                quantity: newPrimaryQuantity,
+                updatedAt: new Date(),
+              });
+
+              console.log(`[createInvoice] Déduit ${item.quantity} de ${item.productName} du dépôt principal (${primaryWarehouseId}): ${primaryStockData.quantity} → ${newPrimaryQuantity}`);
+            } else {
+              console.log(`[createInvoice] ⚠️ Aucun stock_location trouvé pour le dépôt principal ${primaryWarehouseId}`);
+            }
+          }
+
+          // Créer le mouvement de stock (sortie) depuis le dépôt principal
           const movementsCollection = collection(db, COLLECTIONS.companyStockMovements(user.currentCompanyId));
           const movementRef = doc(movementsCollection);
           transaction.set(movementRef, {
             companyId: user.currentCompanyId,
             productId: item.productId,
-            warehouseId: productData.warehouseId || settings?.stock?.defaultWarehouseId,
+            warehouseId: primaryWarehouseId || productData.warehouseId,
             type: 'out',
             quantity: -item.quantity,
             reason: `Vente facture`,
@@ -500,32 +816,6 @@ export function useInvoices() {
       });
 
       // Mettre à jour le cache IndexedDB avec les nouveaux stocks
-      console.log('[createInvoice] Mise à jour du cache IndexedDB pour', productUpdates.length, 'produits');
-      try {
-        for (const update of productUpdates) {
-          // Récupérer le produit actuel du cache
-          const cachedProduct = await productsCache.getProductById(update.productId);
-          if (cachedProduct) {
-            // Mettre à jour le stock dans le cache
-            const status: 'ok' | 'low' | 'out' = update.newStock === 0 ? 'out' : update.newStock <= (cachedProduct.alertThreshold || 5) ? 'low' : 'ok';
-            const updatedProduct = {
-              ...cachedProduct,
-              currentStock: update.newStock,
-              status,
-              updatedAt: new Date(),
-            };
-            await productsCache.upsertProduct(updatedProduct);
-            console.log('[createInvoice] Produit mis à jour dans le cache:', cachedProduct.name, `${cachedProduct.currentStock} → ${update.newStock}`);
-
-            // Notifier useProducts que le cache a changé
-            localStorage.setItem(`products_updated_${user.currentCompanyId}`, Date.now().toString());
-          }
-        }
-      } catch (cacheError) {
-        console.error('[createInvoice] Erreur lors de la mise à jour du cache:', cacheError);
-        // Ne pas échouer la transaction si le cache échoue
-      }
-
       // Rafraîchir la liste
       await fetchInvoices();
 
@@ -716,5 +1006,8 @@ export function useInvoices() {
     isOnline,
     pendingInvoicesCount,
     isSyncing,
+    // Nouvelles fonctions de gestion de stock
+    checkStockBeforeInvoice,
+    executeStockTransfers,
   };
 }
