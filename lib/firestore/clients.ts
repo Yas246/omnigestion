@@ -142,7 +142,6 @@ export async function fetchClients(
   // Construire la requête de base
   let q = query(
     collection(db, `companies/${companyId}/clients`),
-    where('deletedAt', '==', null),
     orderBy(orderByField, orderDirection)
   );
 
@@ -199,7 +198,6 @@ export async function searchClients(
 
   const q = query(
     collection(db, `companies/${companyId}/clients`),
-    where('deletedAt', '==', null),
     where('name', '>=', searchTerm),
     where('name', '<=', endValue),
     orderBy('name'),
@@ -310,8 +308,7 @@ export async function fetchClientsBalance(
   console.log('[fetchClientsBalance] Calcul du solde total', { companyId });
 
   const q = query(
-    collection(db, `companies/${companyId}/clients`),
-    where('deletedAt', '==', null)
+    collection(db, `companies/${companyId}/clients`)
   );
 
   const snap = await getDocs(q);

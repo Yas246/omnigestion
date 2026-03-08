@@ -17,8 +17,20 @@ import {
   DollarSign,
   AlertTriangle,
 } from "lucide-react";
-import { useDashboard } from "@/lib/hooks/useDashboard";
-import { format } from "date-fns";
+import {
+  useInvoices,
+  useInvoicesLoading,
+  useInvoicesStore
+} from '@/lib/stores/useInvoicesStore';
+import {
+  useProducts,
+  useProductsLoading
+} from '@/lib/stores/useProductsStore';
+import { useClients } from '@/lib/stores/useClientsStore';
+import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useMemo, useEffect } from 'react';
+import { format, startOfDay, endOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
 import {
@@ -51,11 +63,164 @@ ChartJS.register(
 );
 
 export default function DashboardPage() {
-  const { stats, loading, error } = useDashboard();
+  // Store selectors
+  const invoices = useInvoices();
+  const products = useProducts();
+  const clients = useClients();
+  const invoicesLoading = useInvoicesLoading();
+  const productsLoading = useProductsLoading();
+
+  // Credits still use hook (no store yet)
+  const { credits } = useClientCredits();
+  const { user } = useAuth();
+
+  // Initialize stores on mount
+  useEffect(() => {
+    if (user?.currentCompanyId && invoices.length === 0) {
+      console.log('[DashboardPage] Chargement initial des factures');
+      useInvoicesStore.getState().fetchInvoices(user.currentCompanyId, { reset: true });
+    }
+    // Note: Products and clients are loaded by their respective pages
+    // We can rely on localStorage cache
+  }, [user?.currentCompanyId, invoices.length]);
+
+  // Calculate all stats from store data
+  const stats = useMemo(() => {
+    if (invoices.length === 0 && products.length === 0) {
+      return null;
+    }
+
+    const today = new Date();
+    const startOfToday = startOfDay(today);
+    const endOfToday = endOfDay(today);
+
+    // Filter today's invoices
+    const todayInvoices = invoices.filter(inv => {
+      const invDate = new Date(inv.date);
+      return invDate >= startOfToday && invDate <= endOfToday;
+    });
+
+    // Today's stats
+    const todayRevenue = todayInvoices.reduce((sum, inv) => sum + inv.total, 0);
+    const todayPaidAmount = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+    const todayInvoicesCount = todayInvoices.length;
+
+    // Active credits
+    const activeCredits = credits
+      .filter(c => c.status !== 'paid' && c.status !== 'cancelled')
+      .reduce((sum, c) => sum + c.remainingAmount, 0);
+
+    // Today's profit
+    let todayProfit = 0;
+    todayInvoices.forEach(inv => {
+      inv.items.forEach(item => {
+        const purchasePrice = item.purchasePrice || 0;
+        const profit = (item.unitPrice - purchasePrice) * item.quantity;
+        todayProfit += profit;
+      });
+    });
+
+    // Global stats
+    const totalRevenue = invoices.reduce((sum, inv) => sum + inv.total, 0);
+    const totalInvoicesCount = invoices.length;
+    const totalProducts = products.length;
+    const totalClients = clients.length;
+    const lowStockProducts = products.filter(p => p.status === 'low').length;
+    const outOfStockProducts = products.filter(p => p.status === 'out').length;
+
+    // Recent invoices (10 most recent)
+    const recentInvoices = [...invoices]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 10);
+
+    // Top 5 products
+    const productSales = new Map<string, { productName: string; quantity: number; revenue: number }>();
+    invoices.forEach(inv => {
+      inv.items.forEach(item => {
+        const existing = productSales.get(item.productId);
+        if (existing) {
+          existing.quantity += item.quantity;
+          existing.revenue += item.total;
+        } else {
+          productSales.set(item.productId, {
+            productName: item.productName,
+            quantity: item.quantity,
+            revenue: item.total,
+          });
+        }
+      });
+    });
+
+    const topProducts = Array.from(productSales.entries())
+      .map(([productId, data]) => ({
+        productId,
+        productName: data.productName,
+        totalQuantity: data.quantity,
+        totalRevenue: data.revenue,
+      }))
+      .sort((a, b) => b.totalQuantity - a.totalQuantity)
+      .slice(0, 5);
+
+    // Payment distribution
+    const paymentDistribution = {
+      cash: 0,
+      mobile: 0,
+      bank: 0,
+      credit: 0,
+    };
+
+    invoices.forEach(inv => {
+      if (inv.paymentMethod === 'cash') paymentDistribution.cash += inv.total;
+      else if (inv.paymentMethod === 'mobile') paymentDistribution.mobile += inv.total;
+      else if (inv.paymentMethod === 'bank') paymentDistribution.bank += inv.total;
+      else if (inv.paymentMethod === 'credit') paymentDistribution.credit += inv.total;
+    });
+
+    // Sales last 7 days
+    const salesLast7Days = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const startOfDay_i = startOfDay(date);
+      const endOfDay_i = endOfDay(date);
+
+      const dayRevenue = invoices
+        .filter(inv => {
+          const invDate = new Date(inv.date);
+          return invDate >= startOfDay_i && invDate <= endOfDay_i;
+        })
+        .reduce((sum, inv) => sum + inv.total, 0);
+
+      salesLast7Days.push({
+        date: date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }),
+        revenue: dayRevenue,
+      });
+    }
+
+    return {
+      todayRevenue,
+      todayInvoicesCount,
+      todayPaidAmount,
+      activeCredits,
+      todayProfit,
+      totalRevenue,
+      totalInvoicesCount,
+      totalProducts,
+      totalClients,
+      lowStockProducts,
+      outOfStockProducts,
+      recentInvoices,
+      topProducts,
+      paymentDistribution,
+      salesLast7Days,
+    };
+  }, [invoices, products, clients, credits]);
+
+  const loading = invoicesLoading || productsLoading;
 
   const currency = "FCFA"; // TODO: Récupérer depuis les paramètres de l'entreprise
 
-  if (loading) {
+  if (loading && !stats) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -63,12 +228,12 @@ export default function DashboardPage() {
     );
   }
 
-  if (error || !stats) {
+  if (!stats) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <AlertTriangle className="h-12 w-12 text-destructive" />
         <p className="text-muted-foreground">
-          {error || "Impossible de charger les statistiques"}
+          Aucune donnée disponible
         </p>
       </div>
     );

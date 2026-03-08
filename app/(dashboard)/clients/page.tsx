@@ -1,22 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { useClients } from '@/lib/hooks/useClients';
+import {
+  useClients,
+  useClientsLoading,
+  useClientsHasMore,
+  useClientsStore
+} from '@/lib/stores/useClientsStore';
+import { useAuthStore } from '@/lib/stores/useAuthStore';
+import { useClients as useClientsHelpers } from '@/lib/hooks/useClients';
+import { useAuth } from '@/lib/hooks/useAuth';
 import { ClientsTable } from '@/components/clients/ClientsTable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
 export default function ClientsPage() {
-  const {
-    clients,
-    loading,
-    hasMore,
-    loadMore,
-    createClient,
-    updateClient,
-    deleteClient,
-  } = useClients();
+  // Store selectors
+  const clients = useClients();
+  const loading = useClientsLoading();
+  const hasMore = useClientsHasMore();
+
+  // Helper functions for CRUD (keep using hook)
+  const { createClient, updateClient, deleteClient } = useClientsHelpers();
+
+  // Auth user for store initialization
+  const { user } = useAuth();
+
+  // Initialize store on mount
+  useEffect(() => {
+    if (user?.currentCompanyId && clients.length === 0) {
+      console.log('[ClientsPage] Chargement initial des clients', {
+        companyId: user.currentCompanyId
+      });
+      useClientsStore.getState().fetchClients(user.currentCompanyId, { reset: true });
+    }
+  }, [user?.currentCompanyId, clients.length]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -85,7 +104,7 @@ export default function ClientsPage() {
             clients={clients}
             loading={loading}
             hasMore={hasMore}
-            onLoadMore={loadMore}
+            onLoadMore={() => useClientsStore.getState().loadMore()}
             onCreate={handleCreate}
             onUpdate={handleUpdate}
             onDelete={handleDelete}

@@ -35,7 +35,7 @@ interface ClientsState {
   filters: ClientFilters;
 
   // Actions de chargement
-  fetchClients: (options?: {
+  fetchClients: (companyId: string, options?: {
     reset?: boolean;
     pageSize?: number;
   }) => Promise<void>;
@@ -88,10 +88,9 @@ export const useClientsStore = create<ClientsState>()(
       /**
        * Charger les clients depuis Firestore
        */
-      fetchClients: async (options = {}) => {
+      fetchClients: async (companyId, options = {}) => {
         const { reset = false, pageSize = 50 } = options;
         const { filters, currentPage, lastDoc } = get();
-        const companyId = useAuthStore.getState().currentCompanyId;
 
         if (!companyId) {
           console.error("[fetchClients] Aucune compagnie sélectionnée");
@@ -161,7 +160,12 @@ export const useClientsStore = create<ClientsState>()(
         }
 
         console.log("[loadMore] Chargement page suivante");
-        await get().fetchClients({ reset: false });
+        const companyId = useAuthStore.getState().currentCompanyId;
+        if (!companyId) {
+          console.error("[loadMore] Aucune compagnie sélectionnée");
+          return;
+        }
+        await get().fetchClients(companyId, { reset: false });
       },
 
       /**
@@ -169,7 +173,12 @@ export const useClientsStore = create<ClientsState>()(
        */
       refreshClients: async () => {
         console.log("[refreshClients] Rafraîchissement complet");
-        await get().fetchClients({ reset: true });
+        const companyId = useAuthStore.getState().currentCompanyId;
+        if (!companyId) {
+          console.error("[refreshClients] Aucune compagnie sélectionnée");
+          return;
+        }
+        await get().fetchClients(companyId, { reset: true });
       },
 
       /**

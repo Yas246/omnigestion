@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,9 +14,16 @@ import { StockReport } from '@/components/reports/StockReport';
 import { CashReport } from '@/components/reports/CashReport';
 import { ExportButton } from '@/components/ui/ExportButton';
 import { exportToExcel, exportToCSV, type ExportColumn } from '@/lib/utils/export';
-import { useInvoices } from '@/lib/hooks/useInvoices';
-import { useProducts } from '@/lib/hooks/useProducts';
+import {
+  useInvoices,
+  useInvoicesStore
+} from '@/lib/stores/useInvoicesStore';
+import {
+  useProducts,
+  useProductsStore
+} from '@/lib/stores/useProductsStore';
 import { useCashRegisters } from '@/lib/hooks/useCashRegisters';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 type ReportTab = 'sales' | 'profits' | 'stock' | 'cash';
@@ -25,9 +32,28 @@ type ExportFormat = 'excel' | 'csv';
 export default function ReportsPage() {
   const [period, setPeriod] = useState<PeriodType>('month');
   const [activeTab, setActiveTab] = useState<ReportTab>('sales');
-  const { invoices } = useInvoices();
-  const { products } = useProducts();
+
+  // Store selectors
+  const invoices = useInvoices();
+  const products = useProducts();
   const { movements, cashRegisters } = useCashRegisters();
+
+  // Auth user for store initialization
+  const { user } = useAuth();
+
+  // Initialize stores on mount
+  useEffect(() => {
+    if (user?.currentCompanyId) {
+      if (invoices.length === 0) {
+        console.log('[ReportsPage] Chargement initial des factures');
+        useInvoicesStore.getState().fetchInvoices(user.currentCompanyId, { reset: true });
+      }
+      if (products.length === 0) {
+        console.log('[ReportsPage] Chargement initial des produits');
+        useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true });
+      }
+    }
+  }, [user?.currentCompanyId, invoices.length, products.length]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price);
