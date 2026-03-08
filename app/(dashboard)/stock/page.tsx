@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useProducts } from '@/lib/hooks/useProducts';
+import { useProducts, useProductsLoading, useProductsHasMore, useProductsActions } from '@/lib/stores/useProductsStore';
 import { useStockMovements } from '@/lib/hooks/useStockMovements';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { usePermissions } from '@/lib/hooks/usePermissions';
@@ -22,18 +22,19 @@ import { Plus, Package, AlertTriangle, Upload, RefreshCw } from 'lucide-react';
 
 export default function StockPage() {
   const { user } = useAuth();
+
+  // Utiliser le store Zustand au lieu de useProducts hook
+  const products = useProducts();
+  const loading = useProductsLoading();
+  const hasMore = useProductsHasMore();
   const {
-    products,
-    loading,
-    error,
-    hasMore,
     fetchProducts,
     loadMore,
-    createProduct,
-    updateProduct,
-    deleteProduct,
-    filterByWarehouse,
-  } = useProducts();
+    setWarehouseFilter,
+    optimisticCreateProduct,
+    optimisticUpdateProduct,
+    optimisticDeleteProduct,
+  } = useProductsActions();
 
   const { warehouses, settings } = useSettings();
   const { canCreateProduct } = usePermissions();
@@ -60,7 +61,6 @@ export default function StockPage() {
   const [isTransferring, setIsTransferring] = useState(false);
   const [isRestocking, setIsRestocking] = useState(false);
   const [isRecordingLoss, setIsRecordingLoss] = useState(false);
-  const [filteredProducts, setFilteredProducts] = useState<Array<Product & { displayQuantity?: number }>>(products);
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
   const [isFiltering, setIsFiltering] = useState(false);
   const [showMovementsHistory, setShowMovementsHistory] = useState(false);
@@ -75,22 +75,11 @@ export default function StockPage() {
   });
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
-  // Mettre à jour la liste filtrée quand les produits changent
+  // Mettre à jour le filtre d'entrepôt dans le store Zustand
   useEffect(() => {
-    const updateFilteredProducts = async () => {
-      if (!selectedWarehouse) {
-        // "Tous les dépôts" : il faut recalculer les quantités depuis stockLocations
-        const productsWithQuantities = await filterByWarehouse(null);
-        setFilteredProducts(productsWithQuantities);
-      } else {
-        // Un dépôt spécifique est sélectionné
-        const productsWithQuantities = await filterByWarehouse(selectedWarehouse);
-        setFilteredProducts(productsWithQuantities);
-      }
-    };
-
-    updateFilteredProducts();
-  }, [products, selectedWarehouse, filterByWarehouse]);
+    // Utiliser le filtre local du store au lieu de recharger depuis Firestore
+    setWarehouseFilter(selectedWarehouse);
+  }, [selectedWarehouse, setWarehouseFilter]);
 
   // Charger les statistiques globales depuis Firestore
   const fetchGlobalStats = async () => {
@@ -137,8 +126,19 @@ export default function StockPage() {
   const handleCreate = async (data: any) => {
     setIsSubmitting(true);
     try {
-      await createProduct(data);
-      fetchProducts();
+      // Créer le produit avec l'API Firestore
+      const { createProduct: createProductAPI } = await import('@/lib/firestore/products');
+      const { currentCompanyId } = user || {};
+
+      if (!currentCompanyId) {
+        throw new Error('No company selected');
+      }
+
+      const newProduct = await createProductAPI(currentCompanyId, data);
+
+      // Optimistic update dans le store
+      optimisticCreateProduct(newProduct);
+
       fetchGlobalStats();
     } finally {
       setIsSubmitting(false);
@@ -149,7 +149,18 @@ export default function StockPage() {
     if (!editingProduct) return;
     setIsSubmitting(true);
     try {
-      await updateProduct(editingProduct.id, data);
+      // Optimistic update dans le store
+      optimisticUpdateProduct(editingProduct.id, data);
+
+      // Mettre à jour dans Firestore
+      const { updateProduct: updateProductAPI } = await import('@/lib/firestore/products');
+      const { currentCompanyId } = user || {};
+
+      if (!currentCompanyId) {
+        throw new Error('No company selected');
+      }
+
+      await updateProductAPI(currentCompanyId, editingProduct.id, data);
     } finally {
       setIsSubmitting(false);
     }
@@ -161,7 +172,18 @@ export default function StockPage() {
     }
 
     try {
-      await deleteProduct(id);
+      // Optimistic update dans le store
+      optimisticDeleteProduct(id);
+
+      // Supprimer dans Firestore
+      const { deleteProduct: deleteProductAPI } = await import('@/lib/firestore/products');
+      const { currentCompanyId } = user || {};
+
+      if (!currentCompanyId) {
+        throw new Error('No company selected');
+      }
+
+      await deleteProductAPI(currentCompanyId, id);
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
     }
@@ -246,15 +268,8 @@ export default function StockPage() {
     setIsFiltering(true);
     setSelectedWarehouse(warehouseId);
 
-    if (!warehouseId) {
-      // Afficher tous les produits avec quantité totale
-      const productsWithQuantities = await filterByWarehouse(null);
-      setFilteredProducts(productsWithQuantities);
-    } else {
-      // Filtrer par dépôt avec les quantités spécifiques
-      const productsWithQuantities = await filterByWarehouse(warehouseId);
-      setFilteredProducts(productsWithQuantities);
-    }
+    // Utiliser le filtre local du store (pas de rechargement Firestore)
+    setWarehouseFilter(warehouseId);
 
     setIsFiltering(false);
   };
@@ -276,7 +291,7 @@ export default function StockPage() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => fetchProducts(true)}
+            onClick={() => fetchProducts({ reset: true })}
             disabled={loading}
             title="Forcer le rechargement depuis Firestore"
           >
@@ -374,7 +389,7 @@ export default function StockPage() {
         </CardHeader>
         <CardContent>
           <ProductsTable
-            products={selectedWarehouse ? filteredProducts : products}
+            products={products}
             warehouses={warehouses}
             loading={loading}
             hasMore={selectedWarehouse ? false : hasMore}
@@ -478,7 +493,7 @@ export default function StockPage() {
         onOpenChange={setIsImportModalOpen}
         onImportComplete={() => {
           // Forcer le rechargement depuis Firestore pour synchroniser les IDs
-          fetchProducts(true);
+          fetchProducts({ reset: true });
           fetchGlobalStats();
         }}
       />
