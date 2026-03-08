@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useInvoices } from '@/lib/hooks/useInvoices';
+import { useInvoicesStoreState, useInvoices, useInvoicesLoading, useInvoicesHasMore } from '@/lib/stores/useInvoicesStore';
+import { useInvoices as useInvoicesHelpers } from '@/lib/hooks/useInvoices';
 import { useClientCredits } from '@/lib/hooks/useClientCredits';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useSettings } from '@/lib/hooks/useSettings';
@@ -29,15 +30,17 @@ type InvoiceCreateResult = {
 };
 
 export default function SalesPage() {
+  // Utiliser le store Zustand pour les données (pagination optimisée)
+  const invoicesStore = useInvoicesStoreState();
+  const invoices = useInvoices();
+  const loading = useInvoicesLoading();
+  const hasMore = useInvoicesHasMore();
+
+  // État local pour la recherche (pas de conflit avec le store)
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Utiliser l'ancien hook pour les fonctions helpers (offline, stock, etc.)
   const {
-    invoices,
-    loading,
-    error,
-    hasMore,
-    searchQuery,
-    setSearchQuery,
-    fetchInvoices,
-    loadMore,
     createInvoiceOffline,
     deleteInvoice,
     isOnline,
@@ -46,7 +49,7 @@ export default function SalesPage() {
     syncPendingInvoices,
     checkStockBeforeInvoice,
     executeStockTransfers,
-  } = useInvoices();
+  } = useInvoicesHelpers();
 
   const { credits } = useClientCredits();
   const { user } = useAuth();
@@ -60,6 +63,14 @@ export default function SalesPage() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [pendingInvoiceData, setPendingInvoiceData] = useState<any>(null);
   const [stockTransferProducts, setStockTransferProducts] = useState<any[]>([]);
+
+  // Charger les factures au montage
+  useEffect(() => {
+    if (user?.currentCompanyId && invoices.length === 0) {
+      console.log('[SalesPage] Chargement initial des factures', { companyId: user.currentCompanyId });
+      invoicesStore.fetchInvoices(user.currentCompanyId, { reset: true });
+    }
+  }, [user?.currentCompanyId]);
 
   // Effet pour la synchronisation automatique
   useEffect(() => {
@@ -115,6 +126,19 @@ export default function SalesPage() {
         );
       } else {
         toast.success('Facture créée avec succès');
+
+        // IMPORTANT: Rafraîchir les stores Zustand après vente
+        console.log('[SalesPage] Rafraîchissement des stores après création');
+        if (user?.currentCompanyId) {
+          await invoicesStore.refreshInvoices(user.currentCompanyId);
+        }
+
+        // Rafraîchir les produits pour mettre à jour les stocks après vente
+        const { useProductsStore } = await import('@/lib/stores/useProductsStore');
+        console.log('[SalesPage] Rafraîchissement des produits pour mise à jour des stocks');
+        if (user?.currentCompanyId) {
+          await useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true });
+        }
       }
 
       setIsDialogOpen(false);
@@ -141,6 +165,19 @@ export default function SalesPage() {
       const result = await createInvoiceOffline(pendingInvoiceData) as InvoiceCreateResult;
 
       toast.success('Transferts effectués et facture créée avec succès');
+
+      // IMPORTANT: Rafraîchir les stores Zustand après vente
+      console.log('[SalesPage] Rafraîchissement des stores après transfert + création');
+      if (user?.currentCompanyId) {
+        await invoicesStore.refreshInvoices(user.currentCompanyId);
+      }
+
+      // Rafraîchir les produits pour mettre à jour les stocks après transfert
+      const { useProductsStore } = await import('@/lib/stores/useProductsStore');
+      console.log('[SalesPage] Rafraîchissement des produits pour mise à jour des stocks');
+      if (user?.currentCompanyId) {
+        await useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true });
+      }
 
       // Fermer les modales
       setIsTransferModalOpen(false);
@@ -347,9 +384,10 @@ export default function SalesPage() {
             invoices={invoices}
             loading={loading}
             hasMore={hasMore}
+            totalLoaded={invoices.length}
             onSearch={setSearchQuery}
             searchQuery={searchQuery}
-            onLoadMore={loadMore}
+            onLoadMore={() => invoicesStore.loadMore()}
             onView={handleViewInvoice}
             onDelete={handleDeleteInvoice}
           />

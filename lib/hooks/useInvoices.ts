@@ -24,7 +24,7 @@ import { useAuth } from './useAuth';
 import { useSettings } from './useSettings';
 import { offlineInvoices } from '@/lib/indexeddb/offline-invoices';
 import { invoiceSync, type SyncOptions } from '@/lib/services/invoice-sync';
-import type { Invoice, InvoiceItem } from '@/types';
+import type { Invoice, InvoiceItem, Warehouse } from '@/types';
 
 const INVOICES_PER_PAGE = 50;
 
@@ -226,7 +226,10 @@ export function useInvoices() {
     const warehousesSnapshot = await getDocs(
       query(collection(db, COLLECTIONS.companyWarehouses(user.currentCompanyId)))
     );
-    const warehouses = warehousesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const warehouses = warehousesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Warehouse));
 
     console.log(`[checkStockBeforeInvoice] Dépôt principal: ${primaryWarehouseId}`);
     console.log(`[checkStockBeforeInvoice] ${warehouses.length} dépôts trouvés:`, warehouses.map(w => `${w.name} (${w.id})`).join(', '));
@@ -535,7 +538,7 @@ export function useInvoices() {
             }
           }
 
-          const newStock = currentStock - item.quantity;
+          const newStock = (productData.currentStock || 0) - item.quantity;
           productUpdates.push({
             productId: item.productId,
             newStock,
@@ -822,16 +825,22 @@ export function useInvoices() {
       // ===== NOUVEAU: Envoyer notification aux admins =====
       try {
         const { notifyNewSale } = await import('@/lib/services/notifications');
-        await notifyNewSale({
+        const notifResult = await notifyNewSale({
           invoiceId: result.id,
           invoiceNumber: result.invoiceNumber,
           total: result.total,
           employeeName: user.displayName || user.email || 'Employé',
           clientName: data.clientName,
         }, user.currentCompanyId);
-        console.log('[createInvoice] Notification de vente envoyée aux admins');
+
+        // ✅ CORRECTION: Logger le résultat pour plus de visibilité
+        if (notifResult.success) {
+          console.log('[createInvoice] ✅ Notification de vente envoyée aux admins:', notifResult.result);
+        } else {
+          console.warn('[createInvoice] ⚠️ Notification de vente échouée:', notifResult.error);
+        }
       } catch (notifError) {
-        console.error('[createInvoice] Erreur lors de l\'envoi de la notification:', notifError);
+        console.error('[createInvoice] ❌ Erreur critique lors de l\'envoi de la notification:', notifError);
         // Ne pas échouer la transaction si la notification échoue
       }
 
@@ -842,23 +851,33 @@ export function useInvoices() {
 
           for (const alert of stockAlerts) {
             if (alert.status === 'out') {
-              await notifyOutOfStock({
+              const result = await notifyOutOfStock({
                 productId: alert.productId,
                 productName: alert.productName,
               }, user.currentCompanyId);
-              console.log(`[createInvoice] Alerte rupture de stock envoyée pour: ${alert.productName}`);
+
+              if (result.success) {
+                console.log(`[createInvoice] ✅ Alerte rupture de stock envoyée pour: ${alert.productName}`);
+              } else {
+                console.warn(`[createInvoice] ⚠️ Alerte rupture échouée pour ${alert.productName}:`, result.error);
+              }
             } else {
-              await notifyLowStock({
+              const result = await notifyLowStock({
                 productId: alert.productId,
                 productName: alert.productName,
                 currentStock: alert.newStock,
                 threshold: alert.threshold,
               }, user.currentCompanyId);
-              console.log(`[createInvoice] Alerte stock faible envoyée pour: ${alert.productName} (${alert.newStock} / ${alert.threshold})`);
+
+              if (result.success) {
+                console.log(`[createInvoice] ✅ Alerte stock faible envoyée pour: ${alert.productName} (${alert.newStock} / ${alert.threshold})`);
+              } else {
+                console.warn(`[createInvoice] ⚠️ Alerte stock faible échouée pour ${alert.productName}:`, result.error);
+              }
             }
           }
         } catch (stockNotifError) {
-          console.error('[createInvoice] Erreur lors de l\'envoi des notifications de stock:', stockNotifError);
+          console.error('[createInvoice] ❌ Erreur critique lors de l\'envoi des notifications de stock:', stockNotifError);
           // Ne pas échouer la transaction si les notifications échouent
         }
       }

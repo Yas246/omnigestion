@@ -15,7 +15,6 @@ interface AuthState {
   // Données utilisateur
   user: User | null;
   currentCompanyId: string | null;
-  companies: Company[];
 
   // État de chargement
   loading: boolean;
@@ -33,7 +32,7 @@ interface AuthState {
   // Getters
   isAdmin: () => boolean;
   isEmployee: () => boolean;
-  getCurrentCompany: () => Company | null;
+  hasCompanyAccess: (companyId: string) => boolean;
   hasPermission: (permission: string) => boolean;
 }
 
@@ -46,7 +45,6 @@ export const useAuthStore = create<AuthState>()(
       // État initial
       user: null,
       currentCompanyId: null,
-      companies: [],
       loading: false,
       error: null,
 
@@ -57,7 +55,6 @@ export const useAuthStore = create<AuthState>()(
         set({
           user,
           currentCompanyId: user?.currentCompanyId || null,
-          companies: user?.companies || [],
         });
       },
 
@@ -73,7 +70,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         // Vérifier que l'utilisateur a accès à cette compagnie
-        const hasAccess = user.companies?.some((c) => c.id === companyId);
+        const hasAccess = user.companyIds?.includes(companyId);
         if (!hasAccess) {
           console.error('[setCurrentCompany] Accès refusé à la compagnie', { companyId });
           return;
@@ -81,8 +78,6 @@ export const useAuthStore = create<AuthState>()(
 
         set({ currentCompanyId: companyId });
 
-        // Mettre à jour user.currentCompanyId pour persister dans Firestore
-        // (sera mis à jour au prochain appel API)
         console.log('[setCurrentCompany] Compagne changée', { companyId });
       },
 
@@ -112,7 +107,6 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           currentCompanyId: null,
-          companies: [],
           loading: false,
           error: null,
         });
@@ -156,11 +150,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       /**
-       * Récupérer la compagnie courante
+       * Vérifier si l'utilisateur a accès à une compagnie
        */
-      getCurrentCompany: () => {
-        const { companies, currentCompanyId } = get();
-        return companies.find((c) => c.id === currentCompanyId) || null;
+      hasCompanyAccess: (companyId) => {
+        const { user } = get();
+        return user?.companyIds?.includes(companyId) || false;
       },
 
       /**
@@ -195,7 +189,6 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         currentCompanyId: state.currentCompanyId,
-        companies: state.companies,
       }),
     }
   )
@@ -206,7 +199,7 @@ export const useAuthStore = create<AuthState>()(
  */
 export const selectUser = () => useAuthStore.getState().user;
 export const selectCurrentCompanyId = () => useAuthStore.getState().currentCompanyId;
-export const selectCurrentCompany = () => useAuthStore.getState().getCurrentCompany();
+// export const selectCurrentCompany = () => useAuthStore.getState().getCurrentCompany(); // Méthode non implémentée
 export const selectIsAdmin = () => useAuthStore.getState().isAdmin();
 export const selectIsEmployee = () => useAuthStore.getState().isEmployee();
 
@@ -215,7 +208,7 @@ export const selectIsEmployee = () => useAuthStore.getState().isEmployee();
  */
 export const useAuthUser = () => useAuthStore((state) => state.user);
 export const useAuthCompanyId = () => useAuthStore((state) => state.currentCompanyId);
-export const useAuthCompany = () => useAuthStore((state) => state.getCurrentCompany());
+// export const useAuthCompany = () => useAuthStore((state) => state.getCurrentCompany()); // Méthode non implémentée
 export const useAuthIsAdmin = () => useAuthStore((state) => state.isAdmin());
 export const useAuthIsEmployee = () => useAuthStore((state) => state.isEmployee());
 export const useAuthLoading = () => useAuthStore((state) => state.loading);

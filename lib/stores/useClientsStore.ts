@@ -9,10 +9,8 @@ import { useAuthStore } from './useAuthStore';
  */
 export interface ClientFilters {
   search: string;
-  city: string | null;
-  country: string | null;
-  minBalance: number | null;
-  maxBalance: number | null;
+  minCredit: number | null;
+  maxCredit: number | null;
 }
 
 /**
@@ -43,9 +41,7 @@ interface ClientsState {
 
   // Actions de filtres
   setSearchQuery: (query: string) => void;
-  setCityFilter: (city: string | null) => void;
-  setCountryFilter: (country: string | null) => void;
-  setBalanceRangeFilter: (min: number | null, max: number | null) => void;
+  setCreditRangeFilter: (min: number | null, max: number | null) => void;
   clearFilters: () => void;
 
   // Recherche
@@ -62,7 +58,6 @@ interface ClientsState {
   // Getters
   getClientById: (clientId: string) => Client | undefined;
   getFilteredClients: () => Client[];
-  getClientsByCity: (city: string) => Client[];
   clearClients: () => void;
 }
 
@@ -82,10 +77,8 @@ export const useClientsStore = create<ClientsState>()(
     lastDoc: null,
     filters: {
       search: '',
-      city: null,
-      country: null,
-      minBalance: null,
-      maxBalance: null,
+      minCredit: null,
+      maxCredit: null,
     },
 
     /**
@@ -118,10 +111,6 @@ export const useClientsStore = create<ClientsState>()(
             startAfter: reset ? undefined : lastDoc,
             orderByField: 'name',
             orderDirection: 'asc',
-            filters: {
-              city: filters.city || undefined,
-              country: filters.country || undefined,
-            },
           });
 
         const endTime = performance.now();
@@ -185,32 +174,12 @@ export const useClientsStore = create<ClientsState>()(
     },
 
     /**
-     * Filtrer par ville (filtre local)
+     * Filtrer par plage de crédit (filtre local)
      */
-    setCityFilter: (city) => {
-      console.log('[setCityFilter] Changement filtre ville', { city });
+    setCreditRangeFilter: (min, max) => {
+      console.log('[setCreditRangeFilter] Changement filtre crédit', { min, max });
       set((state) => ({
-        filters: { ...state.filters, city },
-      }));
-    },
-
-    /**
-     * Filtrer par pays (filtre local)
-     */
-    setCountryFilter: (country) => {
-      console.log('[setCountryFilter] Changement filtre pays', { country });
-      set((state) => ({
-        filters: { ...state.filters, country },
-      }));
-    },
-
-    /**
-     * Filtrer par plage de solde (filtre local)
-     */
-    setBalanceRangeFilter: (min, max) => {
-      console.log('[setBalanceRangeFilter] Changement filtre solde', { min, max });
-      set((state) => ({
-        filters: { ...state.filters, minBalance: min, maxBalance: max },
+        filters: { ...state.filters, minCredit: min, maxCredit: max },
       }));
     },
 
@@ -222,10 +191,8 @@ export const useClientsStore = create<ClientsState>()(
       set((state) => ({
         filters: {
           search: '',
-          city: null,
-          country: null,
-          minBalance: null,
-          maxBalance: null,
+          minCredit: null,
+          maxCredit: null,
         },
       }));
     },
@@ -331,33 +298,15 @@ export const useClientsStore = create<ClientsState>()(
         );
       }
 
-      // Filtre par ville
-      if (filters.city) {
-        filtered = filtered.filter((c) => c.city === filters.city);
+      // Filtre par plage de crédit
+      if (filters.minCredit !== null) {
+        filtered = filtered.filter((c) => c.currentCredit >= filters.minCredit!);
       }
-
-      // Filtre par pays
-      if (filters.country) {
-        filtered = filtered.filter((c) => c.country === filters.country);
-      }
-
-      // Filtre par plage de solde
-      if (filters.minBalance !== null) {
-        filtered = filtered.filter((c) => (c.currentBalance || 0) >= filters.minBalance!);
-      }
-      if (filters.maxBalance !== null) {
-        filtered = filtered.filter((c) => (c.currentBalance || 0) <= filters.maxBalance!);
+      if (filters.maxCredit !== null) {
+        filtered = filtered.filter((c) => c.currentCredit <= filters.maxCredit!);
       }
 
       return filtered;
-    },
-
-    /**
-     * Récupérer les clients d'une ville
-     */
-    getClientsByCity: (city) => {
-      const { clients } = get();
-      return clients.filter((c) => c.city === city);
     },
 
     /**
@@ -385,8 +334,10 @@ export const selectClientById = (clientId: string) =>
 
 /**
  * Hooks pour utiliser le store avec des sélecteurs optimisés
+ * NOTE: On utilise les clients bruts et on laisse le composant faire le filtrage
+ * pour éviter les boucles infinies de re-render
  */
-export const useClients = () => useClientsStore((state) => state.getFilteredClients());
+export const useClients = () => useClientsStore((state) => state.clients);
 export const useClientsLoading = () => useClientsStore((state) => state.loading);
 export const useClientsError = () => useClientsStore((state) => state.error);
 export const useClientsHasMore = () => useClientsStore((state) => state.hasMore);
@@ -397,9 +348,7 @@ export const useClientsActions = () =>
     loadMore: state.loadMore,
     refreshClients: state.refreshClients,
     setSearchQuery: state.setSearchQuery,
-    setCityFilter: state.setCityFilter,
-    setCountryFilter: state.setCountryFilter,
-    setBalanceRangeFilter: state.setBalanceRangeFilter,
+    setCreditRangeFilter: state.setCreditRangeFilter,
     clearFilters: state.clearFilters,
     searchClients: state.searchClients,
     optimisticCreateClient: state.optimisticCreateClient,
@@ -407,6 +356,7 @@ export const useClientsActions = () =>
     optimisticDeleteClient: state.optimisticDeleteClient,
     syncClient: state.syncClient,
     getClientById: state.getClientById,
+    getFilteredClients: state.getFilteredClients,
     clearClients: state.clearClients,
   }));
 

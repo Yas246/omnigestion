@@ -46,6 +46,7 @@ interface InvoiceTableProps {
   onFilterByStatus?: (status: string | null) => void;
   onView?: (invoice: Invoice) => void;
   onDelete?: (id: string) => void;
+  totalLoaded?: number;
 }
 
 export function InvoiceTable({
@@ -58,6 +59,7 @@ export function InvoiceTable({
   onFilterByStatus,
   onView,
   onDelete,
+  totalLoaded = 0,
 }: InvoiceTableProps) {
   const [searchTerm, setSearchTerm] = useState(searchQuery);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -253,7 +255,7 @@ export function InvoiceTable({
         </Table>
       </div>
 
-      {/* Charger plus */}
+      {/* Charger plus de factures depuis Firestore */}
       {hasMore && onLoadMore && (
         <div className="flex justify-center">
           <Button
@@ -261,7 +263,7 @@ export function InvoiceTable({
             onClick={onLoadMore}
             disabled={loading}
           >
-            {loading ? 'Chargement...' : 'Charger plus de factures'}
+            {loading ? 'Chargement...' : `Charger plus de factures (${totalLoaded} chargées)`}
           </Button>
         </div>
       )}

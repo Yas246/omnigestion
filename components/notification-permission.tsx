@@ -19,10 +19,18 @@ export function NotificationPermission() {
     if (isDismissed === 'true') {
       setDismissed(true);
     }
+
+    // ✅ CORRECTION: Vérifier si la permission a déjà été accordée précédemment
+    const permissionGranted = localStorage.getItem('fcm-permission-granted');
+    if (permissionGranted === 'true') {
+      console.log('[NotificationPermission] Permission déjà accordée (localStorage)');
+      // Ne pas réinitialiser, useFCM lit déjà Notification.permission correctement
+    }
   }, []);
 
-  // Ne pas afficher si déjà accordée, rejetée, ou dismissed
-  if (dismissed || permissionStatus === 'granted' || permissionStatus === 'denied') {
+  // ✅ CORRECTION: Masquer si déjà accordée (y compris via localStorage)
+  const wasGrantedPreviously = localStorage.getItem('fcm-permission-granted') === 'true';
+  if (dismissed || permissionStatus === 'granted' || permissionStatus === 'denied' || wasGrantedPreviously) {
     return null;
   }
 
@@ -60,7 +68,7 @@ export function NotificationPermission() {
           {/* Bouton de fermeture */}
           <button
             onClick={handleDismiss}
-            className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+            className="shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
             title="Masquer"
           >
             <X className="w-4 h-4" />

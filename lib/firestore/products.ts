@@ -152,9 +152,12 @@ export async function fetchProducts(
   // Construire la requête de base
   let q = query(
     collection(db, `companies/${companyId}/products`),
-    where('deletedAt', '==', null),
     orderBy(orderByField, orderDirection)
   );
+
+  // NOTE: Pour le moment, on ne filtre pas par deletedAt
+  // car tous les produits n'ont pas ce champ
+  // TODO: Ajouter le filtre une fois tous les produits migrés avec deletedAt
 
   // Ajouter pagination
   if (startAfterDoc) {
@@ -195,7 +198,7 @@ export async function fetchProducts(
 
 /**
  * READ - Récupérer les stock_locations pour plusieurs produits
- * Optimisé pour éviter N+1 queries
+ * Optimisé pour éviter N+1 queries avec gestion d'erreurs robuste
  */
 export async function fetchProductsStockLocations(
   companyId: string,
@@ -204,26 +207,70 @@ export async function fetchProductsStockLocations(
   console.log('[fetchProductsStockLocations] Début', { productIds: productIds.length });
 
   const result: Record<string, any[]> = {};
+  const errors: string[] = [];
+  let successCount = 0;
 
-  // Pour l'instant, on fait une requête par produit
-  // TODO: Optimiser avec batched queries ou une structure de données différente
-  for (const productId of productIds) {
-    const snap = await getDocs(
-      query(collection(db, `companies/${companyId}/products/${productId}/stock_locations`))
-    );
+  // Traiter par lots de 10 pour éviter les timeouts
+  const batchSize = 10;
+  const batches = [];
 
-    result[productId] = snap.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        warehouseId: data.warehouseId,
-        warehouseName: data.warehouseName || '',
-        quantity: data.quantity || 0,
-      };
+  for (let i = 0; i < productIds.length; i += batchSize) {
+    batches.push(productIds.slice(i, i + batchSize));
+  }
+
+  console.log('[fetchProductsStockLocations] Traitement par lots', {
+    totalProducts: productIds.length,
+    numberOfBatches: batches.length,
+    batchSize,
+  });
+
+  // Traiter chaque lot
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    const batch = batches[batchIndex];
+
+    console.log(`[fetchProductsStockLocations] Lot ${batchIndex + 1}/${batches.length}`, {
+      productsInBatch: batch.length,
     });
+
+    // Traiter les produits du lot en parallèle
+    await Promise.all(
+      batch.map(async (productId) => {
+        try {
+          const snap = await getDocs(
+            query(collection(db, `companies/${companyId}/products/${productId}/stock_locations`))
+          );
+
+          result[productId] = snap.docs.map((doc) => {
+            const data = doc.data();
+            return {
+              warehouseId: data.warehouseId,
+              warehouseName: data.warehouseName || '',
+              quantity: data.quantity || 0,
+            };
+          });
+
+          successCount++;
+
+          if (successCount % 10 === 0) {
+            console.log(`[fetchProductsStockLocations] Progression: ${successCount}/${productIds.length} produits chargés`);
+          }
+        } catch (error) {
+          const errorMsg = `Erreur chargement stock_locations pour produit ${productId}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
+          console.error(`[fetchProductsStockLocations] ${errorMsg}`);
+          errors.push(errorMsg);
+
+          // Mettre un tableau vide pour ce produit pour éviter les erreurs de filtrage
+          result[productId] = [];
+        }
+      })
+    );
   }
 
   console.log('[fetchProductsStockLocations] Terminé', {
     productsLoaded: Object.keys(result).length,
+    successCount,
+    errorsCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
   });
 
   return result;

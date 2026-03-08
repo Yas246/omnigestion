@@ -47,8 +47,8 @@ interface ProductsState {
   filters: ProductFilters;
 
   // Actions de chargement
-  fetchProducts: (options?: { reset?: boolean; pageSize?: number }) => Promise<void>;
-  loadMore: () => Promise<void>;
+  fetchProducts: (companyId: string, options?: { reset?: boolean; pageSize?: number }) => Promise<void>;
+  loadMore: (companyId?: string) => Promise<void>;
   refreshProducts: () => Promise<void>;
 
   // Actions de filtres
@@ -65,13 +65,17 @@ interface ProductsState {
 
   // Synchronisation avec Firestore
   syncProduct: (productId: string) => Promise<void>;
-  syncProductsStockLocations: (productIds: string[]) => Promise<void>;
+  syncProductsStockLocations: (companyId: string, productIds: string[]) => Promise<void>;
 
   // Getters
   getProductById: (productId: string) => Product | undefined;
   getFilteredProducts: () => Product[];
   getProductStockInWarehouse: (productId: string, warehouseId: string) => number;
+  getProductDisplayStock: (productId: string) => number;
   clearProducts: () => void;
+
+  // Chargement en arrière-plan
+  loadAllRemainingProducts: (companyId?: string) => Promise<void>;
 }
 
 /**
@@ -103,10 +107,9 @@ export const useProductsStore = create<ProductsState>()(
     /**
      * Charger les produits depuis Firestore
      */
-    fetchProducts: async (options = {}) => {
+    fetchProducts: async (companyId, options = {}) => {
       const { reset = false, pageSize = 50 } = options;
       const { filters, currentPage, lastDoc } = get();
-      const companyId = useAuthStore.getState().currentCompanyId;
 
       if (!companyId) {
         console.error('[fetchProducts] Aucune compagnie sélectionnée');
@@ -146,19 +149,36 @@ export const useProductsStore = create<ProductsState>()(
           duration: `${(endTime - startTime).toFixed(0)}ms`,
         });
 
-        set((state) => ({
-          products: reset ? newProducts : [...state.products, ...newProducts],
-          hasMore,
-          lastDoc: newLastDoc,
-          loading: false,
-          lastLoadedAt: Date.now(),
-          currentPage: reset ? 0 : state.currentPage + 1,
-        }));
+        set((state) => {
+          // Fusionner en évitant les doublons (basé sur l'ID du produit)
+          const existingIds = new Set(state.products.map(p => p.id));
+          const uniqueNewProducts = newProducts.filter(p => !existingIds.has(p.id));
+
+          const mergedProducts = reset ? newProducts : [...state.products, ...uniqueNewProducts];
+
+          console.log('[fetchProducts] Fusion produits', {
+            reset,
+          existingCount: state.products.length,
+            newCount: newProducts.length,
+            uniqueNewCount: uniqueNewProducts.length,
+            finalCount: mergedProducts.length,
+            duplicatesRemoved: newProducts.length - uniqueNewProducts.length,
+          });
+
+          return {
+            products: mergedProducts,
+            hasMore,
+            lastDoc: newLastDoc,
+            loading: false,
+            lastLoadedAt: Date.now(),
+            currentPage: reset ? 0 : state.currentPage + 1,
+          };
+        });
 
         // Charger les stock_locations pour les nouveaux produits
         const productIds = newProducts.map((p) => p.id);
         if (productIds.length > 0) {
-          get().syncProductsStockLocations(productIds);
+          get().syncProductsStockLocations(companyId, productIds);
         }
       } catch (error) {
         const errorMessage =
@@ -175,7 +195,7 @@ export const useProductsStore = create<ProductsState>()(
     /**
      * Charger plus de produits (pagination)
      */
-    loadMore: async () => {
+    loadMore: async (companyId?: string) => {
       const { hasMore, loading } = get();
 
       if (!hasMore || loading) {
@@ -183,16 +203,71 @@ export const useProductsStore = create<ProductsState>()(
         return;
       }
 
+      // Utiliser le companyId passé ou celui du store
+      const targetCompanyId = companyId || useAuthStore.getState().currentCompanyId;
+      if (!targetCompanyId) {
+        console.error('[loadMore] Aucune compagnie sélectionnée');
+        return;
+      }
+
       console.log('[loadMore] Chargement page suivante');
-      await get().fetchProducts({ reset: false });
+      await get().fetchProducts(targetCompanyId, { reset: false });
     },
 
     /**
      * Rafraîchir tous les produits (recharger depuis Firestore)
      */
     refreshProducts: async () => {
+      const companyId = useAuthStore.getState().currentCompanyId;
+      if (!companyId) {
+        console.error('[refreshProducts] Aucune compagnie sélectionnée');
+        return;
+      }
+
       console.log('[refreshProducts] Rafraîchissement complet');
-      await get().fetchProducts({ reset: true });
+      await get().fetchProducts(companyId, { reset: true });
+    },
+
+    /**
+     * Charger automatiquement tous les produits restants en arrière-plan
+     * Cette fonction charge progressivement tous les produits pour que
+     * la recherche fonctionne sur tous les produits, pas seulement les 50 premiers
+     *
+     * @param companyId - Optionnel, si non fourni sera récupéré depuis useAuthStore
+     */
+    loadAllRemainingProducts: async (companyId?: string) => {
+      const { hasMore, loading } = get();
+
+      // Si pas plus de produits ou déjà en chargement, ne rien faire
+      if (!hasMore || loading) {
+        console.log('[loadAllRemainingProducts] Tous les produits sont déjà chargés ou chargement en cours');
+        return;
+      }
+
+      // Utiliser le companyId passé ou le récupérer depuis useAuthStore
+      const targetCompanyId = companyId || useAuthStore.getState().currentCompanyId;
+      if (!targetCompanyId) {
+        console.error('[loadAllRemainingProducts] Aucune compagnie sélectionnée');
+        return;
+      }
+
+      console.log('[loadAllRemainingProducts] Début chargement automatique en arrière-plan');
+
+      let totalLoaded = 0;
+      const startTime = performance.now();
+
+      // Charger tant qu'il y a des produits
+      while (get().hasMore && !get().loading) {
+        const countBefore = get().products.length;
+        await get().fetchProducts(targetCompanyId, { reset: false });
+        const countAfter = get().products.length;
+        totalLoaded += countAfter - countBefore;
+
+        console.log(`[loadAllRemainingProducts] Progression: ${countAfter} produits chargés`);
+      }
+
+      const endTime = performance.now();
+      console.log(`[loadAllRemainingProducts] Terminé: ${get().products.length} produits chargés en ${((endTime - startTime) / 1000).toFixed(2)}s`);
     },
 
     /**
@@ -316,8 +391,7 @@ export const useProductsStore = create<ProductsState>()(
     /**
      * Synchroniser les stock_locations pour plusieurs produits
      */
-    syncProductsStockLocations: async (productIds) => {
-      const companyId = useAuthStore.getState().currentCompanyId;
+    syncProductsStockLocations: async (companyId, productIds) => {
       if (!companyId || productIds.length === 0) {
         return;
       }
@@ -373,12 +447,12 @@ export const useProductsStore = create<ProductsState>()(
         filtered = filtered.filter((p) => p.category === filters.category);
       }
 
-      // Filtre par plage de prix
+      // Filtre par plage de prix (utilise retailPrice comme prix de vente)
       if (filters.minPrice !== null) {
-        filtered = filtered.filter((p) => p.price >= filters.minPrice!);
+        filtered = filtered.filter((p) => p.retailPrice >= filters.minPrice!);
       }
       if (filters.maxPrice !== null) {
-        filtered = filtered.filter((p) => p.price <= filters.maxPrice!);
+        filtered = filtered.filter((p) => p.retailPrice <= filters.maxPrice!);
       }
 
       // Filtre par entrepôt - C'est le filtre le plus complexe
@@ -401,6 +475,28 @@ export const useProductsStore = create<ProductsState>()(
       const locations = stockLocationsMap[productId] || [];
       const location = locations.find((l) => l.warehouseId === warehouseId);
       return location?.quantity || 0;
+    },
+
+    /**
+     * Récupérer le stock à afficher pour un produit (tient compte du filtre d'entrepôt)
+     * Si un filtre d'entrepôt est actif, retourne le stock dans cet entrepôt
+     * Sinon, retourne le stock total du produit
+     */
+    getProductDisplayStock: (productId) => {
+      const { filters, stockLocationsMap } = get();
+      const product = get().products.find((p) => p.id === productId);
+
+      if (!product) return 0;
+
+      // Si un filtre d'entrepôt est actif, retourner le stock dans cet entrepôt
+      if (filters.warehouseId) {
+        const locations = stockLocationsMap[productId] || [];
+        const location = locations.find((l) => l.warehouseId === filters.warehouseId);
+        return location?.quantity || 0;
+      }
+
+      // Sinon, retourner le stock total du produit
+      return product.currentStock;
     },
 
     /**
@@ -429,29 +525,28 @@ export const selectProductById = (productId: string) =>
 
 /**
  * Hooks pour utiliser le store avec des sélecteurs optimisés
+ * NOTE: On utilise les produits bruts et on laisse le composant faire le filtrage
+ * pour éviter les boucles infinies de re-render
  */
-export const useProducts = () => useProductsStore((state) => state.getFilteredProducts());
+export const useProducts = () => useProductsStore((state) => state.products);
 export const useProductsLoading = () => useProductsStore((state) => state.loading);
 export const useProductsError = () => useProductsStore((state) => state.error);
 export const useProductsHasMore = () => useProductsStore((state) => state.hasMore);
-export const useProductsFilters = () => useProductsStore((state) => state.filters);
-export const useProductsActions = () =>
-  useProductsStore((state) => ({
-    fetchProducts: state.fetchProducts,
-    loadMore: state.loadMore,
-    refreshProducts: state.refreshProducts,
-    setWarehouseFilter: state.setWarehouseFilter,
-    setCategoryFilter: state.setCategoryFilter,
-    setSearchQuery: state.setSearchQuery,
-    setPriceRangeFilter: state.setPriceRangeFilter,
-    clearFilters: state.clearFilters,
-    optimisticCreateProduct: state.optimisticCreateProduct,
-    optimisticUpdateProduct: state.optimisticUpdateProduct,
-    optimisticDeleteProduct: state.optimisticDeleteProduct,
-    syncProduct: state.syncProduct,
-    syncProductsStockLocations: state.syncProductsStockLocations,
-    getProductById: state.getProductById,
-    clearProducts: state.clearProducts,
-  }));
+// NOTE: useProductsFilters supprimé car il cause des boucles infinies (objet qui change)
+
+/**
+ * Hook pour utiliser les actions du store sans provoquer de re-renders
+ * ⚠️ IMPORTANT: Ne PAS utiliser de sélecteur qui retourne un objet!
+ * On utilise getState() pour éviter les boucles infinies de re-render
+ */
+export const useProductsActions = () => {
+  // Utiliser getState() au lieu d'un sélecteur pour éviter les boucles
+  // Cela retourne le store complet sans s'abonner aux changements
+  return useProductsStore.getState();
+};
+
+// Hook pour accéder à tout le store (actions + getters)
+// ⚠️ ATTENTION: À utiliser avec précaution, peut causer des boucles infinies si utilisé dans useEffect/useMemo
+export const useProductsStoreState = useProductsStore;
 
 export default useProductsStore;

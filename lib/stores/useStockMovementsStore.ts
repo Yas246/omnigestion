@@ -9,7 +9,7 @@ import { useAuthStore } from './useAuthStore';
 export interface StockMovementFilters {
   productId: string | null;
   warehouseId: string | null;
-  movementType: string | null; // 'in', 'out', 'transfer'
+  type: string | null; // 'in', 'out', 'transfer' - renommé pour correspondre à StockMovement.type
   startDate: Date | null;
   endDate: Date | null;
 }
@@ -77,7 +77,7 @@ export const useStockMovementsStore = create<StockMovementsState>()(
     filters: {
       productId: null,
       warehouseId: null,
-      movementType: null,
+      type: null,
       startDate: null,
       endDate: null,
     },
@@ -185,7 +185,7 @@ export const useStockMovementsStore = create<StockMovementsState>()(
     setMovementTypeFilter: (type) => {
       console.log('[setMovementTypeFilter] Changement filtre type', { type });
       set((state) => ({
-        filters: { ...state.filters, movementType: type },
+        filters: { ...state.filters, type: type },
       }));
     },
 
@@ -208,7 +208,7 @@ export const useStockMovementsStore = create<StockMovementsState>()(
         filters: {
           productId: null,
           warehouseId: null,
-          movementType: null,
+          type: null,
           startDate: null,
           endDate: null,
         },
@@ -248,7 +248,7 @@ export const useStockMovementsStore = create<StockMovementsState>()(
      */
     getFilteredMovements: () => {
       const { movements, filters } = get();
-      let filtered = [...movements];
+      let filtered: StockMovement[] = [...movements];
 
       // Filtre par produit
       if (filters.productId) {
@@ -261,23 +261,27 @@ export const useStockMovementsStore = create<StockMovementsState>()(
       }
 
       // Filtre par type de mouvement
-      if (filters.movementType) {
-        filtered = filtered.filter((m) => m.movementType === filters.movementType);
+      if (filters.type) {
+        filtered = filtered.filter((m) => m.type === filters.type);
       }
+
+      // Helper pour convertir createdAt en Date
+      const getDate = (movement: StockMovement): Date => {
+        const createdAt = movement.createdAt;
+        if (createdAt instanceof Date) {
+          return createdAt;
+        }
+        // Cast pour Timestamp Firebase qui a une méthode toDate()
+        return (createdAt as any).toDate();
+      };
 
       // Filtre par plage de dates
       if (filters.startDate) {
-        filtered = filtered.filter((m) => {
-          const date = m.createdAt instanceof Date ? m.createdAt : m.createdAt.toDate();
-          return date >= filters.startDate!;
-        });
+        filtered = filtered.filter((movement: StockMovement) => getDate(movement) >= filters.startDate!);
       }
 
       if (filters.endDate) {
-        filtered = filtered.filter((m) => {
-          const date = m.createdAt instanceof Date ? m.createdAt : m.createdAt.toDate();
-          return date <= filters.endDate!;
-        });
+        filtered = filtered.filter((movement: StockMovement) => getDate(movement) <= filters.endDate!);
       }
 
       return filtered;
@@ -307,8 +311,7 @@ export const selectMovements = () => useStockMovementsStore.getState().getFilter
 /**
  * Hooks pour utiliser le store
  */
-export const useStockMovements = () =>
-  useStockMovementsStore((state) => state.getFilteredMovements());
+export const useStockMovements = () => useStockMovementsStore((state) => state.movements);
 export const useStockMovementsLoading = () => useStockMovementsStore((state) => state.loading);
 export const useStockMovementsError = () => useStockMovementsStore((state) => state.error);
 export const useStockMovementsActions = () =>
@@ -322,6 +325,7 @@ export const useStockMovementsActions = () =>
     setDateRangeFilter: state.setDateRangeFilter,
     clearFilters: state.clearFilters,
     optimisticCreateMovement: state.optimisticCreateMovement,
+    getFilteredMovements: state.getFilteredMovements,
     clearMovements: state.clearMovements,
   }));
 

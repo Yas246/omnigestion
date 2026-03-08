@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Product, Warehouse } from '@/types';
+import { useProductsStore } from '@/lib/stores/useProductsStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +48,7 @@ interface ProductsTableProps {
   onRestock?: (product: Product) => void;
   onRecordLoss?: (product: Product) => void;
   onFilterByStatus?: (status: 'all' | 'ok' | 'low' | 'out' | 'inactive') => void;
+  totalLoaded?: number; // Nombre total de produits chargés depuis Firestore
 }
 
 export function ProductsTable({
@@ -62,14 +64,15 @@ export function ProductsTable({
   onRestock,
   onRecordLoss,
   onFilterByStatus,
+  totalLoaded = 0,
 }: ProductsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'ok' | 'low' | 'out' | 'inactive'>('all');
-  const [displayLimit, setDisplayLimit] = useState(20); // Pagination: afficher 20 produits par défaut
 
   // Filtrer les produits par recherche et statut (côté client)
-  const getFilteredProducts = () => {
+  // IMPORTANT: Utiliser useMemo pour éviter les boucles infinies de re-render
+  const filteredProducts = useMemo(() => {
     let filtered = products;
 
     // Filtre par statut
@@ -104,21 +107,10 @@ export function ProductsTable({
     }
 
     return filtered;
-  };
-
-  const filteredProducts = getFilteredProducts();
-
-  // Pagination: n'afficher que les premiers produits
-  const displayedProducts = filteredProducts.slice(0, displayLimit);
-  const hasMoreToDisplay = filteredProducts.length > displayLimit;
-
-  const handleLoadMore = () => {
-    setDisplayLimit((prev) => prev + 20);
-  };
+  }, [products, selectedStatus, searchTerm]); // Dépendances correctes
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    setDisplayLimit(20); // Reset pagination quand la recherche change
   };
 
   const handleClearSearch = () => {
@@ -271,7 +263,7 @@ export function ProductsTable({
                 </TableCell>
               </TableRow>
             ) : (
-              displayedProducts.map((product) => (
+              filteredProducts.map((product) => (
                 <TableRow key={product.id}>
                   <TableCell>
                     <div className="flex flex-col">
@@ -289,7 +281,7 @@ export function ProductsTable({
                   </TableCell>
                   <TableCell className="text-center">
                     <span className="font-medium">
-                      {product.displayQuantity !== undefined ? product.displayQuantity : product.currentStock}
+                      {useProductsStore.getState().getProductDisplayStock(product.id)}
                       {product.unit && ` ${product.unit}`}
                     </span>
                   </TableCell>
@@ -367,19 +359,7 @@ export function ProductsTable({
         </Table>
       </div>
 
-      {/* Charger plus (pagination locale) */}
-      {hasMoreToDisplay && (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={handleLoadMore}
-          >
-            Afficher plus de produits ({displayLimit} / {filteredProducts.length})
-          </Button>
-        </div>
-      )}
-
-      {/* Charger plus (pagination Firestore) */}
+      {/* Charger plus de produits depuis Firestore */}
       {hasMore && onLoadMore && (
         <div className="flex justify-center">
           <Button
@@ -387,7 +367,7 @@ export function ProductsTable({
             onClick={onLoadMore}
             disabled={loading}
           >
-            {loading ? 'Chargement...' : 'Charger plus de produits'}
+            {loading ? 'Chargement...' : `Charger plus de produits (${totalLoaded} chargés)`}
           </Button>
         </div>
       )}

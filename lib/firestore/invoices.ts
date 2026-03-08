@@ -31,7 +31,7 @@ export interface CreateInvoiceData {
   discount: number;
   total: number;
   paymentMethod: string;
-  paymentStatus: 'pending' | 'partial' | 'paid' | 'overdue';
+  status: 'draft' | 'validated' | 'paid' | 'cancelled';
   notes?: string;
   saleDate?: Date;
   dueDate?: Date;
@@ -47,7 +47,7 @@ export interface UpdateInvoiceData {
   discount?: number;
   total?: number;
   paymentMethod?: string;
-  paymentStatus?: 'pending' | 'partial' | 'paid' | 'overdue';
+  status?: 'draft' | 'validated' | 'paid' | 'cancelled';
   notes?: string;
   saleDate?: Date;
   dueDate?: Date;
@@ -60,7 +60,7 @@ export interface FetchInvoicesOptions {
   orderDirection?: 'asc' | 'desc';
   filters?: {
     clientId?: string;
-    paymentStatus?: string;
+    status?: string;
     startDate?: Date;
     endDate?: Date;
     minAmount?: number;
@@ -99,7 +99,7 @@ export async function createInvoice(
       // 2. Préparer les données de la facture
       const invoiceData = {
         ...data,
-        createdBy: userId,
+        userId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deletedAt: null,
@@ -157,14 +157,32 @@ export async function createInvoice(
       }
 
       // 4. Retourner les données de la facture créée
+      // Calculer paidAmount et remainingAmount basé sur le status
+      const isPaid = data.status === 'paid';
+      const paidAmount = isPaid ? data.total : 0;
+      const remainingAmount = data.total - paidAmount;
+
       return {
         id: invoiceRef.id,
-        ...data,
-        createdBy: userId,
+        companyId,
+        invoiceNumber: data.invoiceNumber,
+        date: data.saleDate || new Date(), // Utiliser saleDate comme date
+        clientId: data.clientId,
+        items: data.items,
+        subtotal: data.subtotal,
+        taxRate: data.taxRate,
+        taxAmount: data.taxAmount,
+        discount: data.discount,
+        total: data.total,
+        status: data.status,
+        paymentMethod: data.paymentMethod as any, // Cast string -> PaymentMethod
+        paidAmount,
+        remainingAmount,
+        userId,
+        dueDate: data.dueDate,
         createdAt: new Date(), // Sera remplacé par serverTimestamp
         updatedAt: new Date(),
-        deletedAt: null,
-      } as Invoice;
+      };
     });
 
     console.log('[createInvoice] Facture créée avec succès', {
@@ -197,12 +215,32 @@ export async function fetchInvoice(
   const data = docSnap.data();
   return {
     id: docSnap.id,
-    ...data,
+    companyId,
+    invoiceNumber: data.invoiceNumber || '',
+    clientId: data.clientId,
+    clientName: data.clientName,
+    date: data.saleDate?.toDate() || data.date?.toDate() || new Date(),
+    dueDate: data.dueDate?.toDate(),
+    items: data.items || [],
+    subtotal: data.subtotal || 0,
+    taxRate: data.taxRate || 0,
+    taxAmount: data.taxAmount || 0,
+    discount: data.discount || 0,
+    total: data.total || 0,
+    status: data.status || 'draft',
+    paymentMethod: data.paymentMethod,
+    paidAmount: data.paidAmount || 0,
+    remainingAmount: data.remainingAmount || 0,
+    mobileNumber: data.mobileNumber,
+    bankName: data.bankName,
+    accountNumber: data.accountNumber,
+    transactionNumber: data.transactionNumber,
+    userId: data.userId || '',
+    userName: data.userName,
+    referenceType: data.referenceType,
     createdAt: data.createdAt?.toDate() || new Date(),
     updatedAt: data.updatedAt?.toDate() || new Date(),
-    saleDate: data.saleDate?.toDate() || undefined,
-    dueDate: data.dueDate?.toDate() || undefined,
-  } as Invoice;
+  };
 }
 
 /**
@@ -230,7 +268,6 @@ export async function fetchInvoices(
   // Construire la requête de base
   let q = query(
     collection(db, `companies/${companyId}/invoices`),
-    where('deletedAt', '==', null),
     orderBy(orderByField, orderDirection)
   );
 
@@ -250,9 +287,9 @@ export async function fetchInvoices(
     q = query(q, where('clientId', '==', filters.clientId));
   }
 
-  // Filtre par statut de paiement
-  if (filters?.paymentStatus) {
-    q = query(q, where('paymentStatus', '==', filters.paymentStatus));
+  // Filtre par statut
+  if (filters?.status) {
+    q = query(q, where('status', '==', filters.status));
   }
 
   // Ajouter pagination
@@ -269,12 +306,32 @@ export async function fetchInvoices(
     const data = doc.data();
     return {
       id: doc.id,
-      ...data,
+      companyId,
+      invoiceNumber: data.invoiceNumber || '',
+      clientId: data.clientId,
+      clientName: data.clientName,
+      date: data.saleDate?.toDate() || data.date?.toDate() || new Date(), // Champ critique pour l'affichage
+      dueDate: data.dueDate?.toDate(),
+      items: data.items || [],
+      subtotal: data.subtotal || 0,
+      taxRate: data.taxRate || 0,
+      taxAmount: data.taxAmount || 0,
+      discount: data.discount || 0,
+      total: data.total || 0,
+      status: data.status || 'draft',
+      paymentMethod: data.paymentMethod,
+      paidAmount: data.paidAmount || 0,
+      remainingAmount: data.remainingAmount || 0,
+      mobileNumber: data.mobileNumber,
+      bankName: data.bankName,
+      accountNumber: data.accountNumber,
+      transactionNumber: data.transactionNumber,
+      userId: data.userId || '',
+      userName: data.userName,
+      referenceType: data.referenceType,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
-      saleDate: data.saleDate?.toDate() || undefined,
-      dueDate: data.dueDate?.toDate() || undefined,
-    } as Invoice;
+    };
   });
 
   const hasMore = invoices.length > limitCount;
@@ -346,7 +403,6 @@ export async function fetchSalesStats(
 
   const q = query(
     collection(db, `companies/${companyId}/invoices`),
-    where('deletedAt', '==', null),
     where('createdAt', '>=', startDate),
     where('createdAt', '<=', endDate),
     orderBy('createdAt', 'desc')
@@ -403,12 +459,32 @@ export async function fetchInvoicesByIds(
       const data = doc.data();
       return {
         id: doc.id,
-        ...data,
+        companyId,
+        invoiceNumber: data.invoiceNumber || '',
+        clientId: data.clientId,
+        clientName: data.clientName,
+        date: data.saleDate?.toDate() || data.date?.toDate() || new Date(),
+        dueDate: data.dueDate?.toDate(),
+        items: data.items || [],
+        subtotal: data.subtotal || 0,
+        taxRate: data.taxRate || 0,
+        taxAmount: data.taxAmount || 0,
+        discount: data.discount || 0,
+        total: data.total || 0,
+        status: data.status || 'draft',
+        paymentMethod: data.paymentMethod,
+        paidAmount: data.paidAmount || 0,
+        remainingAmount: data.remainingAmount || 0,
+        mobileNumber: data.mobileNumber,
+        bankName: data.bankName,
+        accountNumber: data.accountNumber,
+        transactionNumber: data.transactionNumber,
+        userId: data.userId || '',
+        userName: data.userName,
+        referenceType: data.referenceType,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
-        saleDate: data.saleDate?.toDate() || undefined,
-        dueDate: data.dueDate?.toDate() || undefined,
-      } as Invoice;
+      };
     });
 
     invoices.push(...chunkInvoices);

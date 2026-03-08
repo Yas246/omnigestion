@@ -99,8 +99,24 @@ export async function POST(request: NextRequest) {
     const failedTokens: string[] = [];
     if (response.failureCount > 0) {
       response.responses.forEach((resp: SendResponse, idx: number) => {
-        if (!resp.success && resp.error?.code === 'messaging/registration-token-not-registered') {
-          failedTokens.push(tokens[idx]);
+        if (!resp.success) {
+          // ✅ CORRECTION: Nettoyer TOUS les types de tokens invalides, pas juste 'not-registered'
+          const errorCode = resp.error?.code;
+
+          // Liste complète des codes d'erreur qui indiquent un token invalide
+          const invalidTokenCodes = [
+            'messaging/registration-token-not-registered',    // Token désenregistré
+            'messaging/invalid-registration-token',           // Token invalide
+            'messaging/mismatched-sender-id',                 // Mauvais sender ID
+          ];
+
+          if (errorCode && invalidTokenCodes.includes(errorCode)) {
+            failedTokens.push(tokens[idx]);
+            console.log(`[API Notifications] Token invalide détecté (${errorCode}): ${tokens[idx].substring(0, 20)}...`);
+          } else {
+            // Autres erreurs (timeout, indisponibilité, etc.) - ne pas supprimer le token
+            console.warn(`[API Notifications] Erreur temporaire pour token ${tokens[idx].substring(0, 20)}...: ${errorCode || 'unknown'}`);
+          }
         }
       });
 

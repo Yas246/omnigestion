@@ -86,10 +86,10 @@ export const useWarehousesStore = create<WarehousesState>()(
       },
 
       /**
-       * Récupérer le dépôt principal (marqué comme isPrimary)
+       * Récupérer le dépôt principal (marqué comme isMain)
        */
       getPrimaryWarehouse: () => {
-        return get().warehouses.find((w) => w.isPrimary);
+        return get().warehouses.find((w) => w.isMain);
       },
     }),
     {

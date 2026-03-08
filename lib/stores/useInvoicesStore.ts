@@ -9,7 +9,7 @@ import { useAuthStore } from './useAuthStore';
  */
 export interface InvoiceFilters {
   clientId: string | null;
-  paymentStatus: string | null;
+  status: string | null;
   startDate: Date | null;
   endDate: Date | null;
   minAmount: number | null;
@@ -38,13 +38,13 @@ interface InvoicesState {
   filters: InvoiceFilters;
 
   // Actions de chargement
-  fetchInvoices: (options?: { reset?: boolean; pageSize?: number }) => Promise<void>;
+  fetchInvoices: (companyId: string, options?: { reset?: boolean; pageSize?: number }) => Promise<void>;
   loadMore: () => Promise<void>;
-  refreshInvoices: () => Promise<void>;
+  refreshInvoices: (companyId?: string) => Promise<void>;
 
   // Actions de filtres
   setClientFilter: (clientId: string | null) => void;
-  setPaymentStatusFilter: (status: string | null) => void;
+  setStatusFilter: (status: string | null) => void;
   setDateRangeFilter: (startDate: Date | null, endDate: Date | null) => void;
   setAmountRangeFilter: (min: number | null, max: number | null) => void;
   clearFilters: () => void;
@@ -86,7 +86,7 @@ export const useInvoicesStore = create<InvoicesState>()(
     lastDoc: null,
     filters: {
       clientId: null,
-      paymentStatus: null,
+      status: null,
       startDate: null,
       endDate: null,
       minAmount: null,
@@ -97,10 +97,9 @@ export const useInvoicesStore = create<InvoicesState>()(
      * Charger les factures depuis Firestore
      * IMPORTANT: Pagination pour éviter de charger TOUTES les factures
      */
-    fetchInvoices: async (options = {}) => {
+    fetchInvoices: async (companyId, options = {}) => {
       const { reset = false, pageSize = 20 } = options;
       const { filters, currentPage, lastDoc } = get();
-      const companyId = useAuthStore.getState().currentCompanyId;
 
       if (!companyId) {
         console.error('[fetchInvoices] Aucune compagnie sélectionnée');
@@ -126,7 +125,7 @@ export const useInvoicesStore = create<InvoicesState>()(
             orderDirection: 'desc',
             filters: {
               clientId: filters.clientId || undefined,
-              paymentStatus: filters.paymentStatus || undefined,
+              status: filters.status || undefined,
               startDate: filters.startDate || undefined,
               endDate: filters.endDate || undefined,
               minAmount: filters.minAmount || undefined,
@@ -164,7 +163,7 @@ export const useInvoicesStore = create<InvoicesState>()(
     /**
      * Charger plus de factures (pagination)
      */
-    loadMore: async () => {
+    loadMore: async (companyId?: string) => {
       const { hasMore, loading } = get();
 
       if (!hasMore || loading) {
@@ -172,16 +171,28 @@ export const useInvoicesStore = create<InvoicesState>()(
         return;
       }
 
+      // Utiliser le companyId passé ou celui du store
+      const targetCompanyId = companyId || useAuthStore.getState().currentCompanyId;
+      if (!targetCompanyId) {
+        console.error('[loadMore] Aucune compagnie sélectionnée');
+        return;
+      }
+
       console.log('[loadMore] Chargement page suivante');
-      await get().fetchInvoices({ reset: false });
+      await get().fetchInvoices(targetCompanyId, { reset: false });
     },
 
     /**
      * Rafraîchir toutes les factures (recharger depuis Firestore)
      */
-    refreshInvoices: async () => {
+    refreshInvoices: async (companyId?: string) => {
       console.log('[refreshInvoices] Rafraîchissement complet');
-      await get().fetchInvoices({ reset: true });
+      const targetCompanyId = companyId || useAuthStore.getState().currentCompanyId;
+      if (!targetCompanyId) {
+        console.error('[refreshInvoices] Aucune compagnie sélectionnée');
+        return;
+      }
+      await get().fetchInvoices(targetCompanyId, { reset: true });
     },
 
     /**
@@ -195,12 +206,12 @@ export const useInvoicesStore = create<InvoicesState>()(
     },
 
     /**
-     * Filtrer par statut de paiement (filtre local)
+     * Filtrer par statut (filtre local)
      */
-    setPaymentStatusFilter: (status) => {
-      console.log('[setPaymentStatusFilter] Changement filtre statut', { status });
+    setStatusFilter: (status) => {
+      console.log('[setStatusFilter] Changement filtre statut', { status });
       set((state) => ({
-        filters: { ...state.filters, paymentStatus: status },
+        filters: { ...state.filters, status },
       }));
     },
 
@@ -232,7 +243,7 @@ export const useInvoicesStore = create<InvoicesState>()(
       set((state) => ({
         filters: {
           clientId: null,
-          paymentStatus: null,
+          status: null,
           startDate: null,
           endDate: null,
           minAmount: null,
@@ -317,31 +328,35 @@ export const useInvoicesStore = create<InvoicesState>()(
      */
     getFilteredInvoices: () => {
       const { invoices, filters } = get();
-      let filtered = [...invoices];
+      let filtered: Invoice[] = [...invoices];
 
       // Filtre par client
       if (filters.clientId) {
         filtered = filtered.filter((i) => i.clientId === filters.clientId);
       }
 
-      // Filtre par statut de paiement
-      if (filters.paymentStatus) {
-        filtered = filtered.filter((i) => i.paymentStatus === filters.paymentStatus);
+      // Filtre par statut
+      if (filters.status) {
+        filtered = filtered.filter((i) => i.status === filters.status);
       }
+
+      // Helper pour convertir createdAt en Date
+      const getDate = (invoice: Invoice): Date => {
+        const createdAt = invoice.createdAt;
+        if (createdAt instanceof Date) {
+          return createdAt;
+        }
+        // Cast pour Timestamp Firebase qui a une méthode toDate()
+        return (createdAt as any).toDate();
+      };
 
       // Filtre par plage de dates
       if (filters.startDate) {
-        filtered = filtered.filter((i) => {
-          const date = i.createdAt instanceof Date ? i.createdAt : i.createdAt.toDate();
-          return date >= filters.startDate!;
-        });
+        filtered = filtered.filter((invoice: Invoice) => getDate(invoice) >= filters.startDate!);
       }
 
       if (filters.endDate) {
-        filtered = filtered.filter((i) => {
-          const date = i.createdAt instanceof Date ? i.createdAt : i.createdAt.toDate();
-          return date <= filters.endDate!;
-        });
+        filtered = filtered.filter((invoice: Invoice) => getDate(invoice) <= filters.endDate!);
       }
 
       // Filtre par plage de montants
@@ -360,8 +375,16 @@ export const useInvoicesStore = create<InvoicesState>()(
      */
     getInvoicesByDateRange: (start, end) => {
       const { invoices } = get();
-      return invoices.filter((i) => {
-        const date = i.createdAt instanceof Date ? i.createdAt : i.createdAt.toDate();
+      const getDate = (invoice: Invoice): Date => {
+        const createdAt = invoice.createdAt;
+        if (createdAt instanceof Date) {
+          return createdAt;
+        }
+        // Cast pour Timestamp Firebase qui a une méthode toDate()
+        return (createdAt as any).toDate();
+      };
+      return invoices.filter((invoice: Invoice) => {
+        const date = getDate(invoice);
         return date >= start && date <= end;
       });
     },
@@ -399,30 +422,16 @@ export const selectInvoiceById = (invoiceId: string) =>
 
 /**
  * Hooks pour utiliser le store avec des sélecteurs optimisés
+ * NOTE: On utilise les factures brutes et on laisse le composant faire le filtrage
+ * pour éviter les boucles infinies de re-render
  */
-export const useInvoices = () => useInvoicesStore((state) => state.getFilteredInvoices());
+export const useInvoices = () => useInvoicesStore((state) => state.invoices);
 export const useInvoicesLoading = () => useInvoicesStore((state) => state.loading);
 export const useInvoicesError = () => useInvoicesStore((state) => state.error);
 export const useInvoicesHasMore = () => useInvoicesStore((state) => state.hasMore);
-export const useInvoicesFilters = () => useInvoicesStore((state) => state.filters);
-export const useInvoicesActions = () =>
-  useInvoicesStore((state) => ({
-    fetchInvoices: state.fetchInvoices,
-    loadMore: state.loadMore,
-    refreshInvoices: state.refreshInvoices,
-    setClientFilter: state.setClientFilter,
-    setPaymentStatusFilter: state.setPaymentStatusFilter,
-    setDateRangeFilter: state.setDateRangeFilter,
-    setAmountRangeFilter: state.setAmountRangeFilter,
-    clearFilters: state.clearFilters,
-    optimisticCreateInvoice: state.optimisticCreateInvoice,
-    optimisticUpdateInvoice: state.optimisticUpdateInvoice,
-    optimisticDeleteInvoice: state.optimisticDeleteInvoice,
-    syncInvoice: state.syncInvoice,
-    getInvoiceById: state.getInvoiceById,
-    getInvoicesByDateRange: state.getInvoicesByDateRange,
-    getInvoicesByClient: state.getInvoicesByClient,
-    clearInvoices: state.clearInvoices,
-  }));
+// NOTE: useInvoicesFilters supprimé car il cause des boucles infinies (objet qui change)
+
+// Hook pour accéder à tout le store (actions + getters)
+export const useInvoicesStoreState = useInvoicesStore;
 
 export default useInvoicesStore;

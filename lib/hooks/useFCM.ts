@@ -15,9 +15,28 @@ const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
 export function useFCM() {
   const [token, setToken] = useState<string | null>(null);
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
+  // ✅ CORRECTION: Initialiser avec l'état réel du navigateur au lieu de 'default'
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'default';
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ✅ CORRECTION: Synchroniser l'état avec le navigateur et persister dans localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      // Mettre à jour l'état si la permission change (ex: via les settings du navigateur)
+      setPermissionStatus(Notification.permission);
+
+      // Persister l'état pour éviter de redemander inutilement
+      if (Notification.permission === 'granted') {
+        localStorage.setItem('fcm-permission-granted', 'true');
+      }
+    }
+  }, []);
 
   /**
    * Demander la permission de notification au navigateur
@@ -167,6 +186,47 @@ export function useFCM() {
         }
 
         console.log('[useFCM] Appel à getToken() avec VAPID_KEY...');
+
+        // ✅ CORRECTION: Vérifier si un token existe déjà pour cet appareil
+        const { getDoc, doc: docFn } = await import('firebase/firestore');
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        const existingTokens = userDoc.data()?.fcmTokens || [];
+
+        // Chercher un token existant pour ce useragent (même appareil)
+        const currentUserAgent = navigator.userAgent;
+        const existingToken = existingTokens.find((t: FCMToken) =>
+          t.deviceInfo?.userAgent === currentUserAgent &&
+          t.deviceInfo?.platform === 'web'
+        );
+
+        if (existingToken) {
+          console.log('[useFCM] Token existant trouvé pour cet appareil:', existingToken.token.substring(0, 20) + '...');
+          console.log('[useFCM] Réutilisation du token existant (pas de nouvelle génération)');
+          setToken(existingToken.token);
+          setLoading(false);
+
+          // Écouter les messages en premier plan
+          const unsubscribe = onMessage(messaging, (payload) => {
+            console.log('[useFCM] Notification reçue en premier plan:', payload);
+            if (payload.notification && 'Notification' in window) {
+              new Notification(payload.notification.title || 'Notification', {
+                body: payload.notification.body,
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-96x96.png',
+                tag: payload.data?.type || 'default',
+                data: payload.data,
+              });
+            }
+          });
+
+          return () => {
+            if (unsubscribe) {
+              unsubscribe();
+            }
+          };
+        }
+
+        // Pas de token existant, en générer un nouveau
         const fcmToken = await getToken(messaging, {
           vapidKey: VAPID_KEY,
           serviceWorkerRegistration: swRegistration,
