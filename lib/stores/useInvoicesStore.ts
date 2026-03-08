@@ -1,8 +1,8 @@
-import { create } from 'zustand';
-import { subscribeWithSelector } from 'zustand/middleware';
-import type { Invoice } from '@/types';
-import * as invoicesApi from '@/lib/firestore/invoices';
-import { useAuthStore } from './useAuthStore';
+import { create } from "zustand";
+import { subscribeWithSelector, persist } from "zustand/middleware";
+import type { Invoice } from "@/types";
+import * as invoicesApi from "@/lib/firestore/invoices";
+import { useAuthStore } from "./useAuthStore";
 
 /**
  * Filtres pour les factures
@@ -38,7 +38,10 @@ interface InvoicesState {
   filters: InvoiceFilters;
 
   // Actions de chargement
-  fetchInvoices: (companyId: string, options?: { reset?: boolean; pageSize?: number }) => Promise<void>;
+  fetchInvoices: (
+    companyId: string,
+    options?: { reset?: boolean; pageSize?: number },
+  ) => Promise<void>;
   loadMore: () => Promise<void>;
   refreshInvoices: (companyId?: string) => Promise<void>;
 
@@ -51,7 +54,10 @@ interface InvoicesState {
 
   // Optimistic updates
   optimisticCreateInvoice: (invoice: Invoice) => void;
-  optimisticUpdateInvoice: (invoiceId: string, updates: Partial<Invoice>) => void;
+  optimisticUpdateInvoice: (
+    invoiceId: string,
+    updates: Partial<Invoice>,
+  ) => void;
   optimisticDeleteInvoice: (invoiceId: string) => void;
 
   // Synchronisation avec Firestore
@@ -74,55 +80,59 @@ interface InvoicesState {
  * Après: Pagination par 20 (20 lectures initiales, puis 20 par page)
  */
 export const useInvoicesStore = create<InvoicesState>()(
-  subscribeWithSelector((set, get) => ({
-    // État initial
-    invoices: [],
-    loading: false,
-    error: null,
-    hasMore: true,
-    lastLoadedAt: null,
-    currentPage: 0,
-    pageSize: 20, // Pagination par défaut de 20 factures
-    lastDoc: null,
-    filters: {
-      clientId: null,
-      status: null,
-      startDate: null,
-      endDate: null,
-      minAmount: null,
-      maxAmount: null,
-    },
+  persist(
+    subscribeWithSelector((set, get) => ({
+      // État initial
+      invoices: [],
+      loading: false,
+      error: null,
+      hasMore: true,
+      lastLoadedAt: null,
+      currentPage: 0,
+      pageSize: 20, // Pagination par défaut de 20 factures
+      lastDoc: null,
+      filters: {
+        clientId: null,
+        status: null,
+        startDate: null,
+        endDate: null,
+        minAmount: null,
+        maxAmount: null,
+      },
 
-    /**
-     * Charger les factures depuis Firestore
-     * IMPORTANT: Pagination pour éviter de charger TOUTES les factures
-     */
-    fetchInvoices: async (companyId, options = {}) => {
-      const { reset = false, pageSize = 20 } = options;
-      const { filters, currentPage, lastDoc } = get();
+      /**
+       * Charger les factures depuis Firestore
+       * IMPORTANT: Pagination pour éviter de charger TOUTES les factures
+       */
+      fetchInvoices: async (companyId, options = {}) => {
+        const { reset = false, pageSize = 20 } = options;
+        const { filters, currentPage, lastDoc } = get();
 
-      if (!companyId) {
-        console.error('[fetchInvoices] Aucune compagnie sélectionnée');
-        return;
-      }
+        if (!companyId) {
+          console.error("[fetchInvoices] Aucune compagnie sélectionnée");
+          return;
+        }
 
-      set({ loading: true, error: null });
+        set({ loading: true, error: null });
 
-      const startTime = performance.now();
-      console.log('[useInvoicesStore] Début chargement factures', {
-        companyId,
-        page: reset ? 0 : currentPage,
-        pageSize,
-        filters,
-      });
+        const startTime = performance.now();
+        console.log("[useInvoicesStore] Début chargement factures", {
+          companyId,
+          page: reset ? 0 : currentPage,
+          pageSize,
+          filters,
+        });
 
-      try {
-        const { data: newInvoices, hasMore, lastDoc: newLastDoc } =
-          await invoicesApi.fetchInvoices(companyId, {
+        try {
+          const {
+            data: newInvoices,
+            hasMore,
+            lastDoc: newLastDoc,
+          } = await invoicesApi.fetchInvoices(companyId, {
             limit: pageSize,
             startAfter: reset ? undefined : lastDoc,
-            orderByField: 'createdAt',
-            orderDirection: 'desc',
+            orderByField: "createdAt",
+            orderDirection: "desc",
             filters: {
               clientId: filters.clientId || undefined,
               status: filters.status || undefined,
@@ -133,290 +143,324 @@ export const useInvoicesStore = create<InvoicesState>()(
             },
           });
 
-        const endTime = performance.now();
-        console.log('[useInvoicesStore] Chargement terminé', {
-          count: newInvoices.length,
-          hasMore,
-          duration: `${(endTime - startTime).toFixed(0)}ms`,
-        });
+          const endTime = performance.now();
+          console.log("[useInvoicesStore] Chargement terminé", {
+            count: newInvoices.length,
+            hasMore,
+            duration: `${(endTime - startTime).toFixed(0)}ms`,
+          });
 
+          set((state) => ({
+            invoices: reset ? newInvoices : [...state.invoices, ...newInvoices],
+            hasMore,
+            lastDoc: newLastDoc,
+            loading: false,
+            lastLoadedAt: Date.now(),
+            currentPage: reset ? 0 : state.currentPage + 1,
+          }));
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : "Erreur inconnue lors du chargement";
+          console.error("[useInvoicesStore] Erreur chargement:", error);
+
+          set({
+            error: errorMessage,
+            loading: false,
+          });
+        }
+      },
+
+      /**
+       * Charger plus de factures (pagination)
+       */
+      loadMore: async (companyId?: string) => {
+        const { hasMore, loading } = get();
+
+        if (!hasMore || loading) {
+          console.log("[loadMore] Pas plus de factures ou chargement en cours");
+          return;
+        }
+
+        // Utiliser le companyId passé ou celui du store
+        const targetCompanyId =
+          companyId || useAuthStore.getState().currentCompanyId;
+        if (!targetCompanyId) {
+          console.error("[loadMore] Aucune compagnie sélectionnée");
+          return;
+        }
+
+        console.log("[loadMore] Chargement page suivante");
+        await get().fetchInvoices(targetCompanyId, { reset: false });
+      },
+
+      /**
+       * Rafraîchir toutes les factures (recharger depuis Firestore)
+       */
+      refreshInvoices: async (companyId?: string) => {
+        console.log("[refreshInvoices] Rafraîchissement complet");
+        const targetCompanyId =
+          companyId || useAuthStore.getState().currentCompanyId;
+        if (!targetCompanyId) {
+          console.error("[refreshInvoices] Aucune compagnie sélectionnée");
+          return;
+        }
+        await get().fetchInvoices(targetCompanyId, { reset: true });
+      },
+
+      /**
+       * Filtrer par client (filtre local, pas de rechargement)
+       */
+      setClientFilter: (clientId) => {
+        console.log("[setClientFilter] Changement filtre client", { clientId });
         set((state) => ({
-          invoices: reset ? newInvoices : [...state.invoices, ...newInvoices],
-          hasMore,
-          lastDoc: newLastDoc,
-          loading: false,
-          lastLoadedAt: Date.now(),
-          currentPage: reset ? 0 : state.currentPage + 1,
+          filters: { ...state.filters, clientId },
         }));
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : 'Erreur inconnue lors du chargement';
-        console.error('[useInvoicesStore] Erreur chargement:', error);
+      },
 
-        set({
-          error: errorMessage,
-          loading: false,
+      /**
+       * Filtrer par statut (filtre local)
+       */
+      setStatusFilter: (status) => {
+        console.log("[setStatusFilter] Changement filtre statut", { status });
+        set((state) => ({
+          filters: { ...state.filters, status },
+        }));
+      },
+
+      /**
+       * Filtrer par plage de dates (filtre local)
+       */
+      setDateRangeFilter: (startDate, endDate) => {
+        console.log("[setDateRangeFilter] Changement filtre dates", {
+          startDate,
+          endDate,
         });
-      }
-    },
+        set((state) => ({
+          filters: { ...state.filters, startDate, endDate },
+        }));
+      },
 
-    /**
-     * Charger plus de factures (pagination)
-     */
-    loadMore: async (companyId?: string) => {
-      const { hasMore, loading } = get();
+      /**
+       * Filtrer par plage de montants (filtre local)
+       */
+      setAmountRangeFilter: (min, max) => {
+        console.log("[setAmountRangeFilter] Changement filtre montants", {
+          min,
+          max,
+        });
+        set((state) => ({
+          filters: { ...state.filters, minAmount: min, maxAmount: max },
+        }));
+      },
 
-      if (!hasMore || loading) {
-        console.log('[loadMore] Pas plus de factures ou chargement en cours');
-        return;
-      }
+      /**
+       * Effacer tous les filtres
+       */
+      clearFilters: () => {
+        console.log("[clearFilters] Effacement filtres");
+        set((state) => ({
+          filters: {
+            clientId: null,
+            status: null,
+            startDate: null,
+            endDate: null,
+            minAmount: null,
+            maxAmount: null,
+          },
+        }));
+      },
 
-      // Utiliser le companyId passé ou celui du store
-      const targetCompanyId = companyId || useAuthStore.getState().currentCompanyId;
-      if (!targetCompanyId) {
-        console.error('[loadMore] Aucune compagnie sélectionnée');
-        return;
-      }
+      /**
+       * Optimistic CREATE - Ajouter une facture immédiatement
+       */
+      optimisticCreateInvoice: (invoice) => {
+        console.log("[optimisticCreateInvoice] Ajout facture optimiste", {
+          invoiceId: invoice.id,
+        });
+        set((state) => ({
+          invoices: [invoice, ...state.invoices],
+        }));
+      },
 
-      console.log('[loadMore] Chargement page suivante');
-      await get().fetchInvoices(targetCompanyId, { reset: false });
-    },
+      /**
+       * Optimistic UPDATE - Mettre à jour une facture immédiatement
+       */
+      optimisticUpdateInvoice: (invoiceId, updates) => {
+        console.log("[optimisticUpdateInvoice] Mise à jour optimiste", {
+          invoiceId,
+          updates,
+        });
+        set((state) => ({
+          invoices: state.invoices.map((i) =>
+            i.id === invoiceId ? { ...i, ...updates } : i,
+          ),
+        }));
+      },
 
-    /**
-     * Rafraîchir toutes les factures (recharger depuis Firestore)
-     */
-    refreshInvoices: async (companyId?: string) => {
-      console.log('[refreshInvoices] Rafraîchissement complet');
-      const targetCompanyId = companyId || useAuthStore.getState().currentCompanyId;
-      if (!targetCompanyId) {
-        console.error('[refreshInvoices] Aucune compagnie sélectionnée');
-        return;
-      }
-      await get().fetchInvoices(targetCompanyId, { reset: true });
-    },
+      /**
+       * Optimistic DELETE - Supprimer une facture immédiatement
+       */
+      optimisticDeleteInvoice: (invoiceId) => {
+        console.log("[optimisticDeleteInvoice] Suppression optimiste", {
+          invoiceId,
+        });
+        set((state) => ({
+          invoices: state.invoices.filter((i) => i.id !== invoiceId),
+        }));
+      },
 
-    /**
-     * Filtrer par client (filtre local, pas de rechargement)
-     */
-    setClientFilter: (clientId) => {
-      console.log('[setClientFilter] Changement filtre client', { clientId });
-      set((state) => ({
-        filters: { ...state.filters, clientId },
-      }));
-    },
-
-    /**
-     * Filtrer par statut (filtre local)
-     */
-    setStatusFilter: (status) => {
-      console.log('[setStatusFilter] Changement filtre statut', { status });
-      set((state) => ({
-        filters: { ...state.filters, status },
-      }));
-    },
-
-    /**
-     * Filtrer par plage de dates (filtre local)
-     */
-    setDateRangeFilter: (startDate, endDate) => {
-      console.log('[setDateRangeFilter] Changement filtre dates', { startDate, endDate });
-      set((state) => ({
-        filters: { ...state.filters, startDate, endDate },
-      }));
-    },
-
-    /**
-     * Filtrer par plage de montants (filtre local)
-     */
-    setAmountRangeFilter: (min, max) => {
-      console.log('[setAmountRangeFilter] Changement filtre montants', { min, max });
-      set((state) => ({
-        filters: { ...state.filters, minAmount: min, maxAmount: max },
-      }));
-    },
-
-    /**
-     * Effacer tous les filtres
-     */
-    clearFilters: () => {
-      console.log('[clearFilters] Effacement filtres');
-      set((state) => ({
-        filters: {
-          clientId: null,
-          status: null,
-          startDate: null,
-          endDate: null,
-          minAmount: null,
-          maxAmount: null,
-        },
-      }));
-    },
-
-    /**
-     * Optimistic CREATE - Ajouter une facture immédiatement
-     */
-    optimisticCreateInvoice: (invoice) => {
-      console.log('[optimisticCreateInvoice] Ajout facture optimiste', {
-        invoiceId: invoice.id,
-      });
-      set((state) => ({
-        invoices: [invoice, ...state.invoices],
-      }));
-    },
-
-    /**
-     * Optimistic UPDATE - Mettre à jour une facture immédiatement
-     */
-    optimisticUpdateInvoice: (invoiceId, updates) => {
-      console.log('[optimisticUpdateInvoice] Mise à jour optimiste', { invoiceId, updates });
-      set((state) => ({
-        invoices: state.invoices.map((i) => (i.id === invoiceId ? { ...i, ...updates } : i)),
-      }));
-    },
-
-    /**
-     * Optimistic DELETE - Supprimer une facture immédiatement
-     */
-    optimisticDeleteInvoice: (invoiceId) => {
-      console.log('[optimisticDeleteInvoice] Suppression optimiste', { invoiceId });
-      set((state) => ({
-        invoices: state.invoices.filter((i) => i.id !== invoiceId),
-      }));
-    },
-
-    /**
-     * Synchroniser une facture avec Firestore (après optimistic update)
-     */
-    syncInvoice: async (invoiceId) => {
-      const companyId = useAuthStore.getState().currentCompanyId;
-      if (!companyId) {
-        console.error('[syncInvoice] Aucune compagnie sélectionnée');
-        return;
-      }
-
-      console.log('[syncInvoice] Synchronisation facture', { invoiceId });
-
-      try {
-        const invoice = await invoicesApi.fetchInvoice(companyId, invoiceId);
-
-        if (invoice) {
-          set((state) => ({
-            invoices: state.invoices.map((i) => (i.id === invoiceId ? invoice : i)),
-          }));
-          console.log('[syncInvoice] Facture synchronisée', { invoiceId });
-        } else {
-          // Facture supprimée, la retirer du store
-          set((state) => ({
-            invoices: state.invoices.filter((i) => i.id !== invoiceId),
-          }));
-          console.log('[syncInvoice] Facture retirée (supprimée)', { invoiceId });
+      /**
+       * Synchroniser une facture avec Firestore (après optimistic update)
+       */
+      syncInvoice: async (invoiceId) => {
+        const companyId = useAuthStore.getState().currentCompanyId;
+        if (!companyId) {
+          console.error("[syncInvoice] Aucune compagnie sélectionnée");
+          return;
         }
-      } catch (error) {
-        console.error('[syncInvoice] Erreur synchronisation:', error);
-      }
-    },
 
-    /**
-     * Récupérer une facture par ID
-     */
-    getInvoiceById: (invoiceId) => {
-      return get().invoices.find((i) => i.id === invoiceId);
-    },
+        console.log("[syncInvoice] Synchronisation facture", { invoiceId });
 
-    /**
-     * Récupérer les factures filtrées (filtres locaux)
-     */
-    getFilteredInvoices: () => {
-      const { invoices, filters } = get();
-      let filtered: Invoice[] = [...invoices];
+        try {
+          const invoice = await invoicesApi.fetchInvoice(companyId, invoiceId);
 
-      // Filtre par client
-      if (filters.clientId) {
-        filtered = filtered.filter((i) => i.clientId === filters.clientId);
-      }
-
-      // Filtre par statut
-      if (filters.status) {
-        filtered = filtered.filter((i) => i.status === filters.status);
-      }
-
-      // Helper pour convertir createdAt en Date
-      const getDate = (invoice: Invoice): Date => {
-        const createdAt = invoice.createdAt;
-        if (createdAt instanceof Date) {
-          return createdAt;
+          if (invoice) {
+            set((state) => ({
+              invoices: state.invoices.map((i) =>
+                i.id === invoiceId ? invoice : i,
+              ),
+            }));
+            console.log("[syncInvoice] Facture synchronisée", { invoiceId });
+          } else {
+            // Facture supprimée, la retirer du store
+            set((state) => ({
+              invoices: state.invoices.filter((i) => i.id !== invoiceId),
+            }));
+            console.log("[syncInvoice] Facture retirée (supprimée)", {
+              invoiceId,
+            });
+          }
+        } catch (error) {
+          console.error("[syncInvoice] Erreur synchronisation:", error);
         }
-        // Cast pour Timestamp Firebase qui a une méthode toDate()
-        return (createdAt as any).toDate();
-      };
+      },
 
-      // Filtre par plage de dates
-      if (filters.startDate) {
-        filtered = filtered.filter((invoice: Invoice) => getDate(invoice) >= filters.startDate!);
-      }
+      /**
+       * Récupérer une facture par ID
+       */
+      getInvoiceById: (invoiceId) => {
+        return get().invoices.find((i) => i.id === invoiceId);
+      },
 
-      if (filters.endDate) {
-        filtered = filtered.filter((invoice: Invoice) => getDate(invoice) <= filters.endDate!);
-      }
+      /**
+       * Récupérer les factures filtrées (filtres locaux)
+       */
+      getFilteredInvoices: () => {
+        const { invoices, filters } = get();
+        let filtered: Invoice[] = [...invoices];
 
-      // Filtre par plage de montants
-      if (filters.minAmount !== null) {
-        filtered = filtered.filter((i) => i.total >= filters.minAmount!);
-      }
-      if (filters.maxAmount !== null) {
-        filtered = filtered.filter((i) => i.total <= filters.maxAmount!);
-      }
-
-      return filtered;
-    },
-
-    /**
-     * Récupérer les factures pour une plage de dates
-     */
-    getInvoicesByDateRange: (start, end) => {
-      const { invoices } = get();
-      const getDate = (invoice: Invoice): Date => {
-        const createdAt = invoice.createdAt;
-        if (createdAt instanceof Date) {
-          return createdAt;
+        // Filtre par client
+        if (filters.clientId) {
+          filtered = filtered.filter((i) => i.clientId === filters.clientId);
         }
-        // Cast pour Timestamp Firebase qui a une méthode toDate()
-        return (createdAt as any).toDate();
-      };
-      return invoices.filter((invoice: Invoice) => {
-        const date = getDate(invoice);
-        return date >= start && date <= end;
-      });
-    },
 
-    /**
-     * Récupérer les factures d'un client
-     */
-    getInvoicesByClient: (clientId) => {
-      const { invoices } = get();
-      return invoices.filter((i) => i.clientId === clientId);
-    },
+        // Filtre par statut
+        if (filters.status) {
+          filtered = filtered.filter((i) => i.status === filters.status);
+        }
 
-    /**
-     * Vider toutes les factures (déconnexion)
-     */
-    clearInvoices: () => {
-      console.log('[clearInvoices] Vidage du store');
-      set({
-        invoices: [],
-        hasMore: true,
-        lastLoadedAt: null,
-        currentPage: 0,
-        lastDoc: null,
-      });
+        // Helper pour convertir createdAt en Date
+        const getDate = (invoice: Invoice): Date => {
+          const createdAt = invoice.createdAt;
+          if (createdAt instanceof Date) {
+            return createdAt;
+          }
+          // Cast pour Timestamp Firebase qui a une méthode toDate()
+          return (createdAt as any).toDate();
+        };
+
+        // Filtre par plage de dates
+        if (filters.startDate) {
+          filtered = filtered.filter(
+            (invoice: Invoice) => getDate(invoice) >= filters.startDate!,
+          );
+        }
+
+        if (filters.endDate) {
+          filtered = filtered.filter(
+            (invoice: Invoice) => getDate(invoice) <= filters.endDate!,
+          );
+        }
+
+        // Filtre par plage de montants
+        if (filters.minAmount !== null) {
+          filtered = filtered.filter((i) => i.total >= filters.minAmount!);
+        }
+        if (filters.maxAmount !== null) {
+          filtered = filtered.filter((i) => i.total <= filters.maxAmount!);
+        }
+
+        return filtered;
+      },
+
+      /**
+       * Récupérer les factures pour une plage de dates
+       */
+      getInvoicesByDateRange: (start, end) => {
+        const { invoices } = get();
+        const getDate = (invoice: Invoice): Date => {
+          const createdAt = invoice.createdAt;
+          if (createdAt instanceof Date) {
+            return createdAt;
+          }
+          // Cast pour Timestamp Firebase qui a une méthode toDate()
+          return (createdAt as any).toDate();
+        };
+        return invoices.filter((invoice: Invoice) => {
+          const date = getDate(invoice);
+          return date >= start && date <= end;
+        });
+      },
+
+      /**
+       * Récupérer les factures d'un client
+       */
+      getInvoicesByClient: (clientId) => {
+        const { invoices } = get();
+        return invoices.filter((i) => i.clientId === clientId);
+      },
+
+      /**
+       * Vider toutes les factures (déconnexion)
+       */
+      clearInvoices: () => {
+        console.log("[clearInvoices] Vidage du store");
+        set({
+          invoices: [],
+          hasMore: true,
+          lastLoadedAt: null,
+          currentPage: 0,
+          lastDoc: null,
+        });
+      },
+    })),
+    {
+      name: "invoices-storage",
+      partialize: (state) => ({
+        invoices: state.invoices,
+        lastLoadedAt: state.lastLoadedAt,
+      }),
     },
-  }))
+  ),
 );
 
 /**
  * Sélecteurs dérivés optimisés
  */
-export const selectInvoices = () => useInvoicesStore.getState().getFilteredInvoices();
+export const selectInvoices = () =>
+  useInvoicesStore.getState().getFilteredInvoices();
 export const selectInvoiceById = (invoiceId: string) =>
   useInvoicesStore.getState().getInvoiceById(invoiceId);
 
@@ -426,9 +470,11 @@ export const selectInvoiceById = (invoiceId: string) =>
  * pour éviter les boucles infinies de re-render
  */
 export const useInvoices = () => useInvoicesStore((state) => state.invoices);
-export const useInvoicesLoading = () => useInvoicesStore((state) => state.loading);
+export const useInvoicesLoading = () =>
+  useInvoicesStore((state) => state.loading);
 export const useInvoicesError = () => useInvoicesStore((state) => state.error);
-export const useInvoicesHasMore = () => useInvoicesStore((state) => state.hasMore);
+export const useInvoicesHasMore = () =>
+  useInvoicesStore((state) => state.hasMore);
 // NOTE: useInvoicesFilters supprimé car il cause des boucles infinies (objet qui change)
 
 // Hook pour accéder à tout le store (actions + getters)
