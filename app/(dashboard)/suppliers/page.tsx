@@ -34,7 +34,7 @@ function useDebounce(value: string, delay: number): string {
   return debouncedValue;
 }
 
-type StatusFilter = 'all' | 'active' | 'partial' | 'overdue' | 'paid';
+type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
 type TabType = 'suppliers' | 'credits';
 
 export default function SuppliersPage() {
@@ -62,7 +62,7 @@ export default function SuppliersPage() {
   const getStatusLabel = (status: string) => {
     const labels: Record<string, { label: string; variant: any }> = {
       active: { label: 'En cours', variant: 'default' },
-      partial: { label: 'Payé partiel', variant: 'secondary' },
+      partial: { label: 'En cours', variant: 'default' }, // Même affichage que active
       paid: { label: 'Payé', variant: 'outline' },
       overdue: { label: 'En retard', variant: 'destructive' },
       cancelled: { label: 'Annulé', variant: 'outline' },
@@ -71,7 +71,12 @@ export default function SuppliersPage() {
   };
 
   const filteredCredits = credits.filter((credit) => {
-    const matchesStatus = statusFilter === 'all' || credit.status === statusFilter;
+    // 'active' inclut à la fois 'active' et 'partial'
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'active' && (credit.status === 'active' || credit.status === 'partial')) ||
+      credit.status === statusFilter;
+
     // Ne filtrer que si la recherche est vide ou a minimum 3 caractères
     if (debouncedSearchQuery.length > 0 && debouncedSearchQuery.length < 3) {
       return false; // Masquer tous les résultats si moins de 3 caractères
@@ -293,7 +298,6 @@ export default function SuppliersPage() {
                     <SelectContent>
                       <SelectItem value="all">Tous</SelectItem>
                       <SelectItem value="active">En cours</SelectItem>
-                      <SelectItem value="partial">Payé partiel</SelectItem>
                       <SelectItem value="overdue">En retard</SelectItem>
                       <SelectItem value="paid">Payé</SelectItem>
                     </SelectContent>

@@ -14,6 +14,7 @@ import { InvoiceTab } from '@/components/settings/InvoiceTab';
 import { StockTab } from '@/components/settings/StockTab';
 import { UsersTab } from '@/components/settings/UsersTab';
 import { SystemTab } from '@/components/settings/SystemTab';
+import { ThemeSelector } from '@/components/settings/ThemeSelector';
 import { PermissionGate } from '@/components/auth';
 
 export default function SettingsPage() {
@@ -79,6 +80,9 @@ export default function SettingsPage() {
           Configurez votre entreprise et les préférences de l&apos;application
         </p>
       </div>
+
+      {/* Sélecteur de thème - accessible à tous les utilisateurs */}
+      <ThemeSelector onThemeChanged={refresh} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">

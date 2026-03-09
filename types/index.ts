@@ -17,6 +17,11 @@ export interface Permission {
   actions: string[];
 }
 
+export interface UserPreferences {
+  theme?: 'light' | 'dark' | 'system';
+  language?: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -29,6 +34,7 @@ export interface User {
   companyIds: string[]; // Liste des entreprises accessibles
   currentCompanyId: string; // Entreprise actuellement sélectionnée
   permissions?: Permission[]; // Pour les employés avec permissions granulaires
+  preferences?: UserPreferences; // Préférences personnelles de l'utilisateur
   fcmTokens?: FCMToken[]; // Tokens FCM pour les notifications push
   createdAt: Date;
   updatedAt: Date;

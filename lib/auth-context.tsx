@@ -26,6 +26,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   switchCompany: (companyId: string) => Promise<void>;
   createCompany: (companyData: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -294,6 +295,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUser = async () => {
+    if (!user) return;
+
+    try {
+      // Recharger les données utilisateur depuis Firestore
+      const userDoc = await getDoc(doc(db, 'users', user.id));
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as Omit<AppUser, 'id'>;
+        setUser({
+          id: user.id,
+          ...userData,
+          firebaseUser: user.firebaseUser,
+        });
+      }
+    } catch (err) {
+      console.error('Erreur lors du rafraîchissement des données utilisateur:', err);
+      setError('Erreur lors du rafraîchissement des données utilisateur');
+      throw err;
+    }
+  };
+
   const resetPassword = async (email: string) => {
     setError(null);
     try {
@@ -324,6 +346,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetPassword,
         switchCompany,
         createCompany,
+        refreshUser,
       }}
     >
       {children}
