@@ -21,7 +21,9 @@ import {
   Menu,
   Building2,
   Check,
+  Bell,
 } from "lucide-react";
+import { useTestNotification } from "@/lib/hooks/useTestNotification";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -32,6 +34,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const { sendTestNotification, loading: testNotifLoading } = useTestNotification();
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -90,6 +93,26 @@ export function Header({ onMenuClick }: HeaderProps) {
         <div className="flex items-center gap-3">
           {/* Indicateur de statut réseau */}
           <NetworkStatusIndicator />
+
+          {/* Bouton de test notification - DEBUG */}
+          {process.env.NODE_ENV === 'development' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                console.log('[Header] Clic sur bouton test notification');
+                sendTestNotification();
+              }}
+              disabled={testNotifLoading}
+              className="gap-2"
+              title="Envoyer une notification de test aux admins"
+            >
+              <Bell className={`h-4 w-4 ${testNotifLoading ? 'animate-pulse' : ''}`} />
+              <span className="hidden sm:inline">
+                {testNotifLoading ? 'Envoi...' : 'Test Notif'}
+              </span>
+            </Button>
+          )}
 
           {/* Sélecteur d'entreprise - admin uniquement avec plusieurs entreprises */}
           {user?.role === "admin" && companies.length > 1 && currentCompany && (

@@ -209,11 +209,12 @@ export function useFCM() {
           const unsubscribe = onMessage(messaging, (payload) => {
             console.log('[useFCM] Notification reçue en premier plan:', payload);
             if (payload.notification && 'Notification' in window) {
+              const uniqueTag = `${payload.data?.type || 'default'}-${Date.now()}`;
               new Notification(payload.notification.title || 'Notification', {
                 body: payload.notification.body,
                 icon: '/icons/icon-192x192.png',
                 badge: '/icons/icon-96x96.png',
-                tag: payload.data?.type || 'default',
+                tag: uniqueTag, // Tag unique
                 data: payload.data,
               });
             }
@@ -269,11 +270,16 @@ export function useFCM() {
 
         // Afficher une notification native si le navigateur le supporte
         if (payload.notification && 'Notification' in window) {
+          // ✅ CORRECTION: Tag unique pour éviter le remplacement de notifications
+          const uniqueTag = `${payload.data?.type || 'default'}-${Date.now()}`;
+
+          console.log('[useFCM] Affichage notification avec tag:', uniqueTag);
+
           new Notification(payload.notification.title || 'Notification', {
             body: payload.notification.body,
             icon: '/icons/icon-192x192.png',
             badge: '/icons/icon-96x96.png',
-            tag: payload.data?.type || 'default',
+            tag: uniqueTag, // Tag unique = notifications s'empilent
             data: payload.data,
           });
         }

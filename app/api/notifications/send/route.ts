@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { getMessaging, SendResponse } from 'firebase-admin/messaging';
+import { getMessaging } from 'firebase-admin/messaging';
 import type { PushNotification } from '@/types';
 
 /**
@@ -80,65 +80,83 @@ export async function POST(request: NextRequest) {
 
     console.log(`[API Notifications] ${tokens.length} token(s) FCM collecté(s)`);
 
-    // Envoyer la notification via FCM (multicast pour plusieurs tokens)
+    // Envoyer la notification via FCM (un par un pour avoir plus de détails)
     const messaging = getMessaging();
-    const message = {
-      notification: {
-        title: notification.title,
-        body: notification.body,
-      },
-      data: notification.data || {},
-      tokens: tokens.slice(0, 500), // FCM supporte jusqu'à 500 tokens par requête
-    };
 
-    const response = await messaging.sendEachForMulticast(message);
+    // Pour les notifications web, on doit utiliser le format correct
+    const promises = tokens.slice(0, 500).map(async (token) => {
+      const message = {
+        token: token,
+        notification: {
+          title: notification.title,
+          body: notification.body,
+        },
+        data: {
+          ...notification.data,
+          click_action: '/',
+        },
+        webpush: {
+          fcmOptions: {
+            link: '/',
+          },
+        },
+      };
 
-    console.log(`[API Notifications] Notification envoyée: ${response.successCount} succès, ${response.failureCount} échecs`);
+      console.log(`[API Notifications] Envoi au token ${token.substring(0, 20)}...`);
+
+      try {
+        const response = await messaging.send(message);
+        console.log(`[API Notifications] ✓ Succès pour token ${token.substring(0, 20)}...`);
+        return { success: true, token };
+      } catch (error: any) {
+        console.error(`[API Notifications] ✗ Erreur pour token ${token.substring(0, 20)}...:`, error.code, error.message);
+        return { success: false, token, error: error.code };
+      }
+    });
+
+    const results = await Promise.all(promises);
+
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+
+    console.log(`[API Notifications] Notification envoyée: ${successCount} succès, ${failureCount} échecs`);
 
     // Nettoyer les tokens expirés
     const failedTokens: string[] = [];
-    if (response.failureCount > 0) {
-      response.responses.forEach((resp: SendResponse, idx: number) => {
-        if (!resp.success) {
-          // ✅ CORRECTION: Nettoyer TOUS les types de tokens invalides, pas juste 'not-registered'
-          const errorCode = resp.error?.code;
+    const invalidTokenCodes = [
+      'messaging/registration-token-not-registered',    // Token désenregistré
+      'messaging/invalid-registration-token',           // Token invalide
+      'messaging/mismatched-sender-id',                 // Mauvais sender ID
+    ];
 
-          // Liste complète des codes d'erreur qui indiquent un token invalide
-          const invalidTokenCodes = [
-            'messaging/registration-token-not-registered',    // Token désenregistré
-            'messaging/invalid-registration-token',           // Token invalide
-            'messaging/mismatched-sender-id',                 // Mauvais sender ID
-          ];
+    results.forEach((result) => {
+      if (!result.success && result.error && invalidTokenCodes.includes(result.error)) {
+        failedTokens.push(result.token);
+        console.log(`[API Notifications] Token invalide détecté (${result.error}): ${result.token.substring(0, 20)}...`);
+      } else if (!result.success) {
+        // Autres erreurs (timeout, indisponibilité, etc.) - ne pas supprimer le token
+        console.warn(`[API Notifications] Erreur temporaire pour token ${result.token.substring(0, 20)}...: ${result.error || 'unknown'}`);
+      }
+    });
 
-          if (errorCode && invalidTokenCodes.includes(errorCode)) {
-            failedTokens.push(tokens[idx]);
-            console.log(`[API Notifications] Token invalide détecté (${errorCode}): ${tokens[idx].substring(0, 20)}...`);
-          } else {
-            // Autres erreurs (timeout, indisponibilité, etc.) - ne pas supprimer le token
-            console.warn(`[API Notifications] Erreur temporaire pour token ${tokens[idx].substring(0, 20)}...: ${errorCode || 'unknown'}`);
-          }
-        }
-      });
+    // Supprimer les tokens expirés de Firestore
+    if (failedTokens.length > 0) {
+      const uniqueUserIds = [...new Set(userIds)];
+      for (const userId of uniqueUserIds) {
+        const userRef = adminDb.collection('users').doc(userId);
+        const userDoc = await userRef.get();
 
-      // Supprimer les tokens expirés de Firestore
-      if (failedTokens.length > 0) {
-        const uniqueUserIds = [...new Set(userIds)];
-        for (const userId of uniqueUserIds) {
-          const userRef = adminDb.collection('users').doc(userId);
-          const userDoc = await userRef.get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          if (userData && userData.fcmTokens) {
+            const updatedTokens = userData.fcmTokens.filter(
+              (t: any) => !failedTokens.includes(t.token)
+            );
 
-          if (userDoc.exists) {
-            const userData = userDoc.data();
-            if (userData && userData.fcmTokens) {
-              const updatedTokens = userData.fcmTokens.filter(
-                (t: any) => !failedTokens.includes(t.token)
-              );
-
-              await userRef.update({
-                fcmTokens: updatedTokens,
-                updatedAt: new Date(),
-              });
-            }
+            await userRef.update({
+              fcmTokens: updatedTokens,
+              updatedAt: new Date(),
+            });
           }
         }
       }
@@ -146,8 +164,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      successCount: response.successCount,
-      failureCount: response.failureCount,
+      successCount,
+      failureCount,
       failedTokens,
     });
   } catch (error: any) {

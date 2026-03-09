@@ -83,7 +83,7 @@ export interface FCMToken {
   updatedAt: Date;
 }
 
-export type NotificationType = 'new_sale' | 'stock_alert' | 'stock_out';
+export type NotificationType = 'new_sale' | 'stock_alert' | 'stock_out' | 'test';
 
 export interface PushNotification {
   type: NotificationType;
