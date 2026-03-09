@@ -3,6 +3,7 @@
 import { runTransaction, doc, getDoc, collection, addDoc, getDocs, query, where, limit } from 'firebase/firestore';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
+import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 
 export interface PurchaseItem {
   productId: string;
@@ -27,6 +28,9 @@ export function useSupplierPurchases() {
 
   const createPurchase = async (data: PurchaseInput) => {
     if (!user?.currentCompanyId) throw new Error('Utilisateur non connecté');
+
+    // Variable pour stocker l'ID de la caisse utilisée (pour refreshBalances après transaction)
+    let cashRegisterId: string | null = null;
 
     try {
       const result = await runTransaction(db, async (transaction) => {
@@ -109,7 +113,6 @@ export function useSupplierPurchases() {
           const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(user.currentCompanyId));
           const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
 
-          let cashRegisterId: string | null = null;
           if (!cashRegistersSnap.empty) {
             cashRegisterId = cashRegistersSnap.docs[0].id;
           } else {
@@ -172,6 +175,16 @@ export function useSupplierPurchases() {
           remainingAmount,
         };
       });
+
+      // Rafraîchir les soldes des caisses après création du mouvement
+      if (cashRegisterId) {
+        try {
+          const cashStore = useCashRegistersStore.getState();
+          await cashStore.refreshBalances(false, user.currentCompanyId);
+        } catch (error) {
+          console.error('[addPurchase] Erreur lors du rafraîchissement des soldes:', error);
+        }
+      }
 
       return result;
     } catch (err: any) {

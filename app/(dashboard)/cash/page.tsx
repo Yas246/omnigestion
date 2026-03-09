@@ -19,7 +19,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, Plus, ArrowUpCircle, ArrowDownCircle, ArrowRightCircle, DollarSign, Pencil, Trash2, MoreVertical, AlertTriangle } from 'lucide-react';
-import { useCashRegisters } from '@/lib/hooks/useCashRegisters';
+import {
+  useCashRegisters,
+  useMovements,
+  useBalances,
+  useCashRegistersLoading,
+  useMovementsLoading,
+  useMovementsHasMore,
+  useTodayStats,
+  useCashRegistersStore,
+} from '@/lib/stores/useCashRegistersStore';
+import { useAuth } from '@/lib/hooks/useAuth';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { CashMovementDialog } from '@/components/cash/CashMovementDialog';
@@ -30,47 +40,56 @@ import { toast } from 'sonner';
 import type { CashRegister } from '@/types';
 
 export default function CashPage() {
+  // Hooks du store Zustand
+  const cashRegisters = useCashRegisters();
+  const movements = useMovements();
+  const registersLoading = useCashRegistersLoading();
+  const movementsLoading = useMovementsLoading();
+  const movementsHasMore = useMovementsHasMore();
+  const todayStats = useTodayStats();
+
+  // Actions du store
   const {
-    cashRegisters,
-    movements,
-    loading,
-    calculateBalance,
     createMovement,
-    fetchCashRegisters,
-    fetchMovements,
     deleteCashRegister,
-  } = useCashRegisters();
+    fetchMovements,
+    loadMoreMovements,
+    getBalance,
+  } = useCashRegistersStore();
 
   const { canCreateCashOperation } = usePermissions();
 
-  const [balances, setBalances] = useState<Record<string, number>>({});
+  // Obtenir l'utilisateur connecté
+  const { user } = useAuth();
+  const currentCompanyId = user?.currentCompanyId || null;
+
+  // Obtenir les balances depuis le store (réactif aux changements)
+  const balances = useBalances();
+
+  // État local UI seulement
   const [showMovementDialog, setShowMovementDialog] = useState(false);
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
   const [selectedCashRegister, setSelectedCashRegister] = useState<string | null>(null);
   const [editingCashRegister, setEditingCashRegister] = useState<CashRegister | null>(null);
   const [deletingCashRegister, setDeletingCashRegister] = useState<CashRegister | null>(null);
 
+  // Initialisation quand le companyId change
   useEffect(() => {
-    // Calculer les soldes de toutes les caisses
-    const fetchBalances = async () => {
-      const balancePromises = cashRegisters.map(async (cr) => {
-        const balance = await calculateBalance(cr.id);
-        return { id: cr.id, balance };
-      });
+    if (currentCompanyId) {
+      console.log('[CashPage] Initialisation avec companyId:', currentCompanyId);
+      const store = useCashRegistersStore.getState();
 
-      const balanceResults = await Promise.all(balancePromises);
-      const balanceMap = balanceResults.reduce((acc, { id, balance }) => {
-        acc[id] = balance;
-        return acc;
-      }, {} as Record<string, number>);
+      // Toujours initialiser, pas seulement si cashRegisters est vide
+      // Car après Ctrl+Shift+R, localStorage restaure cashRegisters mais pas movements
+      store.initialize(currentCompanyId);
 
-      setBalances(balanceMap);
-    };
-
-    if (cashRegisters.length > 0) {
-      fetchBalances();
+      // Charger les mouvements si vides ou si pas de mouvements chargés
+      if (store.movements.length === 0) {
+        console.log('[CashPage] Chargement des mouvements...');
+        store.fetchMovements(undefined, true);
+      }
     }
-  }, [cashRegisters, movements]); // Ajout de movements pour recalculer quand il y a des changements
+  }, [currentCompanyId]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price);
@@ -89,9 +108,10 @@ export default function CashPage() {
     return labels[category] || category;
   };
 
+  // Calculer le solde total à partir des balances du store (réactif aux changements)
   const totalBalance = Object.values(balances).reduce((sum, balance) => sum + balance, 0);
 
-  // Calculer les statistiques du jour
+  // Filtrer les mouvements du jour pour l'affichage (limité aux mouvements chargés)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -101,13 +121,13 @@ export default function CashPage() {
     return movementDate.getTime() === today.getTime();
   });
 
-  const todayIn = todayMovements
+  const todayInCount = todayMovements
     .filter(m => m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId))
-    .reduce((sum, m) => sum + m.amount, 0);
+    .length;
 
-  const todayOut = todayMovements
+  const todayOutCount = todayMovements
     .filter(m => m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId))
-    .reduce((sum, m) => sum + m.amount, 0);
+    .length;
 
   // Handler pour l'édition d'une caisse
   const handleEditCashRegister = (cashRegister: CashRegister) => {
@@ -120,7 +140,7 @@ export default function CashPage() {
     if (!deletingCashRegister) return;
 
     try {
-      await deleteCashRegister(deletingCashRegister.id);
+      await useCashRegistersStore.getState().deleteCashRegister(deletingCashRegister.id);
       toast.success('Caisse supprimée avec succès');
       setDeletingCashRegister(null);
     } catch {
@@ -167,9 +187,9 @@ export default function CashPage() {
             <ArrowUpCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatPrice(todayIn)} FCFA</div>
+            <div className="text-2xl font-bold text-green-600">{formatPrice(todayStats.todayIn)} FCFA</div>
             <p className="text-xs text-muted-foreground">
-              {todayMovements.filter(m => m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId)).length} mouvement(s)
+              {todayInCount} mouvement(s)
             </p>
           </CardContent>
         </Card>
@@ -180,9 +200,9 @@ export default function CashPage() {
             <ArrowDownCircle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{formatPrice(todayOut)} FCFA</div>
+            <div className="text-2xl font-bold text-red-600">{formatPrice(todayStats.todayOut)} FCFA</div>
             <p className="text-xs text-muted-foreground">
-              {todayMovements.filter(m => m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId)).length} mouvement(s)
+              {todayOutCount} mouvement(s)
             </p>
           </CardContent>
         </Card>
@@ -229,7 +249,7 @@ export default function CashPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p className="font-bold">{formatPrice(balances[cr.id] || 0)} FCFA</p>
+                        <p className="font-bold">{formatPrice(getBalance(cr.id))} FCFA</p>
                         {cr.isMain && (
                           <Badge variant="outline" className="text-xs">Principale</Badge>
                         )}
@@ -282,41 +302,63 @@ export default function CashPage() {
             <CardDescription>Historique récent des opérations</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {movementsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : movements.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Aucun mouvement</p>
             ) : (
-              <div className="space-y-3 max-h-100 overflow-y-auto">
-                {movements.map((movement) => {
-                  const cashRegister = cashRegisters.find(cr => cr.id === movement.cashRegisterId);
-                  const isIn = movement.type === 'in' || (movement.type === 'transfer' && movement.sourceCashRegisterId);
+              <>
+                <div className="space-y-3 max-h-100 overflow-y-auto">
+                  {movements.map((movement) => {
+                    const cashRegister = cashRegisters.find(cr => cr.id === movement.cashRegisterId);
+                    const isIn = movement.type === 'in' || (movement.type === 'transfer' && movement.sourceCashRegisterId);
 
-                  return (
-                    <div key={movement.id} className="flex items-center justify-between text-sm">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{getCategoryLabel(movement.category)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {cashRegister?.name || 'Caisse inconnue'} - {format(new Date(movement.createdAt), 'HH:mm', { locale: fr })}
-                        </span>
-                        {movement.description && (
-                          <span className="text-xs text-muted-foreground">{movement.description}</span>
-                        )}
+                    return (
+                      <div key={movement.id} className="flex items-center justify-between text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{getCategoryLabel(movement.category)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {cashRegister?.name || 'Caisse inconnue'} - {format(new Date(movement.createdAt), 'HH:mm', { locale: fr })}
+                          </span>
+                          {movement.description && (
+                            <span className="text-xs text-muted-foreground">{movement.description}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`font-semibold ${isIn ? 'text-green-600' : 'text-red-600'}`}>
+                            {isIn ? '+' : '-'}{formatPrice(movement.amount)} FCFA
+                          </span>
+                          <Badge variant={isIn ? 'default' : 'destructive'} className="text-xs">
+                            {isIn ? 'Entrée' : 'Sortie'}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`font-semibold ${isIn ? 'text-green-600' : 'text-red-600'}`}>
-                          {isIn ? '+' : '-'}{formatPrice(movement.amount)} FCFA
-                        </span>
-                        <Badge variant={isIn ? 'default' : 'destructive'} className="text-xs">
-                          {isIn ? 'Entrée' : 'Sortie'}
-                        </Badge>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+
+                {/* Pagination : Charger plus de mouvements */}
+                {movementsHasMore && (
+                  <div className="flex justify-center pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => loadMoreMovements()}
+                      disabled={movementsLoading}
+                    >
+                      {movementsLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Chargement...
+                        </>
+                      ) : (
+                        'Charger plus de mouvements'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -330,7 +372,11 @@ export default function CashPage() {
           if (!open) setSelectedCashRegister(null);
         }}
         cashRegisterId={selectedCashRegister}
-        onSuccess={() => fetchMovements()}
+        onSuccess={() => {
+          // Recharger les mouvements après création
+          const store = useCashRegistersStore.getState();
+          store.fetchMovements(undefined, true);
+        }}
       />
 
       {/* Dialog pour créer/éditer une caisse */}
@@ -341,7 +387,12 @@ export default function CashPage() {
           if (!open) setEditingCashRegister(null);
         }}
         cashRegister={editingCashRegister}
-        onSuccess={() => fetchCashRegisters()}
+        onSuccess={() => {
+          // Recharger les caisses après création/modification
+          if (user?.currentCompanyId) {
+            useCashRegistersStore.getState().fetchCashRegisters(user.currentCompanyId);
+          }
+        }}
       />
 
       {/* Alert de suppression */}

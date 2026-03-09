@@ -5,7 +5,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { useCashRegisters } from '@/lib/hooks/useCashRegisters';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useCashRegisters, useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,7 +60,9 @@ interface CashMovementDialogProps {
 }
 
 export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSuccess }: CashMovementDialogProps) {
-  const { cashRegisters, createMovement, loading: registersLoading } = useCashRegisters();
+  const { user } = useAuth();
+  const cashRegisters = useCashRegisters();
+  const createMovement = useCashRegistersStore((state) => state.createMovement);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<MovementFormData>({
@@ -92,6 +95,11 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSucce
   }, [open, cashRegisterId]);
 
   const onSubmit = async (data: MovementFormData) => {
+    if (!user?.currentCompanyId) {
+      toast.error('Utilisateur non connecté');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await createMovement({
@@ -101,7 +109,8 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSucce
         category: data.category,
         description: data.description || undefined,
         targetCashRegisterId: data.type === 'transfer' ? data.targetCashRegisterId : undefined,
-      });
+        userId: user.id,
+      }, user.currentCompanyId);
 
       toast.success('Mouvement créé avec succès');
       onOpenChange(false);
@@ -171,8 +180,8 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSucce
                   <FormLabel>Caisse {isTransfer ? 'source' : ''}</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <SelectTrigger disabled={registersLoading || !!cashRegisterId}>
-                        <SelectValue placeholder={registersLoading ? 'Chargement...' : 'Sélectionnez la caisse'} />
+                      <SelectTrigger disabled={!!cashRegisterId}>
+                        <SelectValue placeholder="Sélectionnez la caisse" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>

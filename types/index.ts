@@ -330,6 +330,8 @@ export interface CashRegister {
 
   isActive: boolean;
 
+  currentBalance: number;  // Solde actuel de la caisse
+
   createdAt: Date;
   updatedAt: Date;
 }

@@ -32,9 +32,12 @@ type InvoiceCreateResult = {
 export default function SalesPage() {
   // Utiliser le store Zustand pour les données (pagination optimisée)
   const invoicesStore = useInvoicesStoreState();
-  const invoices = useInvoices();
+  const rawInvoices = useInvoices();
   const loading = useInvoicesLoading();
   const hasMore = useInvoicesHasMore();
+
+  // Utiliser les factures filtrées (inclut la recherche)
+  const invoices = invoicesStore.getFilteredInvoices();
 
   // État local pour la recherche (pas de conflit avec le store)
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,10 +67,10 @@ export default function SalesPage() {
   const [pendingInvoiceData, setPendingInvoiceData] = useState<any>(null);
   const [stockTransferProducts, setStockTransferProducts] = useState<any[]>([]);
 
-  // Charger les factures au montage
+  // Charger les factures au montage (TOUJOURS recharger pour éviter les conflits multi-utilisateur)
   useEffect(() => {
-    if (user?.currentCompanyId && invoices.length === 0) {
-      console.log('[SalesPage] Chargement initial des factures', { companyId: user.currentCompanyId });
+    if (user?.currentCompanyId) {
+      console.log('[SalesPage] Chargement des factures depuis Firestore', { companyId: user.currentCompanyId });
       invoicesStore.fetchInvoices(user.currentCompanyId, { reset: true });
     }
   }, [user?.currentCompanyId]);
@@ -82,7 +85,16 @@ export default function SalesPage() {
 
       return () => clearTimeout(syncTimer);
     }
-  }, [isOnline, pendingInvoicesCount]);
+  }, [isOnline, pendingInvoicesCount, isSyncing]);
+
+  // Effet pour la recherche - filtrage local (pas de rechargement Firestore)
+  useEffect(() => {
+    if (user?.currentCompanyId) {
+      console.log('[SalesPage] Recherche déclenchée', { searchQuery });
+      // Mettre à jour le filtre de recherche dans le store
+      invoicesStore.setSearchFilter(searchQuery || null);
+    }
+  }, [searchQuery, user?.currentCompanyId]);
 
   const handleCreateInvoice = async (data: any) => {
     if (!user?.currentCompanyId) {

@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
+import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import type { SupplierCredit, SupplierCreditPayment, PaymentMode } from '@/types';
 
 export interface SupplierCreditInput {
@@ -207,6 +208,15 @@ export function useSupplierCredits() {
       });
 
       await fetchCredits();
+
+      // Rafraîchir les soldes des caisses après création du mouvement
+      try {
+        const cashStore = useCashRegistersStore.getState();
+        await cashStore.refreshBalances(false, user.currentCompanyId);
+      } catch (error) {
+        console.error('[addPayment] Erreur lors du rafraîchissement des soldes:', error);
+      }
+
       return { success: true };
     } catch (err: any) {
       console.error('Erreur lors de l\'ajout du paiement:', err);

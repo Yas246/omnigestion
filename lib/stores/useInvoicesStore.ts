@@ -8,6 +8,7 @@ import { useAuthStore } from "./useAuthStore";
  * Filtres pour les factures
  */
 export interface InvoiceFilters {
+  search: string | null;  // Recherche textuelle (numéro facture, client)
   clientId: string | null;
   status: string | null;
   startDate: Date | null;
@@ -46,6 +47,7 @@ interface InvoicesState {
   refreshInvoices: (companyId?: string) => Promise<void>;
 
   // Actions de filtres
+  setSearchFilter: (search: string | null) => void;
   setClientFilter: (clientId: string | null) => void;
   setStatusFilter: (status: string | null) => void;
   setDateRangeFilter: (startDate: Date | null, endDate: Date | null) => void;
@@ -92,6 +94,7 @@ export const useInvoicesStore = create<InvoicesState>()(
       pageSize: 20, // Pagination par défaut de 20 factures
       lastDoc: null,
       filters: {
+        search: null,
         clientId: null,
         status: null,
         startDate: null,
@@ -134,6 +137,7 @@ export const useInvoicesStore = create<InvoicesState>()(
             orderByField: "createdAt",
             orderDirection: "desc",
             filters: {
+              // Note: search filter is applied client-side in getFilteredInvoices()
               clientId: filters.clientId || undefined,
               status: filters.status || undefined,
               startDate: filters.startDate || undefined,
@@ -210,6 +214,15 @@ export const useInvoicesStore = create<InvoicesState>()(
       },
 
       /**
+       * Filtrer par recherche textuelle (filtre local seulement)
+       * NOTE: Plus de rechargement Firestore - le filtrage est côté client
+       */
+      setSearchFilter: (search: string | null) => {
+        console.log("[setSearchFilter] Changement filtre recherche", { search });
+        set({ filters: { ...get().filters, search } });
+      },
+
+      /**
        * Filtrer par client (filtre local, pas de rechargement)
        */
       setClientFilter: (clientId) => {
@@ -262,6 +275,7 @@ export const useInvoicesStore = create<InvoicesState>()(
         console.log("[clearFilters] Effacement filtres");
         set((state) => ({
           filters: {
+            search: null,
             clientId: null,
             status: null,
             startDate: null,
@@ -360,6 +374,15 @@ export const useInvoicesStore = create<InvoicesState>()(
       getFilteredInvoices: () => {
         const { invoices, filters } = get();
         let filtered: Invoice[] = [...invoices];
+
+        // Filtre par recherche textuelle (numéro facture, nom client)
+        if (filters.search) {
+          const searchLower = filters.search.toLowerCase();
+          filtered = filtered.filter((i) =>
+            i.invoiceNumber.toLowerCase().includes(searchLower) ||
+            (i.clientName && i.clientName.toLowerCase().includes(searchLower))
+          );
+        }
 
         // Filtre par client
         if (filters.clientId) {

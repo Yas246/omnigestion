@@ -77,11 +77,12 @@ export default function DashboardPage() {
   // Initialize stores on mount
   useEffect(() => {
     if (user?.currentCompanyId && invoices.length === 0) {
-      console.log('[DashboardPage] Chargement initial des factures');
+      console.log('[DashboardPage] Chargement initial des factures (pagination normale)');
+      // Charger les factures avec pagination normale (20)
       useInvoicesStore.getState().fetchInvoices(user.currentCompanyId, { reset: true });
     }
-    // Note: Products and clients are loaded by their respective pages
-    // We can rely on localStorage cache
+    // Products et clients sont chargés par leurs pages respectives
+    // On compte sur le cache localStorage pour le Dashboard
   }, [user?.currentCompanyId, invoices.length]);
 
   // Calculate all stats from store data
@@ -120,11 +121,7 @@ export default function DashboardPage() {
       });
     });
 
-    // Global stats
-    const totalRevenue = invoices.reduce((sum, inv) => sum + inv.total, 0);
-    const totalInvoicesCount = invoices.length;
-    const totalProducts = products.length;
-    const totalClients = clients.length;
+    // Stock alerts
     const lowStockProducts = products.filter(p => p.status === 'low').length;
     const outOfStockProducts = products.filter(p => p.status === 'out').length;
 
@@ -203,10 +200,6 @@ export default function DashboardPage() {
       todayPaidAmount,
       activeCredits,
       todayProfit,
-      totalRevenue,
-      totalInvoicesCount,
-      totalProducts,
-      totalClients,
       lowStockProducts,
       outOfStockProducts,
       recentInvoices,
@@ -542,48 +535,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Statistiques globales */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Statistiques globales</CardTitle>
-          <CardDescription>Vue d'ensemble de votre entreprise</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="flex items-center gap-3">
-              <Receipt className="h-8 w-8 text-blue-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">Total factures</p>
-                <p className="text-2xl font-bold">{stats.totalInvoicesCount}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-8 w-8 text-green-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">CA total</p>
-                <p className="text-2xl font-bold">
-                  {formatPrice(stats.totalRevenue)} {currency}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Package className="h-8 w-8 text-purple-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">Produits</p>
-                <p className="text-2xl font-bold">{stats.totalProducts}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Users className="h-8 w-8 text-orange-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">Clients</p>
-                <p className="text-2xl font-bold">{stats.totalClients}</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Navigation rapide */}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">

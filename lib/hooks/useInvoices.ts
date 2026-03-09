@@ -24,6 +24,7 @@ import { useAuth } from './useAuth';
 import { useSettings } from './useSettings';
 import { offlineInvoices } from '@/lib/indexeddb/offline-invoices';
 import { invoiceSync, type SyncOptions } from '@/lib/services/invoice-sync';
+import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import type { Invoice, InvoiceItem, Warehouse } from '@/types';
 
 const INVOICES_PER_PAGE = 50;
@@ -477,6 +478,9 @@ export function useInvoices() {
     // Variable pour collecter les alertes de stock à envoyer après la transaction
     const stockAlerts: Array<{ productId: string; productName: string; newStock: number; threshold: number; status: 'out' | 'low' }> = [];
 
+    // Variable pour stocker l'ID de la caisse utilisée (pour refreshBalances après transaction)
+    let cashRegisterId: string | null = null;
+
     try {
       const result = await runTransaction(db, async (transaction) => {
         // 1. Valider les prix (anti-perte)
@@ -747,7 +751,6 @@ export function useInvoices() {
           const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(user.currentCompanyId));
           const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
 
-          let cashRegisterId: string | null = null;
           if (!cashRegistersSnap.empty) {
             cashRegisterId = cashRegistersSnap.docs[0].id;
           } else {
@@ -821,6 +824,16 @@ export function useInvoices() {
       // Mettre à jour le cache IndexedDB avec les nouveaux stocks
       // Rafraîchir la liste
       await fetchInvoices();
+
+      // Rafraîchir les soldes des caisses après création du mouvement
+      if (cashRegisterId) {
+        try {
+          const cashStore = useCashRegistersStore.getState();
+          await cashStore.refreshBalances(false, user.currentCompanyId);
+        } catch (error) {
+          console.error('[addInvoice] Erreur lors du rafraîchissement des soldes:', error);
+        }
+      }
 
       // ===== NOUVEAU: Envoyer notification aux admins =====
       try {

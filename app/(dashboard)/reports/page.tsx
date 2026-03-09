@@ -22,7 +22,10 @@ import {
   useProducts,
   useProductsStore
 } from '@/lib/stores/useProductsStore';
-import { useCashRegisters } from '@/lib/hooks/useCashRegisters';
+import {
+  useCashRegisters,
+  useMovements,
+} from '@/lib/stores/useCashRegistersStore';
 import { useAuth } from '@/lib/hooks/useAuth';
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
@@ -36,7 +39,8 @@ export default function ReportsPage() {
   // Store selectors
   const invoices = useInvoices();
   const products = useProducts();
-  const { movements, cashRegisters } = useCashRegisters();
+  const cashRegisters = useCashRegisters();
+  const movements = useMovements();
 
   // Auth user for store initialization
   const { user } = useAuth();

@@ -2,15 +2,15 @@
 // Cache des assets statiques uniquement - PAS de cache Firestore/API
 // v8: Support PWA offline avec persistance localStorage des stores Zustand
 
-const CACHE_NAME = 'omnigestion-v8';
-const STATIC_CACHE = 'omnigestion-static-v8';
+const CACHE_NAME = "omnigestion-v9";
+const STATIC_CACHE = "omnigestion-static-v9";
 
 // Assets à mettre en cache statique (pages, JS, CSS, images)
 const STATIC_ASSETS = [
-  '/',
-  '/dashboard',
-  '/offline',
-  '/manifest.json',
+  "/",
+  "/dashboard",
+  "/offline",
+  "/manifest.json",
   // Les icônes seront ajoutées automatiquement lors de l'installation
 ];
 
@@ -24,22 +24,22 @@ const DYNAMIC_PATTERNS = [
 ];
 
 // Installation du Service Worker
-self.addEventListener('install', (event) => {
-  console.log('[SW] Installation');
+self.addEventListener("install", (event) => {
+  console.log("[SW] Installation");
 
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
-      console.log('[SW] Mise en cache des assets statiques');
+      console.log("[SW] Mise en cache des assets statiques");
       return cache.addAll(STATIC_ASSETS);
-    })
+    }),
   );
 
   self.skipWaiting();
 });
 
 // Activation du Service Worker
-self.addEventListener('activate', (event) => {
-  console.log('[SW] Activation');
+self.addEventListener("activate", (event) => {
+  console.log("[SW] Activation");
 
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -47,19 +47,19 @@ self.addEventListener('activate', (event) => {
         cacheNames.map((cacheName) => {
           // Supprimer les anciens caches
           if (cacheName !== STATIC_CACHE && cacheName !== CACHE_NAME) {
-            console.log('[SW] Suppression de l\'ancien cache:', cacheName);
+            console.log("[SW] Suppression de l'ancien cache:", cacheName);
             return caches.delete(cacheName);
           }
-        })
+        }),
       );
-    })
+    }),
   );
 
   self.clients.claim();
 });
 
 // Stratégie de cache pour les requêtes
-self.addEventListener('fetch', (event) => {
+self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
@@ -78,41 +78,45 @@ self.addEventListener('fetch', (event) => {
           return cached;
         }
 
-        return fetch(request).then((response) => {
-          // Mettre en cache les assets statiques
-          if (response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(STATIC_CACHE).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return response;
-        }).catch(() => {
-          // Fallback pour les assets statiques - retourner une réponse vide ou placeholder
-          return new Response('Asset non disponible', { status: 503 });
-        });
-      })
+        return fetch(request)
+          .then((response) => {
+            // Mettre en cache les assets statiques
+            if (response.status === 200) {
+              const responseClone = response.clone();
+              caches.open(STATIC_CACHE).then((cache) => {
+                cache.put(request, responseClone);
+              });
+            }
+            return response;
+          })
+          .catch(() => {
+            // Fallback pour les assets statiques - retourner une réponse vide ou placeholder
+            return new Response("Asset non disponible", { status: 503 });
+          });
+      }),
     );
     return;
   }
 
   // Pour les pages HTML : Cache First (permet navigation hors ligne)
-  if (request.mode === 'navigate') {
+  if (request.mode === "navigate") {
     event.respondWith(
       caches.match(request).then((cached) => {
         // Servir depuis le cache si disponible (rapide et fonctionne offline)
         if (cached) {
           // Mettre à jour en arrière-plan (stale-while-revalidate)
-          fetch(request).then((response) => {
-            if (response.status === 200) {
-              const responseClone = response.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(request, responseClone);
-              });
-            }
-          }).catch(() => {
-            // Ignorer les erreurs de fetch en arrière-plan
-          });
+          fetch(request)
+            .then((response) => {
+              if (response.status === 200) {
+                const responseClone = response.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                  cache.put(request, responseClone);
+                });
+              }
+            })
+            .catch(() => {
+              // Ignorer les erreurs de fetch en arrière-plan
+            });
           return cached;
         }
 
@@ -131,23 +135,29 @@ self.addEventListener('fetch', (event) => {
           .catch(() => {
             // Hors ligne et page non visitée auparavant
             // Retourner le dashboard depuis le cache comme fallback (page principale pour les utilisateurs connectés)
-            return caches.match('/dashboard').then((dashboardPage) => {
+            return caches.match("/dashboard").then((dashboardPage) => {
               if (dashboardPage) {
                 return dashboardPage;
               }
               // Fallback vers la racine si dashboard pas dispo
-              return caches.match('/').then((homePage) => {
+              return caches.match("/").then((homePage) => {
                 if (homePage) {
                   return homePage;
                 }
                 // Dernier recours : page offline
-                return caches.match('/offline').then((offlinePage) => {
-                  return offlinePage || new Response('Application non disponible hors ligne pour le moment', { status: 503 });
+                return caches.match("/offline").then((offlinePage) => {
+                  return (
+                    offlinePage ||
+                    new Response(
+                      "Application non disponible hors ligne pour le moment",
+                      { status: 503 },
+                    )
+                  );
                 });
               });
             });
           });
-      })
+      }),
     );
     return;
   }
@@ -156,25 +166,27 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => response)
-      .catch(() => caches.match(request))
+      .catch(() => caches.match(request)),
   );
 });
 
 // Vérifier si une URL doit contourner le cache
 function shouldBypassCache(url) {
-  return DYNAMIC_PATTERNS.some(pattern => pattern.test(url.href));
+  return DYNAMIC_PATTERNS.some((pattern) => pattern.test(url.href));
 }
 
 // Vérifier si c'est un asset statique
 function isStaticAsset(url) {
   // Assets Next.js statiques et dynamiques (chunks, JS, CSS)
-  if (url.pathname.startsWith('/_next/')) {
+  if (url.pathname.startsWith("/_next/")) {
     return true;
   }
 
   // Images et icônes locales
-  if (url.pathname.startsWith('/icons/') ||
-      url.pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|ico)$/)) {
+  if (
+    url.pathname.startsWith("/icons/") ||
+    url.pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|ico)$/)
+  ) {
     return true;
   }
 
@@ -184,13 +196,15 @@ function isStaticAsset(url) {
   }
 
   // Cloudinary images (logo uploadé dans les paramètres, etc.)
-  if (url.hostname.includes('res.cloudinary.com') ||
-      url.href.includes('res.cloudinary.com')) {
+  if (
+    url.hostname.includes("res.cloudinary.com") ||
+    url.href.includes("res.cloudinary.com")
+  ) {
     return true;
   }
 
   // Manifeste
-  if (url.pathname === '/manifest.json') {
+  if (url.pathname === "/manifest.json") {
     return true;
   }
 
@@ -200,57 +214,65 @@ function isStaticAsset(url) {
 // ===== NOTIFICATIONS PUSH FCM =====
 
 // Gérer les événements push entrants (notifications reçues en arrière-plan)
-self.addEventListener('push', (event) => {
+self.addEventListener("push", (event) => {
   if (!event.data) return;
 
   const data = event.data.json();
-  console.log('[SW] Notification push reçue:', data);
+  console.log("[SW] Notification push reçue:", data);
 
   const options = {
-    body: data.notification?.body || '',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-96x96.png',
+    body: data.notification?.body || "",
+    icon: "/icons/icon-192x192.png",
+    badge: "/icons/icon-96x96.png",
     vibrate: [200, 100, 200],
-    tag: data.data?.type || 'default',
+    tag: data.data?.type || "default",
     data: data.data || {},
     actions: [
       {
-        action: 'view',
-        title: 'Voir',
-        icon: '/icons/icon-96x96.png',
+        action: "view",
+        title: "Voir",
+        icon: "/icons/icon-96x96.png",
       },
       {
-        action: 'close',
-        title: 'Fermer',
-        icon: '/icons/icon-96x96.png',
+        action: "close",
+        title: "Fermer",
+        icon: "/icons/icon-96x96.png",
       },
     ],
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.notification?.title || 'Notification', options)
+    self.registration.showNotification(
+      data.notification?.title || "Notification",
+      options,
+    ),
   );
 });
 
 // Gérer les clics sur les notifications
-self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification cliquée:', event);
+self.addEventListener("notificationclick", (event) => {
+  console.log("[SW] Notification cliquée:", event);
 
   event.notification.close();
 
-  if (event.action === 'close') {
+  if (event.action === "close") {
     return;
   }
 
   // Action par défaut ou "Voir"
   const data = event.notification.data;
-  let url = '/dashboard';
+  let url = "/dashboard";
 
   // Navigation selon le type de notification
-  if (data.type === 'sale' && data.invoiceId) {
+  if (data.type === "sale" && data.invoiceId) {
     url = `/sales/print/${data.invoiceId}`;
-  } else if ((data.type === 'stock' || data.type === 'stock_low' || data.type === 'stock_out') && data.productId) {
-    url = '/stock';
+  } else if (
+    (data.type === "stock" ||
+      data.type === "stock_low" ||
+      data.type === "stock_out") &&
+    data.productId
+  ) {
+    url = "/stock";
   }
 
   event.waitUntil(
@@ -258,21 +280,21 @@ self.addEventListener('notificationclick', (event) => {
       if (window) {
         window.focus();
       }
-    })
+    }),
   );
 });
 
 // Écouter les messages du client
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
 
-  if (event.data && event.data.type === 'CACHE_URLS') {
+  if (event.data && event.data.type === "CACHE_URLS") {
     event.waitUntil(
       caches.open(STATIC_CACHE).then((cache) => {
         return cache.addAll(event.data.urls);
-      })
+      }),
     );
   }
 });

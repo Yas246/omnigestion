@@ -74,6 +74,7 @@ export function CashRegisterDialog({ open, onOpenChange, onSuccess, cashRegister
         await createCashRegister({
           ...data,
           code: generateCode(),
+          currentBalance: 0,  // Solde initial
         });
         toast.success('Caisse créée avec succès');
       }
