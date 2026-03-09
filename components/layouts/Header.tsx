@@ -16,7 +16,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NetworkStatusIndicator } from "@/components/pwa";
 import {
   LogOut,
-  User as UserIcon,
   Settings,
   Menu,
   Building2,
@@ -95,7 +94,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           <NetworkStatusIndicator />
 
           {/* Bouton de test notification - DEBUG */}
-          {process.env.NODE_ENV === 'development' && (
+          {process.env.NEXT_PUBLIC_ENABLE_DEBUG_NOTIFS === 'true' && (
             <Button
               variant="outline"
               size="sm"
