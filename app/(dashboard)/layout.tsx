@@ -9,17 +9,64 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { NotificationPermission } from "@/components/notification-permission";
+import { useFCM } from "@/lib/hooks/useFCM";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
+  console.log('[DashboardLayout] Composant monté !'); // DEBUG
+
   const { user, loading } = useAuth();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { initializeFCM, permissionStatus } = useFCM();
+
+  console.log('[DashboardLayout] user:', user, 'loading:', loading); // DEBUG
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
     }
   }, [user, loading, router]);
+
+  // ✅ Auto-initialiser FCM pour les admins au montage
+  useEffect(() => {
+    if (user && user.role === 'admin' && permissionStatus === 'granted') {
+      console.log('[DashboardLayout] Admin avec permission accordée - Initialisation FCM auto');
+      initializeFCM();
+    }
+  }, [user, permissionStatus, initializeFCM]);
+
+  // ✅ Exposer resetFCM() dans la console pour le debug
+  useEffect(() => {
+    const resetFCM = () => {
+      console.log('[resetFCM] Réinitialisation complète de FCM...');
+
+      // 1. Supprimer les flags localStorage
+      localStorage.removeItem('fcm-permission-granted');
+      localStorage.removeItem('notification-permission-dismissed');
+
+      console.log('[resetFCM] ✓ localStorage nettoyé');
+
+      // 2. Unregister le service worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => {
+            console.log('[resetFCM] Suppression du Service Worker:', registration.scope);
+            registration.unregister();
+          });
+        });
+      }
+
+      // 3. Recharger la page pour tout réinitialiser
+      console.log('[resetFCM] Rechargement de la page dans 1 seconde...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    };
+
+    // Exposer globalement
+    (window as any).resetFCM = resetFCM;
+    console.log('[DashboardLayout] Fonction resetFCM() disponible dans la console');
+  }, []);
 
   if (loading) {
     return (
