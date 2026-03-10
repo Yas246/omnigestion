@@ -277,13 +277,13 @@ export function SalesReport({ period }: SalesReportProps) {
       {/* Graphiques */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Ventes par jour */}
-        <Card className="col-span-2">
+        <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Évolution des ventes</CardTitle>
             <CardDescription>Chiffre d'affaires par jour</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[200px] sm:h-[250px] md:h-[300px]">
               {Object.keys(salesByDay).length > 0 ? (
                 <Line data={salesChartData} options={chartOptions} />
               ) : (

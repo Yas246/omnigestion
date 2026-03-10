@@ -317,16 +317,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
+    console.log('[AuthContext] resetPassword appelé avec email:', email);
     setError(null);
     try {
+      console.log('[AuthContext] Appel de sendPasswordResetEmail...');
       await sendPasswordResetEmail(auth, email);
+      console.log('[AuthContext] Email de réinitialisation envoyé avec succès');
     } catch (err: any) {
-      console.error('Erreur de réinitialisation:', err);
+      console.error('[AuthContext] Erreur de réinitialisation:', err.code, err.message);
       const errorMessage = err.code === 'auth/user-not-found'
         ? 'Aucun compte trouvé avec cette adresse email'
         : err.code === 'auth/invalid-email'
         ? 'Adresse email invalide'
-        : 'Erreur lors de la réinitialisation du mot de passe';
+        : `Erreur lors de la réinitialisation du mot de passe (${err.code})`;
       setError(errorMessage);
       throw err;
     }

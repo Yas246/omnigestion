@@ -1,35 +1,36 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
-import { useSettings } from '@/lib/hooks/useSettings';
-import { usePermissions } from '@/lib/hooks/usePermissions';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { CompanyTab } from '@/components/settings/CompanyTab';
-import { InvoiceTab } from '@/components/settings/InvoiceTab';
-import { StockTab } from '@/components/settings/StockTab';
-import { UsersTab } from '@/components/settings/UsersTab';
-import { SystemTab } from '@/components/settings/SystemTab';
-import { ThemeSelector } from '@/components/settings/ThemeSelector';
-import { PermissionGate } from '@/components/auth';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
+import { useSettings } from "@/lib/hooks/useSettings";
+import { usePermissions } from "@/lib/hooks/usePermissions";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CompanyTab } from "@/components/settings/CompanyTab";
+import { InvoiceTab } from "@/components/settings/InvoiceTab";
+import { StockTab } from "@/components/settings/StockTab";
+import { UsersTab } from "@/components/settings/UsersTab";
+import { SystemTab } from "@/components/settings/SystemTab";
+import { ThemeSelector } from "@/components/settings/ThemeSelector";
+import { PermissionGate } from "@/components/auth";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { hasPermission, isAdmin } = usePermissions();
-  const { company, settings, warehouses, loading, error, refresh } = useSettings();
-  const [activeTab, setActiveTab] = useState('company');
+  const { company, settings, warehouses, loading, error, refresh } =
+    useSettings();
+  const [activeTab, setActiveTab] = useState("company");
 
-  const hasAccess = isAdmin || hasPermission('settings', 'read');
+  const hasAccess = isAdmin || hasPermission("settings", "read");
 
   useEffect(() => {
     if (!hasAccess) {
       const timer = setTimeout(() => {
-        router.push('/');
+        router.push("/");
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -45,10 +46,11 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <h1 className="text-xl font-bold">Accès non autorisé</h1>
             <p className="text-muted-foreground">
-              Vous n&apos;avez pas la permission requise pour accéder à cette page.
+              Vous n&apos;avez pas la permission requise pour accéder à cette
+              page.
             </p>
           </div>
-          <Button onClick={() => router.push('/')}>
+          <Button onClick={() => router.push("/")}>
             Retour au tableau de bord
           </Button>
         </div>
@@ -84,8 +86,12 @@ export default function SettingsPage() {
       {/* Sélecteur de thème - accessible à tous les utilisateurs */}
       <ThemeSelector onThemeChanged={refresh} />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-6"
+      >
+        <TabsList className="!flex !flex-wrap !w-full gap-2 mb-8 lg:!grid lg:grid-cols-5 lg:gap-0 lg:mb-0">
           <TabsTrigger value="company">Entreprise</TabsTrigger>
           <TabsTrigger value="invoice">Facturation</TabsTrigger>
           <TabsTrigger value="stock">Stock</TabsTrigger>
@@ -100,7 +106,8 @@ export default function SettingsPage() {
             renderNoAccess={() => (
               <Card>
                 <CardContent className="py-8 text-center text-muted-foreground">
-                  Vous n&apos;avez pas la permission de modifier les paramètres de l&apos;entreprise.
+                  Vous n&apos;avez pas la permission de modifier les paramètres
+                  de l&apos;entreprise.
                 </CardContent>
               </Card>
             )}
@@ -116,7 +123,8 @@ export default function SettingsPage() {
             renderNoAccess={() => (
               <Card>
                 <CardContent className="py-8 text-center text-muted-foreground">
-                  Vous n&apos;avez pas la permission de modifier les paramètres de facturation.
+                  Vous n&apos;avez pas la permission de modifier les paramètres
+                  de facturation.
                 </CardContent>
               </Card>
             )}
@@ -132,12 +140,17 @@ export default function SettingsPage() {
             renderNoAccess={() => (
               <Card>
                 <CardContent className="py-8 text-center text-muted-foreground">
-                  Vous n&apos;avez pas la permission de modifier les paramètres de stock.
+                  Vous n&apos;avez pas la permission de modifier les paramètres
+                  de stock.
                 </CardContent>
               </Card>
             )}
           >
-            <StockTab settings={settings?.stock} warehouses={warehouses} onSaved={refresh} />
+            <StockTab
+              settings={settings?.stock}
+              warehouses={warehouses}
+              onSaved={refresh}
+            />
           </PermissionGate>
         </TabsContent>
 
@@ -152,7 +165,8 @@ export default function SettingsPage() {
             renderNoAccess={() => (
               <Card>
                 <CardContent className="py-8 text-center text-muted-foreground">
-                  Vous n&apos;avez pas la permission de modifier les paramètres système.
+                  Vous n&apos;avez pas la permission de modifier les paramètres
+                  système.
                 </CardContent>
               </Card>
             )}

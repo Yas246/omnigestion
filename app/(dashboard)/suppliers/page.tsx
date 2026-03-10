@@ -319,7 +319,7 @@ export default function SuppliersPage() {
                   {filteredCredits.map((credit) => (
                     <div
                       key={credit.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      className="flex flex-wrap items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors sm:flex-nowrap sm:justify-between"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
@@ -362,9 +362,10 @@ export default function SuppliersPage() {
                               setSelectedCredit(credit);
                               setShowPaymentDialog(true);
                             }}
+                            className="shrink-0"
                           >
                             <Plus className="h-4 w-4 mr-2" />
-                            Payer
+                            <span>Payer</span>
                           </Button>
                         )}
                       </PermissionGate>

@@ -143,6 +143,14 @@ export function StockReport() {
       },
     },
     scales: {
+      x: {
+        ticks: {
+          maxRotation: 45,
+          minRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 10,
+        },
+      },
       y: {
         beginAtZero: true,
       },
@@ -277,13 +285,13 @@ export function StockReport() {
         </Card>
 
         {/* Top 10 valeur stock */}
-        <Card className="col-span-2">
+        <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Top 10 valeur de stock</CardTitle>
             <CardDescription>Produits les plus valorisés</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[200px] sm:h-[250px] md:h-[300px] w-full overflow-x-auto">
               {topValue.length > 0 ? (
                 <Bar data={topValueChartData} options={chartOptions} />
               ) : (
