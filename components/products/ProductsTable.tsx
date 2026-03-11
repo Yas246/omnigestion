@@ -230,6 +230,7 @@ export function ProductsTable({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-16 text-center">#</TableHead>
               <TableHead>Produit</TableHead>
               <TableHead className="text-right">Prix achat</TableHead>
               <TableHead className="text-right">Prix vente</TableHead>
@@ -241,13 +242,13 @@ export function ProductsTable({
           <TableBody>
             {loading && filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={8} className="h-24 text-center">
                   Chargement...
                 </TableCell>
               </TableRow>
             ) : filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={8} className="h-24 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <Package className="h-8 w-8 text-muted-foreground/50" />
                     <p className="text-sm text-muted-foreground">
@@ -263,8 +264,11 @@ export function ProductsTable({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredProducts.map((product) => (
+              filteredProducts.map((product, index) => (
                 <TableRow key={product.id}>
+                  <TableCell className="text-center font-medium text-muted-foreground">
+                    {index + 1}
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-medium">{product.name}</span>
