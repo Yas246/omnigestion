@@ -89,7 +89,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         {/* Spacer pour pousser le contenu utilisateur à droite */}
         <div className="flex-1" />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 sm:gap-3 shrink-0 overflow-x-auto">
           {/* Indicateur de statut réseau */}
           <NetworkStatusIndicator />
 
@@ -97,19 +97,16 @@ export function Header({ onMenuClick }: HeaderProps) {
           {process.env.NEXT_PUBLIC_ENABLE_DEBUG_NOTIFS === 'true' && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => {
                 console.log('[Header] Clic sur bouton test notification');
                 sendTestNotification();
               }}
               disabled={testNotifLoading}
-              className="gap-2"
+              className="shrink-0"
               title="Envoyer une notification de test aux admins"
             >
               <Bell className={`h-4 w-4 ${testNotifLoading ? 'animate-pulse' : ''}`} />
-              <span className="hidden sm:inline">
-                {testNotifLoading ? 'Envoi...' : 'Test Notif'}
-              </span>
             </Button>
           )}
 
