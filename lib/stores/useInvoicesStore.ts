@@ -43,11 +43,12 @@ interface InvoicesState {
     companyId: string,
     options?: { reset?: boolean; pageSize?: number },
   ) => Promise<void>;
-  loadMore: () => Promise<void>;
+  loadMore: (companyId?: string) => Promise<void>;
   refreshInvoices: (companyId?: string) => Promise<void>;
 
   // Actions de filtres
   setSearchFilter: (search: string | null) => void;
+  searchWithAutoLoad: (search: string, companyId?: string) => Promise<boolean>;
   setClientFilter: (clientId: string | null) => void;
   setStatusFilter: (status: string | null) => void;
   setDateRangeFilter: (startDate: Date | null, endDate: Date | null) => void;
@@ -220,6 +221,56 @@ export const useInvoicesStore = create<InvoicesState>()(
       setSearchFilter: (search: string | null) => {
         console.log("[setSearchFilter] Changement filtre recherche", { search });
         set({ filters: { ...get().filters, search } });
+      },
+
+      /**
+       * Rechercher avec chargement automatique des pages suivantes
+       * Charge plus de factures jusqu'à trouver un résultat ou épuiser toutes les pages
+       */
+      searchWithAutoLoad: async (search: string, companyId?: string) => {
+        console.log("[searchWithAutoLoad] Début recherche auto-load", { search });
+
+        // Définir le filtre de recherche
+        set({ filters: { ...get().filters, search } });
+
+        // Fonction récursive pour charger les pages suivantes
+        const loadUntilFound = async (): Promise<boolean> => {
+          const state = get();
+          const filteredCount = state.getFilteredInvoices().length;
+
+          console.log("[searchWithAutoLoad] Résultats trouvés:", filteredCount, "hasMore:", state.hasMore);
+
+          // Si on a trouvé des résultats, arrêter
+          if (filteredCount > 0) {
+            console.log("[searchWithAutoLoad] ✅ Résultats trouvés, arrêt du chargement");
+            return true;
+          }
+
+          // Si plus de pages à charger, arrêter
+          if (!state.hasMore || state.loading) {
+            console.log("[searchWithAutoLoad] ❌ Plus de pages ou chargement en cours");
+            return false;
+          }
+
+          // Charger la page suivante
+          const targetCompanyId = companyId || useAuthStore.getState().currentCompanyId;
+          if (!targetCompanyId) {
+            console.error("[searchWithAutoLoad] Aucune compagnie sélectionnée");
+            return false;
+          }
+
+          console.log("[searchWithAutoLoad] 📄 Chargement page suivante...");
+          await get().fetchInvoices(targetCompanyId, { reset: false });
+
+          // Attendre un peu pour éviter les boucles trop rapides
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          // Réessayer avec les nouvelles données
+          return loadUntilFound();
+        };
+
+        // Lancer le chargement automatique
+        return loadUntilFound();
       },
 
       /**

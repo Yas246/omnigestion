@@ -87,12 +87,18 @@ export default function SalesPage() {
     }
   }, [isOnline, pendingInvoicesCount, isSyncing]);
 
-  // Effet pour la recherche - filtrage local (pas de rechargement Firestore)
+  // Effet pour la recherche - filtrage local avec chargement automatique si aucun résultat
   useEffect(() => {
     if (user?.currentCompanyId) {
       console.log('[SalesPage] Recherche déclenchée', { searchQuery });
-      // Mettre à jour le filtre de recherche dans le store
-      invoicesStore.setSearchFilter(searchQuery || null);
+
+      if (searchQuery && searchQuery.length >= 2) {
+        // Utiliser la recherche avec auto-load
+        invoicesStore.searchWithAutoLoad(searchQuery, user.currentCompanyId);
+      } else {
+        // Réinitialiser le filtre si recherche vide
+        invoicesStore.setSearchFilter(null);
+      }
     }
   }, [searchQuery, user?.currentCompanyId]);
 
@@ -399,7 +405,7 @@ export default function SalesPage() {
             totalLoaded={invoices.length}
             onSearch={setSearchQuery}
             searchQuery={searchQuery}
-            onLoadMore={() => invoicesStore.loadMore()}
+            onLoadMore={() => user?.currentCompanyId && invoicesStore.loadMore(user.currentCompanyId)}
             onView={handleViewInvoice}
             onDelete={handleDeleteInvoice}
           />
