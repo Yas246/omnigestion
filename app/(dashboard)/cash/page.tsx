@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -168,44 +169,44 @@ export default function CashPage() {
 
       {/* Statistiques globales */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Solde total</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatPrice(totalBalance)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              {cashRegisters.length} caisse(s)
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="primary">
+          <KpiCardHeader
+            title="Solde total"
+            icon={<DollarSign className="h-4 w-4" />}
+            iconVariant="primary"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalBalance)} FCFA`}
+            label={`${cashRegisters.length} caisse(s)`}
+            variant="primary"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Entrées aujourd'hui</CardTitle>
-            <ArrowUpCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatPrice(todayStats.todayIn)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              {todayInCount} mouvement(s)
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="success">
+          <KpiCardHeader
+            title="Entrées aujourd'hui"
+            icon={<ArrowUpCircle className="h-4 w-4" />}
+            iconVariant="success"
+          />
+          <KpiCardValue
+            value={`${formatPrice(todayStats.todayIn)} FCFA`}
+            label={`${todayInCount} mouvement(s)`}
+            variant="success"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sorties aujourd'hui</CardTitle>
-            <ArrowDownCircle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{formatPrice(todayStats.todayOut)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              {todayOutCount} mouvement(s)
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="danger">
+          <KpiCardHeader
+            title="Sorties aujourd'hui"
+            icon={<ArrowDownCircle className="h-4 w-4" />}
+            iconVariant="danger"
+          />
+          <KpiCardValue
+            value={`${formatPrice(todayStats.todayOut)} FCFA`}
+            label={`${todayOutCount} mouvement(s)`}
+            variant="danger"
+          />
+        </KpiCard>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -327,7 +328,7 @@ export default function CashPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`font-semibold ${isIn ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className={`font-semibold ${isIn ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
                             {isIn ? '+' : '-'}{formatPrice(movement.amount)} FCFA
                           </span>
                           <Badge variant={isIn ? 'default' : 'destructive'} className="text-xs">

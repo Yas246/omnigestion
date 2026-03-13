@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { useInvoices } from '@/lib/hooks/useInvoices';
 import { DollarSign, ShoppingCart, TrendingUp, FileText } from 'lucide-react';
 import { Bar, Line, Pie } from 'react-chartjs-2';
@@ -104,8 +105,8 @@ export function SalesReport({ period }: SalesReportProps) {
       {
         label: "Chiffre d'affaires",
         data: Object.values(salesByDay),
-        borderColor: 'rgb(59, 130, 246)',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderColor: 'oklch(0.62 0.14 35)',
+        backgroundColor: 'oklch(0.62 0.14 35 / 0.15)',
         fill: true,
         tension: 0.4,
       },
@@ -133,11 +134,11 @@ export function SalesReport({ period }: SalesReportProps) {
       {
         data: Object.values(paymentDistribution),
         backgroundColor: [
-          'rgba(34, 197, 94, 0.8)',
-          'rgba(249, 115, 22, 0.8)',
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(239, 68, 68, 0.8)',
-          'rgba(107, 114, 128, 0.8)',
+          'oklch(0.65 0.12 145 / 0.8)',
+          'oklch(0.75 0.15 75 / 0.8)',
+          'oklch(0.58 0.18 200 / 0.8)',
+          'oklch(0.58 0.22 25 / 0.8)',
+          'oklch(0.52 0.02 50 / 0.8)',
         ],
       },
     ],
@@ -161,7 +162,8 @@ export function SalesReport({ period }: SalesReportProps) {
       {
         label: 'Quantité vendue',
         data: topProducts.map(([, qty]) => qty),
-        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+        backgroundColor: 'oklch(0.65 0.12 145 / 0.85)',
+        borderRadius: 4,
       },
     ],
   };
@@ -183,7 +185,8 @@ export function SalesReport({ period }: SalesReportProps) {
       {
         label: 'Montant total (FCFA)',
         data: topClients.map(([, amount]) => amount),
-        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+        backgroundColor: 'oklch(0.62 0.14 35 / 0.85)',
+        borderRadius: 4,
       },
     ],
   };
@@ -221,57 +224,57 @@ export function SalesReport({ period }: SalesReportProps) {
     <div className="space-y-6">
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chiffre d'affaires</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatPrice(totalRevenue)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              Total de la période
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="primary">
+          <KpiCardHeader
+            title="Chiffre d'affaires"
+            icon={<DollarSign className="h-4 w-4" />}
+            iconVariant="primary"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalRevenue)} FCFA`}
+            label="Total de la période"
+            variant="primary"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Factures</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalInvoices}</div>
-            <p className="text-xs text-muted-foreground">
-              Nombre de ventes
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="info">
+          <KpiCardHeader
+            title="Factures"
+            icon={<FileText className="h-4 w-4" />}
+            iconVariant="info"
+          />
+          <KpiCardValue
+            value={totalInvoices.toString()}
+            label="Nombre de ventes"
+            variant="info"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Panier moyen</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatPrice(Math.round(avgBasket))} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              Moyenne par vente
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="warning">
+          <KpiCardHeader
+            title="Panier moyen"
+            icon={<ShoppingCart className="h-4 w-4" />}
+            iconVariant="warning"
+          />
+          <KpiCardValue
+            value={`${formatPrice(Math.round(avgBasket))} FCFA`}
+            label="Moyenne par vente"
+            variant="warning"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Encaissé</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatPrice(paidAmount)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              Montant payé
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="success">
+          <KpiCardHeader
+            title="Encaissé"
+            icon={<TrendingUp className="h-4 w-4" />}
+            iconVariant="success"
+          />
+          <KpiCardValue
+            value={`${formatPrice(paidAmount)} FCFA`}
+            label="Montant payé"
+            variant="success"
+          />
+        </KpiCard>
       </div>
 
       {/* Graphiques */}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -247,36 +248,42 @@ export default function SuppliersPage() {
         <>
           {/* Statistiques */}
           <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total dettes</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatPrice(totalCredits)} FCFA</div>
-                <p className="text-xs text-muted-foreground">{credits.length} crédit(s)</p>
-              </CardContent>
-            </Card>
+            <KpiCard variant="danger">
+              <KpiCardHeader
+                title="Total dettes"
+                icon={<DollarSign className="h-4 w-4" />}
+                iconVariant="danger"
+              />
+              <KpiCardValue
+                value={`${formatPrice(totalCredits)} FCFA`}
+                label={`${credits.length} crédit(s)`}
+                variant="danger"
+              />
+            </KpiCard>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total payé</CardTitle>
-                <DollarSign className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{formatPrice(totalPaid)} FCFA</div>
-              </CardContent>
-            </Card>
+            <KpiCard variant="success">
+              <KpiCardHeader
+                title="Total payé"
+                icon={<DollarSign className="h-4 w-4" />}
+                iconVariant="success"
+              />
+              <KpiCardValue
+                value={`${formatPrice(totalPaid)} FCFA`}
+                variant="success"
+              />
+            </KpiCard>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Reste à payer</CardTitle>
-                <DollarSign className="h-4 w-4 text-orange-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-orange-600">{formatPrice(totalRemaining)} FCFA</div>
-              </CardContent>
-            </Card>
+            <KpiCard variant="warning">
+              <KpiCardHeader
+                title="Reste à payer"
+                icon={<DollarSign className="h-4 w-4" />}
+                iconVariant="warning"
+              />
+              <KpiCardValue
+                value={`${formatPrice(totalRemaining)} FCFA`}
+                variant="warning"
+              />
+            </KpiCard>
           </div>
 
           {/* Filtres et liste */}
@@ -337,10 +344,10 @@ export default function SuppliersPage() {
                           <span className="text-muted-foreground">
                             Total : {formatPrice(credit.amount)} FCFA
                           </span>
-                          <span className="text-green-600">
+                          <span className="text-[oklch(0.65_0.12_145)]">
                             Payé : {formatPrice(credit.amountPaid)} FCFA
                           </span>
-                          <span className="text-orange-600 font-medium">
+                          <span className="text-[oklch(0.75_0.15_75)] font-medium">
                             Reste : {formatPrice(credit.remainingAmount)} FCFA
                           </span>
                           <span className="text-muted-foreground flex items-center gap-1">

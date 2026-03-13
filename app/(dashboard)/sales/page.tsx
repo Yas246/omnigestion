@@ -16,6 +16,7 @@ import { StockTransferModal } from '@/components/sales/StockTransferModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, CloudOff, RefreshCw, Cloud } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -330,63 +331,57 @@ export default function SalesPage() {
 
       {/* Statistiques du jour */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Factures du jour</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{todayInvoicesCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Aujourd'hui
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="info">
+          <KpiCardHeader
+            title="Factures du jour"
+            icon={<FileText className="h-5 w-5" />}
+            iconVariant="info"
+          />
+          <KpiCardValue
+            value={todayInvoicesCount}
+            label="Aujourd'hui"
+            variant="info"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chiffre d'affaires</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {todayRevenue.toLocaleString()} FCFA
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Total facturé aujourd'hui
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="primary">
+          <KpiCardHeader
+            title="Chiffre d'affaires"
+            icon={<TrendingUp className="h-5 w-5" />}
+            iconVariant="primary"
+          />
+          <KpiCardValue
+            value={`${todayRevenue.toLocaleString()} FCFA`}
+            label="Total facturé aujourd'hui"
+            variant="primary"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Encaissé</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {todayPaid.toLocaleString()} FCFA
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Montant payé aujourd'hui
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="success">
+          <KpiCardHeader
+            title="Encaissé"
+            icon={<DollarSign className="h-5 w-5" />}
+            iconVariant="success"
+          />
+          <KpiCardValue
+            value={`${todayPaid.toLocaleString()} FCFA`}
+            label="Montant payé aujourd'hui"
+            variant="success"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Crédits actifs</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {activeCredits.toLocaleString()} FCFA
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Reste à payer total
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="warning">
+          <KpiCardHeader
+            title="Crédits actifs"
+            icon={<AlertCircle className="h-5 w-5" />}
+            iconVariant="warning"
+          />
+          <KpiCardValue
+            value={`${activeCredits.toLocaleString()} FCFA`}
+            label="Reste à payer total"
+            variant="warning"
+          />
+        </KpiCard>
       </div>
 
       {/* Liste des factures */}

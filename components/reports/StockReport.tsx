@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { useAuth } from '@/lib/auth-context';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { Package, AlertTriangle, DollarSign, TrendingUp } from 'lucide-react';
@@ -175,57 +176,57 @@ export function StockReport() {
     <div className="space-y-6">
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total produits</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stockStats.totalProducts}</div>
-            <p className="text-xs text-muted-foreground">
-              Références
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="info">
+          <KpiCardHeader
+            title="Total produits"
+            icon={<Package className="h-4 w-4" />}
+            iconVariant="info"
+          />
+          <KpiCardValue
+            value={stockStats.totalProducts.toString()}
+            label="Références"
+            variant="info"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Valeur du stock</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatPrice(stockStats.totalValue)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              Valorisation totale
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="primary">
+          <KpiCardHeader
+            title="Valeur du stock"
+            icon={<DollarSign className="h-4 w-4" />}
+            iconVariant="primary"
+          />
+          <KpiCardValue
+            value={`${formatPrice(stockStats.totalValue)} FCFA`}
+            label="Valorisation totale"
+            variant="primary"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock bas</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stockStats.lowStock}</div>
-            <p className="text-xs text-muted-foreground">
-              En alerte
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="warning">
+          <KpiCardHeader
+            title="Stock bas"
+            icon={<AlertTriangle className="h-4 w-4" />}
+            iconVariant="warning"
+          />
+          <KpiCardValue
+            value={stockStats.lowStock.toString()}
+            label="En alerte"
+            variant="warning"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rupture de stock</CardTitle>
-            <Package className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stockStats.outOfStock}</div>
-            <p className="text-xs text-muted-foreground">
-              À réapprovisionner
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="danger">
+          <KpiCardHeader
+            title="Rupture de stock"
+            icon={<Package className="h-4 w-4" />}
+            iconVariant="danger"
+          />
+          <KpiCardValue
+            value={stockStats.outOfStock.toString()}
+            label="À réapprovisionner"
+            variant="danger"
+          />
+        </KpiCard>
       </div>
 
       {/* Alertes */}
@@ -233,7 +234,7 @@ export function StockReport() {
         <Card className="border-orange-500">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-600" />
+              <AlertTriangle className="h-5 w-5 text-[oklch(0.75_0.15_75)]" />
               Alertes de stock
             </CardTitle>
             <CardDescription>

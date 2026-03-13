@@ -18,6 +18,7 @@ import { ImportProductsModal } from '@/components/stock/ImportProductsModal';
 import { ExportProductsButton } from '@/components/stock/ExportProductsButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Plus, Package, AlertTriangle, Upload, RefreshCw } from 'lucide-react';
 
 export default function StockPage() {
@@ -337,59 +338,57 @@ export default function StockPage() {
 
       {/* Statistiques */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total produits</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingStats ? '...' : globalStats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              {isLoadingStats ? '...' : globalStats.active} actifs
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="info">
+          <KpiCardHeader
+            title="Total produits"
+            icon={<Package className="h-5 w-5" />}
+            iconVariant="info"
+          />
+          <KpiCardValue
+            value={isLoadingStats ? '...' : globalStats.total}
+            label={`${isLoadingStats ? '...' : globalStats.active} actifs`}
+            variant="info"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En stock</CardTitle>
-            <Package className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {isLoadingStats ? '...' : globalStats.inStock}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Stock normal
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="success">
+          <KpiCardHeader
+            title="En stock"
+            icon={<Package className="h-5 w-5" />}
+            iconVariant="success"
+          />
+          <KpiCardValue
+            value={isLoadingStats ? '...' : globalStats.inStock}
+            label="Stock normal"
+            variant="success"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock faible</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{isLoadingStats ? '...' : globalStats.lowStock}</div>
-            <p className="text-xs text-muted-foreground">
-              Sous le seuil d&apos;alerte
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="warning">
+          <KpiCardHeader
+            title="Stock faible"
+            icon={<AlertTriangle className="h-5 w-5" />}
+            iconVariant="warning"
+          />
+          <KpiCardValue
+            value={isLoadingStats ? '...' : globalStats.lowStock}
+            label="Sous le seuil d'alerte"
+            variant="warning"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rupture de stock</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{isLoadingStats ? '...' : globalStats.outOfStock}</div>
-            <p className="text-xs text-muted-foreground">
-              Épuisé
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="danger">
+          <KpiCardHeader
+            title="Rupture de stock"
+            icon={<AlertTriangle className="h-5 w-5" />}
+            iconVariant="danger"
+          />
+          <KpiCardValue
+            value={isLoadingStats ? '...' : globalStats.outOfStock}
+            label="Épuisé"
+            variant="danger"
+          />
+        </KpiCard>
       </div>
 
       {/* Liste des produits */}

@@ -72,14 +72,14 @@ export function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-6">
+    <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-6">
       <div className="flex flex-1 items-center gap-4">
         {/* Hamburger menu button - visible only on mobile */}
         {onMenuClick && (
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden hover:bg-primary/10"
             onClick={onMenuClick}
           >
             <Menu className="h-6 w-6" />
@@ -103,7 +103,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 sendTestNotification();
               }}
               disabled={testNotifLoading}
-              className="shrink-0"
+              className="shrink-0 hover:border-primary/50 hover:bg-primary/5"
               title="Envoyer une notification de test aux admins"
             >
               <Bell className={`h-4 w-4 ${testNotifLoading ? 'animate-pulse' : ''}`} />
@@ -116,7 +116,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="gap-2"
+                  className="gap-2 hover:border-primary/50 hover:bg-primary/5 transition-all"
                   disabled={isSwitching}
                 >
                   <Building2 className="h-4 w-4" />
@@ -143,7 +143,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <DropdownMenuItem
                     key={company.id}
                     onClick={() => handleSwitchCompany(company.id)}
-                    className="flex items-center justify-between"
+                    className="flex items-center justify-between hover:bg-primary/5"
                   >
                     <div className="flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -169,10 +169,10 @@ export function Header({ onMenuClick }: HeaderProps) {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="relative h-10 w-10 rounded-full"
+                className="relative h-10 w-10 rounded-full hover:bg-primary/10 transition-colors"
               >
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-primary text-primary-foreground">
+                <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                  <AvatarFallback className="bg-linear-to-br from-primary to-primary/80 text-primary-foreground font-semibold">
                     {getUserInitials()}
                   </AvatarFallback>
                 </Avatar>
@@ -190,12 +190,12 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/settings")}>
+              <DropdownMenuItem onClick={() => router.push("/settings")} className="hover:bg-primary/5">
                 <Settings className="mr-2 h-4 w-4" />
                 Paramètres
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} disabled={isSigningOut}>
+              <DropdownMenuItem onClick={handleSignOut} disabled={isSigningOut} className="hover:bg-destructive/10 focus:bg-destructive/10">
                 <LogOut className="mr-2 h-4 w-4" />
                 {isSigningOut ? "Déconnexion..." : "Se déconnecter"}
               </DropdownMenuItem>

@@ -56,12 +56,14 @@ export function Sidebar({ showLogo = true, onMobileMenuClose }: SidebarProps) {
     <>
       {/* Logo - only show if enabled */}
       {showLogo && (
-        <div className="flex h-16 items-center border-b px-6">
+        <div className="flex h-16 items-center border-b px-6 bg-linear-to-r from-primary/5 to-transparent">
           <Link href="/dashboard" className="flex items-center gap-2" onClick={handleNavClick}>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground font-bold shadow-sm">
               O
             </div>
-            <span className="text-xl font-bold">Omnigestion</span>
+            <span className="text-xl font-bold bg-linear-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+              Omnigestion
+            </span>
           </Link>
         </div>
       )}
@@ -79,21 +81,32 @@ export function Sidebar({ showLogo = true, onMobileMenuClose }: SidebarProps) {
               href={item.href}
               onClick={handleNavClick}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 relative group",
                 isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-foreground hover:bg-accent",
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-foreground hover:bg-accent hover:pl-4",
               )}
             >
-              <Icon className="h-5 w-5" />
-              {item.name}
+              <Icon className={cn(
+                "h-5 w-5 transition-transform duration-200",
+                !isActive && "group-hover:scale-110"
+              )} />
+              <span className={cn(
+                "transition-opacity duration-200",
+                isActive && "font-semibold"
+              )}>
+                {item.name}
+              </span>
+              {!isActive && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 bg-primary rounded-r-full opacity-0 group-hover:h-4 group-hover:opacity-100 transition-all duration-200" />
+              )}
             </Link>
           );
         })}
       </nav>
 
       {/* Footer */}
-      <div className="border-t p-4">
+      <div className="border-t p-4 bg-linear-to-t from-primary/5 to-transparent">
         <p className="text-xs text-center text-muted-foreground">
           Omnigestion v1.0.0
         </p>

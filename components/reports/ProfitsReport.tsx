@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { useInvoices } from '@/lib/hooks/useInvoices';
 import { DollarSign, TrendingUp } from 'lucide-react';
 import { Bar, Line } from 'react-chartjs-2';
@@ -178,57 +179,57 @@ export function ProfitsReport({ period }: ProfitsReportProps) {
     <div className="space-y-6">
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chiffre d'affaires</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatPrice(totalRevenue)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              Total des ventes
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="primary">
+          <KpiCardHeader
+            title="Chiffre d'affaires"
+            icon={<DollarSign className="h-4 w-4" />}
+            iconVariant="primary"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalRevenue)} FCFA`}
+            label="Total des ventes"
+            variant="primary"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Coût total</CardTitle>
-            <TrendingUp className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{formatPrice(totalCost)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              Prix d'achat total
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="danger">
+          <KpiCardHeader
+            title="Coût total"
+            icon={<TrendingUp className="h-4 w-4" />}
+            iconVariant="danger"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalCost)} FCFA`}
+            label="Prix d'achat total"
+            variant="danger"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Marge brute</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatPrice(totalMargin)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              Bénéfice brut
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="success">
+          <KpiCardHeader
+            title="Marge brute"
+            icon={<DollarSign className="h-4 w-4" />}
+            iconVariant="success"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalMargin)} FCFA`}
+            label="Bénéfice brut"
+            variant="success"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taux de marge</CardTitle>
-            <TrendingUp className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{avgMarginRate.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">
-              Moyenne
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="primary">
+          <KpiCardHeader
+            title="Taux de marge"
+            icon={<TrendingUp className="h-4 w-4" />}
+            iconVariant="primary"
+          />
+          <KpiCardValue
+            value={`${avgMarginRate.toFixed(1)}%`}
+            label="Moyenne"
+            variant="primary"
+          />
+        </KpiCard>
       </div>
 
       {/* Graphiques */}
@@ -304,7 +305,7 @@ export function ProfitsReport({ period }: ProfitsReportProps) {
                 header: 'Marge (FCFA)',
                 className: 'text-right',
                 render: (product) => (
-                  <span className={`font-semibold ${product.margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-semibold ${product.margin >= 0 ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
                     {formatPrice(product.margin)}
                   </span>
                 ),
@@ -315,9 +316,9 @@ export function ProfitsReport({ period }: ProfitsReportProps) {
                 className: 'text-right',
                 render: (product) => (
                   <span className={`font-semibold ${
-                    product.marginRate >= 30 ? 'text-green-600' :
-                    product.marginRate >= 15 ? 'text-orange-600' :
-                    'text-red-600'
+                    product.marginRate >= 30 ? 'text-[oklch(0.65_0.12_145)]' :
+                    product.marginRate >= 15 ? 'text-[oklch(0.75_0.15_75)]' :
+                    'text-[oklch(0.58_0.22_25)]'
                   }`}>
                     {product.marginRate.toFixed(1)}%
                   </span>

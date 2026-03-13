@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -106,36 +107,42 @@ export default function CreditsPage() {
 
       {/* Statistiques */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total créances</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatPrice(totalCredits)} FCFA</div>
-            <p className="text-xs text-muted-foreground">{activeCredits.length} crédit(s) actif(s)</p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="warning">
+          <KpiCardHeader
+            title="Total créances"
+            icon={<DollarSign className="h-4 w-4" />}
+            iconVariant="warning"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalCredits)} FCFA`}
+            label={`${activeCredits.length} crédit(s) actif(s)`}
+            variant="warning"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total payé</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatPrice(totalPaid)} FCFA</div>
-          </CardContent>
-        </Card>
+        <KpiCard variant="success">
+          <KpiCardHeader
+            title="Total payé"
+            icon={<DollarSign className="h-4 w-4" />}
+            iconVariant="success"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalPaid)} FCFA`}
+            variant="success"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reste à percevoir</CardTitle>
-            <DollarSign className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{formatPrice(totalRemaining)} FCFA</div>
-          </CardContent>
-        </Card>
+        <KpiCard variant="info">
+          <KpiCardHeader
+            title="Reste à percevoir"
+            icon={<DollarSign className="h-4 w-4" />}
+            iconVariant="info"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalRemaining)} FCFA`}
+            variant="info"
+          />
+        </KpiCard>
       </div>
 
       {/* Filtres */}
@@ -196,10 +203,10 @@ export default function CreditsPage() {
                       <span className="text-muted-foreground">
                         Total : {formatPrice(credit.amount)} FCFA
                       </span>
-                      <span className="text-green-600">
+                      <span className="text-[oklch(0.65_0.12_145)]">
                         Payé : {formatPrice(credit.amountPaid)} FCFA
                       </span>
-                      <span className="text-orange-600 font-medium">
+                      <span className="text-[oklch(0.75_0.15_75)] font-medium">
                         Reste : {formatPrice(credit.remainingAmount)} FCFA
                       </span>
                       <span className="text-muted-foreground flex items-center gap-1">

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { KpiCard, KpiCardHeader, KpiCardValue } from "@/components/ui/kpi-card";
 import {
   Loader2,
   Package,
@@ -81,8 +82,8 @@ export default function DashboardPage() {
       {
         label: "Chiffre d'affaires",
         data: stats.salesLast7Days.map((d) => d.revenue),
-        borderColor: "rgb(59, 130, 246)",
-        backgroundColor: "rgba(59, 130, 246, 0.1)",
+        borderColor: "oklch(0.62 0.14 35)",
+        backgroundColor: "oklch(0.62 0.14 35 / 0.15)",
         fill: true,
         tension: 0.4,
       },
@@ -119,7 +120,8 @@ export default function DashboardPage() {
       {
         label: "Quantité vendue",
         data: stats.topProducts.map((p) => p.totalQuantity),
-        backgroundColor: "rgba(59, 130, 246, 0.8)",
+        backgroundColor: "oklch(0.65 0.12 145 / 0.85)",
+        borderRadius: 4,
       },
     ],
   };
@@ -155,65 +157,57 @@ export default function DashboardPage() {
 
       {/* Statistiques du jour */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">CA du jour</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatPrice(stats.todayRevenue)} {currency}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.todayInvoicesCount} facture(s)
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="primary">
+          <KpiCardHeader
+            title="CA du jour"
+            icon={<DollarSign className="h-5 w-5" />}
+            iconVariant="primary"
+          />
+          <KpiCardValue
+            value={`${formatPrice(stats.todayRevenue)} ${currency}`}
+            label={`${stats.todayInvoicesCount} facture(s)`}
+            variant="primary"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Encaissé aujourd'hui
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatPrice(stats.todayPaidAmount)} {currency}
-            </div>
-            <p className="text-xs text-muted-foreground">Paiements reçus</p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="success">
+          <KpiCardHeader
+            title="Encaissé aujourd'hui"
+            icon={<DollarSign className="h-5 w-5" />}
+            iconVariant="success"
+          />
+          <KpiCardValue
+            value={`${formatPrice(stats.todayPaidAmount)} ${currency}`}
+            label="Paiements reçus"
+            variant="success"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Crédits actifs
-            </CardTitle>
-            <Receipt className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {formatPrice(stats.activeCredits)} {currency}
-            </div>
-            <p className="text-xs text-muted-foreground">Reste à payer</p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="warning">
+          <KpiCardHeader
+            title="Crédits actifs"
+            icon={<Receipt className="h-5 w-5" />}
+            iconVariant="warning"
+          />
+          <KpiCardValue
+            value={`${formatPrice(stats.activeCredits)} ${currency}`}
+            label="Reste à payer"
+            variant="warning"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Bénéfice estimé
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {formatPrice(stats.todayProfit)} {currency}
-            </div>
-            <p className="text-xs text-muted-foreground">Marge du jour</p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="info">
+          <KpiCardHeader
+            title="Bénéfice estimé"
+            icon={<DollarSign className="h-5 w-5" />}
+            iconVariant="info"
+          />
+          <KpiCardValue
+            value={`${formatPrice(stats.todayProfit)} ${currency}`}
+            label="Marge du jour"
+            variant="info"
+          />
+        </KpiCard>
       </div>
 
       {/* Alertes de stock */}
@@ -386,94 +380,111 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-4">
-            <div className="flex items-center gap-3">
-              <Receipt className="h-8 w-8 text-blue-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">Total factures</p>
-                <p className="text-2xl font-bold">{stats.totalInvoicesCount}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-8 w-8 text-green-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">CA total</p>
-                <p className="text-2xl font-bold">
-                  {formatPrice(stats.totalRevenue)} {currency}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Package className="h-8 w-8 text-purple-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">Produits</p>
-                <p className="text-2xl font-bold">{stats.totalProducts}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Users className="h-8 w-8 text-orange-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">Clients</p>
-                <p className="text-2xl font-bold">{stats.totalClients}</p>
-              </div>
-            </div>
+            <KpiCard variant="primary">
+              <KpiCardHeader
+                title="Total factures"
+                icon={<Receipt className="h-5 w-5" />}
+                iconVariant="primary"
+              />
+              <KpiCardValue
+                value={stats.totalInvoicesCount}
+                variant="primary"
+              />
+            </KpiCard>
+
+            <KpiCard variant="success">
+              <KpiCardHeader
+                title="CA total"
+                icon={<DollarSign className="h-5 w-5" />}
+                iconVariant="success"
+              />
+              <KpiCardValue
+                value={`${formatPrice(stats.totalRevenue)} ${currency}`}
+                variant="success"
+              />
+            </KpiCard>
+
+            <KpiCard variant="info">
+              <KpiCardHeader
+                title="Produits"
+                icon={<Package className="h-5 w-5" />}
+                iconVariant="info"
+              />
+              <KpiCardValue
+                value={stats.totalProducts}
+                variant="info"
+              />
+            </KpiCard>
+
+            <KpiCard variant="warning">
+              <KpiCardHeader
+                title="Clients"
+                icon={<Users className="h-5 w-5" />}
+                iconVariant="warning"
+              />
+              <KpiCardValue
+                value={stats.totalClients}
+                variant="warning"
+              />
+            </KpiCard>
           </div>
         </CardContent>
       </Card>
 
       {/* Navigation rapide */}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <Link href="/sales">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex flex-col items-center justify-center p-6">
-              <Receipt className="h-8 w-8 text-blue-600 mb-2" />
+        <Link href="/sales" className="group">
+          <KpiCard variant="primary" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <Receipt className="h-8 w-8 text-[oklch(0.62_0.14_35)] transition-transform duration-200 group-hover:scale-110" />
               <span className="text-sm font-medium">Ventes</span>
-            </CardContent>
-          </Card>
+            </div>
+          </KpiCard>
         </Link>
 
-        <Link href="/stock">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex flex-col items-center justify-center p-6">
-              <Package className="h-8 w-8 text-purple-600 mb-2" />
+        <Link href="/stock" className="group">
+          <KpiCard variant="info" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <Package className="h-8 w-8 text-[oklch(0.58_0.18_200)] transition-transform duration-200 group-hover:scale-110" />
               <span className="text-sm font-medium">Stock</span>
-            </CardContent>
-          </Card>
+            </div>
+          </KpiCard>
         </Link>
 
-        <Link href="/clients">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex flex-col items-center justify-center p-6">
-              <Users className="h-8 w-8 text-orange-600 mb-2" />
+        <Link href="/clients" className="group">
+          <KpiCard variant="warning" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <Users className="h-8 w-8 text-[oklch(0.75_0.15_75)] transition-transform duration-200 group-hover:scale-110" />
               <span className="text-sm font-medium">Clients</span>
-            </CardContent>
-          </Card>
+            </div>
+          </KpiCard>
         </Link>
 
-        <Link href="/suppliers">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex flex-col items-center justify-center p-6">
-              <Package className="h-8 w-8 text-green-600 mb-2" />
+        <Link href="/suppliers" className="group">
+          <KpiCard variant="success" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <Package className="h-8 w-8 text-[oklch(0.65_0.12_145)] transition-transform duration-200 group-hover:scale-110" />
               <span className="text-sm font-medium">Fournisseurs</span>
-            </CardContent>
-          </Card>
+            </div>
+          </KpiCard>
         </Link>
 
-        <Link href="/cash">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex flex-col items-center justify-center p-6">
-              <DollarSign className="h-8 w-8 text-yellow-600 mb-2" />
+        <Link href="/cash" className="group">
+          <KpiCard variant="primary" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <DollarSign className="h-8 w-8 text-[oklch(0.62_0.14_35)] transition-transform duration-200 group-hover:scale-110" />
               <span className="text-sm font-medium">Caisse</span>
-            </CardContent>
-          </Card>
+            </div>
+          </KpiCard>
         </Link>
 
-        <Link href="/settings">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex flex-col items-center justify-center p-6">
-              <AlertTriangle className="h-8 w-8 text-gray-600 mb-2" />
+        <Link href="/settings" className="group">
+          <KpiCard variant="neutral" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <AlertTriangle className="h-8 w-8 text-muted-foreground transition-transform duration-200 group-hover:scale-110" />
               <span className="text-sm font-medium">Paramètres</span>
-            </CardContent>
-          </Card>
+            </div>
+          </KpiCard>
         </Link>
       </div>
     </div>

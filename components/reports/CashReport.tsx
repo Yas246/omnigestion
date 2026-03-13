@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCashRegisters } from '@/lib/hooks/useCashRegisters';
 import { DollarSign, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
@@ -192,59 +193,57 @@ export function CashReport({ period }: CashReportProps) {
 
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total entrées</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatPrice(totalIn)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              Entrées de trésorerie
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="success">
+          <KpiCardHeader
+            title="Total entrées"
+            icon={<TrendingUp className="h-4 w-4" />}
+            iconVariant="success"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalIn)} FCFA`}
+            label="Entrées de trésorerie"
+            variant="success"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total sorties</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{formatPrice(totalOut)} FCFA</div>
-            <p className="text-xs text-muted-foreground">
-              Sorties de trésorerie
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="danger">
+          <KpiCardHeader
+            title="Total sorties"
+            icon={<TrendingDown className="h-4 w-4" />}
+            iconVariant="danger"
+          />
+          <KpiCardValue
+            value={`${formatPrice(totalOut)} FCFA`}
+            label="Sorties de trésorerie"
+            variant="danger"
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Flux net</CardTitle>
-            <Wallet className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${netFlow >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-              {formatPrice(netFlow)} FCFA
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {netFlow >= 0 ? 'Excédent' : 'Déficit'}
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant={netFlow >= 0 ? 'primary' : 'danger'}>
+          <KpiCardHeader
+            title="Flux net"
+            icon={<Wallet className="h-4 w-4" />}
+            iconVariant={netFlow >= 0 ? 'primary' : 'danger'}
+          />
+          <KpiCardValue
+            value={`${formatPrice(netFlow)} FCFA`}
+            label={netFlow >= 0 ? 'Excédent' : 'Déficit'}
+            variant={netFlow >= 0 ? 'primary' : 'danger'}
+          />
+        </KpiCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Mouvements</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{filteredMovements.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Opérations
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard variant="info">
+          <KpiCardHeader
+            title="Mouvements"
+            icon={<DollarSign className="h-4 w-4" />}
+            iconVariant="info"
+          />
+          <KpiCardValue
+            value={filteredMovements.length.toString()}
+            label="Opérations"
+            variant="info"
+          />
+        </KpiCard>
       </div>
 
       {/* Graphiques */}
@@ -322,7 +321,7 @@ export function CashReport({ period }: CashReportProps) {
                 render: (movement) => {
                   const isIn = movement.type === 'in' || (movement.type === 'transfer' && movement.sourceCashRegisterId);
                   return (
-                    <span className={`font-semibold ${isIn ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`font-semibold ${isIn ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
                       {isIn ? '+' : '-'}{formatPrice(movement.amount)} FCFA
                     </span>
                   );
@@ -334,11 +333,11 @@ export function CashReport({ period }: CashReportProps) {
                 className: 'text-center',
                 render: (movement) => {
                   if (movement.type === 'in') {
-                    return <span className="text-green-600">Entrée</span>;
+                    return <span className="text-[oklch(0.65_0.12_145)]">Entrée</span>;
                   } else if (movement.type === 'out') {
-                    return <span className="text-red-600">Sortie</span>;
+                    return <span className="text-[oklch(0.58_0.22_25)]">Sortie</span>;
                   } else {
-                    return <span className="text-blue-600">Transfert</span>;
+                    return <span className="text-[oklch(0.62_0.14_35)]">Transfert</span>;
                   }
                 },
               },
