@@ -58,6 +58,7 @@ export interface FetchInvoicesOptions {
   startAfter?: any;
   orderByField?: 'createdAt' | 'updatedAt' | 'invoiceNumber' | 'total' | 'saleDate';
   orderDirection?: 'asc' | 'desc';
+  userRole?: 'admin' | 'employee'; // Rôle pour filtrer les factures visibles
   filters?: {
     clientId?: string;
     status?: string;
@@ -263,6 +264,7 @@ export async function fetchInvoices(
     companyId,
     limit: limitCount,
     filters,
+    userRole: options.userRole,
   });
 
   // Construire la requête de base
@@ -271,7 +273,24 @@ export async function fetchInvoices(
     orderBy(orderByField, orderDirection)
   );
 
-  // Ajouter les filtres de date si fournis
+  // 🔒 Sécurité: Les employés ne voient que les factures du jour
+  if (options.userRole === 'employee') {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    console.log('[fetchInvoices] Filtre employé: factures du jour uniquement', {
+      today: today.toISOString(),
+      tomorrow: tomorrow.toISOString(),
+    });
+
+    q = query(q, where('createdAt', '>=', today));
+    q = query(q, where('createdAt', '<', tomorrow));
+  }
+
+  // Ajouter les filtres de date si fournis (pour les admins)
   if (filters?.startDate) {
     const startTimestamp = filters.startDate;
     q = query(q, where(orderByField, '>=', startTimestamp));

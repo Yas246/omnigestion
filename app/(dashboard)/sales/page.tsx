@@ -80,10 +80,16 @@ export default function SalesPage() {
   // Charger les factures au montage (TOUJOURS recharger pour éviter les conflits multi-utilisateur)
   useEffect(() => {
     if (user?.currentCompanyId) {
-      console.log('[SalesPage] Chargement des factures depuis Firestore', { companyId: user.currentCompanyId });
-      invoicesStore.fetchInvoices(user.currentCompanyId, { reset: true });
+      console.log('[SalesPage] Chargement des factures depuis Firestore', {
+        companyId: user.currentCompanyId,
+        userRole: user.role
+      });
+      invoicesStore.fetchInvoices(user.currentCompanyId, {
+        reset: true,
+        userRole: user.role // 🔒 Passer le rôle explicitement
+      });
     }
-  }, [user?.currentCompanyId]);
+  }, [user?.currentCompanyId, user?.role]);
 
   // Effet pour la synchronisation automatique
   useEffect(() => {

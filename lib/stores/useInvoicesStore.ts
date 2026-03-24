@@ -41,7 +41,7 @@ interface InvoicesState {
   // Actions de chargement
   fetchInvoices: (
     companyId: string,
-    options?: { reset?: boolean; pageSize?: number },
+    options?: { reset?: boolean; pageSize?: number; userRole?: 'admin' | 'employee' },
   ) => Promise<void>;
   loadMore: (companyId?: string) => Promise<void>;
   refreshInvoices: (companyId?: string) => Promise<void>;
@@ -109,13 +109,25 @@ export const useInvoicesStore = create<InvoicesState>()(
        * IMPORTANT: Pagination pour éviter de charger TOUTES les factures
        */
       fetchInvoices: async (companyId, options = {}) => {
-        const { reset = false, pageSize = 20 } = options;
+        const { reset = false, pageSize = 20, userRole } = options;
         const { filters, currentPage, lastDoc } = get();
 
         if (!companyId) {
           console.error("[fetchInvoices] Aucune compagnie sélectionnée");
           return;
         }
+
+        // 🔒 Utiliser le rôle passé en paramètre ou récupérer depuis le store
+        let actualUserRole = userRole;
+        if (!actualUserRole) {
+          const user = useAuthStore.getState().user;
+          actualUserRole = user?.role;
+        }
+
+        console.log('[fetchInvoices] 🔍 Rôle utilisateur détecté:', {
+          userRole: actualUserRole,
+          source: userRole ? 'param' : 'store',
+        });
 
         set({ loading: true, error: null });
 
@@ -125,6 +137,7 @@ export const useInvoicesStore = create<InvoicesState>()(
           page: reset ? 0 : currentPage,
           pageSize,
           filters,
+          userRole: actualUserRole,
         });
 
         try {
@@ -137,6 +150,7 @@ export const useInvoicesStore = create<InvoicesState>()(
             startAfter: reset ? undefined : lastDoc,
             orderByField: "createdAt",
             orderDirection: "desc",
+            userRole: actualUserRole, // 🔒 Passer le rôle pour filtrage côté serveur
             filters: {
               // Note: search filter is applied client-side in getFilteredInvoices()
               clientId: filters.clientId || undefined,

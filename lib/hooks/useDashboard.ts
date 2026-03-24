@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { startOfDay, endOfDay } from 'date-fns';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, Query } from 'firebase/firestore';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
+import { useAuthStore } from '@/lib/stores/useAuthStore';
 import type { Invoice, Product, DailyStats, ClientCredit } from '@/types';
 
 export interface DashboardStats {
@@ -72,9 +73,27 @@ export function useDashboard() {
       const startOfToday = startOfDay(today);
       const endOfToday = endOfDay(today);
 
-      // 1. Récupérer toutes les factures (pour les stats globales)
-      const invoicesRef = collection(db, COLLECTIONS.companyInvoices(user.currentCompanyId));
-      const allInvoicesSnap = await getDocs(invoicesRef);
+      // 🔒 Récupérer le rôle utilisateur
+      const authUser = useAuthStore.getState().user;
+      const isEmployee = authUser?.role === 'employee';
+
+      // 1. Récupérer les factures (filtrées pour les employés)
+      let invoicesQuery: Query<any> = collection(db, COLLECTIONS.companyInvoices(user.currentCompanyId));
+
+      // Si employé, limiter aux factures du jour uniquement
+      if (isEmployee) {
+        const tomorrow = new Date(startOfToday);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        invoicesQuery = query(invoicesQuery,
+          where('createdAt', '>=', startOfToday),
+          where('createdAt', '<', tomorrow)
+        );
+        console.log('[Dashboard] Mode employé: factures du jour uniquement');
+      } else {
+        console.log('[Dashboard] Mode admin: toutes les factures');
+      }
+
+      const allInvoicesSnap = await getDocs(invoicesQuery);
       const allInvoices = allInvoicesSnap.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
