@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -19,6 +21,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useDashboard } from "@/lib/hooks/useDashboard";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
@@ -52,9 +55,28 @@ ChartJS.register(
 );
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { stats, loading, error } = useDashboard();
+  const { hasPermission, getFirstAccessiblePage } = usePermissions();
+
+  // Vérifier les permissions et rediriger si nécessaire
+  useEffect(() => {
+    if (!hasPermission('dashboard', 'read')) {
+      const firstAccessiblePage = getFirstAccessiblePage();
+      router.push(firstAccessiblePage);
+    }
+  }, [hasPermission, getFirstAccessiblePage, router]);
 
   const currency = "FCFA"; // TODO: Récupérer depuis les paramètres de l'entreprise
+
+  // Afficher un message si l'utilisateur n'a pas accès au dashboard
+  if (!hasPermission('dashboard', 'read')) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

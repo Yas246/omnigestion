@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
@@ -41,6 +42,8 @@ import { toast } from 'sonner';
 import type { CashRegister } from '@/types';
 
 export default function CashPage() {
+  const router = useRouter();
+
   // Hooks du store Zustand
   const cashRegisters = useCashRegisters();
   const movements = useMovements();
@@ -58,7 +61,14 @@ export default function CashPage() {
     getBalance,
   } = useCashRegistersStore();
 
-  const { canCreateCashOperation } = usePermissions();
+  const { canCreateCashOperation, canAccessModule, getFirstAccessiblePage } = usePermissions();
+
+  // Vérifier les permissions - rediriger si pas d'accès
+  useEffect(() => {
+    if (!canAccessModule('cash')) {
+      router.push(getFirstAccessiblePage());
+    }
+  }, [canAccessModule, getFirstAccessiblePage, router]);
 
   // Obtenir l'utilisateur connecté
   const { user } = useAuth();

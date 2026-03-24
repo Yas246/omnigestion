@@ -35,15 +35,13 @@ interface SidebarProps {
 
 export function Sidebar({ showLogo = true, onMobileMenuClose }: SidebarProps) {
   const pathname = usePathname();
-  const { isAdmin, canAccessModule } = usePermissions();
+  const { isAdmin, canAccessModule, getFirstAccessiblePage } = usePermissions();
 
   // Filtrer la navigation en fonction des permissions
   const navigation = allNavigation.filter((item) => {
     // Les admins ont accès à tout
     if (isAdmin) return true;
-    // Le dashboard est toujours accessible
-    if (item.module === "dashboard") return true;
-    // Vérifier les permissions pour les autres modules
+    // Vérifier les permissions pour tous les modules, y compris le dashboard
     return canAccessModule(item.module);
   });
 
@@ -52,12 +50,15 @@ export function Sidebar({ showLogo = true, onMobileMenuClose }: SidebarProps) {
     onMobileMenuClose?.();
   };
 
+  // Rediriger le logo vers la première page accessible
+  const logoHref = getFirstAccessiblePage();
+
   return (
     <>
       {/* Logo - only show if enabled */}
       {showLogo && (
         <div className="flex h-16 items-center border-b px-6 bg-linear-to-r from-primary/5 to-transparent">
-          <Link href="/dashboard" className="flex items-center gap-2" onClick={handleNavClick}>
+          <Link href={logoHref} className="flex items-center gap-2" onClick={handleNavClick}>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground font-bold shadow-sm">
               O
             </div>

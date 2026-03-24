@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -27,14 +28,25 @@ import {
   useMovements,
 } from '@/lib/stores/useCashRegistersStore';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 type ReportTab = 'sales' | 'profits' | 'stock' | 'cash';
 type ExportFormat = 'excel' | 'csv';
 
 export default function ReportsPage() {
+  const router = useRouter();
+  const { canAccessModule, getFirstAccessiblePage } = usePermissions();
+
   const [period, setPeriod] = useState<PeriodType>('month');
   const [activeTab, setActiveTab] = useState<ReportTab>('sales');
+
+  // Vérifier les permissions - rediriger si pas d'accès
+  useEffect(() => {
+    if (!canAccessModule('reports')) {
+      router.push(getFirstAccessiblePage());
+    }
+  }, [canAccessModule, getFirstAccessiblePage, router]);
 
   // Store selectors
   const invoices = useInvoices();

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { doc, setDoc, getDocs, collection, deleteDoc, query, where } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,13 @@ type Permission = {
 };
 
 const AVAILABLE_PERMISSIONS = [
+  {
+    module: 'dashboard',
+    label: 'Tableau de bord',
+    actions: [
+      { value: 'read', label: 'Voir le tableau de bord' },
+    ],
+  },
   {
     module: 'sales',
     label: 'Ventes',
@@ -66,12 +74,22 @@ const AVAILABLE_PERMISSIONS = [
   },
   {
     module: 'credits',
-    label: 'Crédits',
+    label: 'Crédits clients',
     actions: [
-      { value: 'read', label: 'Voir les crédits' },
-      { value: 'create', label: 'Créer crédits/fournisseurs' },
-      { value: 'update', label: 'Modifier crédits/fournisseurs' },
-      { value: 'payment', label: 'Enregistrer paiements' },
+      { value: 'read', label: 'Voir les crédits clients' },
+      { value: 'payment', label: 'Enregistrer les paiements' },
+    ],
+  },
+  {
+    module: 'suppliers',
+    label: 'Fournisseurs',
+    actions: [
+      { value: 'read', label: 'Voir les fournisseurs' },
+      { value: 'create', label: 'Créer des fournisseurs' },
+      { value: 'purchase', label: 'Créer des achats' },
+      { value: 'update', label: 'Modifier des fournisseurs' },
+      { value: 'delete', label: 'Supprimer des fournisseurs' },
+      { value: 'payment', label: 'Enregistrer les paiements' },
     ],
   },
   {
@@ -97,6 +115,15 @@ export function UsersTab() {
   const [loading, setLoading] = useState(true);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [showPasswordField, setShowPasswordField] = useState(false);
+
+  // Fonction pour obtenir le token Firebase
+  const getAuthToken = async (): Promise<string> => {
+    const auth = getAuth();
+    if (!auth.currentUser) {
+      throw new Error('Utilisateur non connecté');
+    }
+    return await auth.currentUser.getIdToken();
+  };
 
   // Formulaire création utilisateur
   const [firstName, setFirstName] = useState('');
@@ -199,11 +226,16 @@ export function UsersTab() {
 
     setIsCreating(true);
     try {
+      const token = await getAuthToken();
+
       if (editingUserId) {
         // Mode édition - mettre à jour l'utilisateur
         const response = await fetch('/api/auth/update-user', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           body: JSON.stringify({
             userId: editingUserId,
             firstName,
@@ -225,7 +257,10 @@ export function UsersTab() {
         if (password && showPasswordField) {
           const passwordResponse = await fetch('/api/auth/update-user', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
             body: JSON.stringify({
               userId: editingUserId,
               newPassword: password,
@@ -244,7 +279,10 @@ export function UsersTab() {
         // Mode création - créer un nouvel utilisateur
         const response = await fetch('/api/auth/create-user', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           body: JSON.stringify({
             email,
             password,

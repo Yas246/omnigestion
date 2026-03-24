@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, DollarSign, Calendar, Package, User, Edit } from 'lucide-react';
+import { Loader2, Plus, DollarSign, Calendar, Package, User, Edit, Trash2 } from 'lucide-react';
 import { useSuppliers } from '@/lib/hooks/useSuppliers';
 import { useSupplierCredits } from '@/lib/hooks/useSupplierCredits';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { SupplierCreditPaymentDialog } from '@/components/suppliers/SupplierCreditPaymentDialog';
 import { SupplierDialog } from '@/components/suppliers/SupplierDialog';
@@ -39,8 +41,17 @@ type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
 type TabType = 'suppliers' | 'credits';
 
 export default function SuppliersPage() {
-  const { suppliers, loading: suppliersLoading, createSupplier, updateSupplier } = useSuppliers();
+  const router = useRouter();
+  const { canAccessModule, getFirstAccessiblePage } = usePermissions();
+  const { suppliers, loading: suppliersLoading, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
   const { credits, loading: creditsLoading, addPayment } = useSupplierCredits();
+
+  // Vérifier les permissions - rediriger si pas d'accès
+  useEffect(() => {
+    if (!canAccessModule('suppliers')) {
+      router.push(getFirstAccessiblePage());
+    }
+  }, [canAccessModule, getFirstAccessiblePage, router]);
   const [activeTab, setActiveTab] = useState<TabType>('suppliers');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -124,6 +135,18 @@ export default function SuppliersPage() {
     }
   };
 
+  const handleDeleteSupplier = async (supplierId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce fournisseur ?')) {
+      return;
+    }
+
+    try {
+      await deleteSupplier(supplierId);
+    } catch (error: any) {
+      console.error('Erreur lors de la suppression:', error);
+    }
+  };
+
   const openEditDialog = (supplier: any) => {
     setSelectedSupplier(supplier);
     setShowEditDialog(true);
@@ -140,13 +163,13 @@ export default function SuppliersPage() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <PermissionGate module="credits" action="create">
+          <PermissionGate module="suppliers" action="create">
             <Button variant="outline" onClick={() => setShowSupplierDialog(true)}>
               <User className="h-4 w-4 mr-2" />
               Nouveau fournisseur
             </Button>
           </PermissionGate>
-          <PermissionGate module="credits" action="create">
+          <PermissionGate module="suppliers" action="purchase">
             <Button onClick={() => setShowPurchaseDialog(true)}>
               <Package className="h-4 w-4 mr-2" />
               Nouvel achat
@@ -196,7 +219,7 @@ export default function SuppliersPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Aucun fournisseur. Ajoutez votre premier fournisseur.
                 </p>
-                <PermissionGate module="credits" action="create">
+                <PermissionGate module="suppliers" action="create">
                   <Button onClick={() => setShowSupplierDialog(true)}>
                     <Plus className="h-4 w-4 mr-2" />
                     Ajouter un fournisseur
@@ -228,15 +251,27 @@ export default function SuppliersPage() {
                         {supplier.address && <span>Adresse: {supplier.address}</span>}
                       </div>
                     </div>
-                    <PermissionGate module="credits" action="update">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(supplier)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </PermissionGate>
+                    <div className="flex gap-2">
+                      <PermissionGate module="suppliers" action="update">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditDialog(supplier)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </PermissionGate>
+                      <PermissionGate module="suppliers" action="delete">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteSupplier(supplier.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </PermissionGate>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -361,7 +396,7 @@ export default function SuppliersPage() {
                           )}
                         </div>
                       </div>
-                      <PermissionGate module="credits" action="payment">
+                      <PermissionGate module="suppliers" action="payment">
                         {credit.status !== 'paid' && credit.status !== 'cancelled' && (
                           <Button
                             size="sm"

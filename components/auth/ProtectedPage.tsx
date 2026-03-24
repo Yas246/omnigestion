@@ -23,19 +23,20 @@ interface ProtectedPageProps {
  */
 export function ProtectedPage({ module, action = 'read', children }: ProtectedPageProps) {
   const router = useRouter();
-  const { hasPermission, isAdmin } = usePermissions();
+  const { hasPermission, isAdmin, getFirstAccessiblePage } = usePermissions();
   const hasAccess = isAdmin || hasPermission(module, action);
+  const firstAccessiblePage = getFirstAccessiblePage();
 
   useEffect(() => {
     if (!hasAccess) {
-      // Rediriger vers le dashboard après un court délai
+      // Rediriger vers la première page accessible après un court délai
       const timer = setTimeout(() => {
-        router.push('/');
+        router.push(firstAccessiblePage);
       }, 100);
 
       return () => clearTimeout(timer);
     }
-  }, [hasAccess, router]);
+  }, [hasAccess, router, firstAccessiblePage]);
 
   // Afficher un état de chargement pendant la vérification
   if (!hasAccess) {
@@ -55,8 +56,8 @@ export function ProtectedPage({ module, action = 'read', children }: ProtectedPa
               Action: <span className="font-medium">{action}</span>
             </p>
           </div>
-          <Button onClick={() => router.push('/')}>
-            Retour au tableau de bord
+          <Button onClick={() => router.push(firstAccessiblePage)}>
+            Retour à l'accueil
           </Button>
         </div>
       </div>

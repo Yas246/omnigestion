@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
@@ -86,8 +86,32 @@ export function InvoiceDialog({
   const [items, setItems] = useState<InvoiceItemInput[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [productSearch, setProductSearch] = useState<string>('');
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [clientSearch, setClientSearch] = useState<string>('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+
+  // Ref pour détecter les clics en dehors du dropdown de produits
+  const productDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fermer le dropdown quand on clique en dehors
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        productDropdownRef.current &&
+        !productDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowProductDropdown(false);
+      }
+    };
+
+    if (showProductDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProductDropdown]);
 
   // Debouncing pour les recherches (300ms)
   const debouncedProductSearch = useDebounce(productSearch, 300);
@@ -114,9 +138,20 @@ export function InvoiceDialog({
   });
 
   const paymentMethod = form.watch('paymentMethod');
+  const clientId = form.watch('clientId');
   const taxRate = form.watch('taxRate');
   const discount = form.watch('discount');
   const paidAmount = paymentMethod === 'credit' ? 0 : form.watch('paidAmount');
+
+  // Déterminer si c'est un client de passage
+  const isWalkInCustomer = !clientId;
+
+  // Réinitialiser le mode de paiement si c'est un client de passage et que le mode était "crédit"
+  useEffect(() => {
+    if (isWalkInCustomer && paymentMethod === 'credit') {
+      form.setValue('paymentMethod', 'cash');
+    }
+  }, [isWalkInCustomer, paymentMethod, form]);
 
   // Filtrer les produits selon la recherche (min 3 caractères)
   const filteredProducts = products.filter(p => {
@@ -147,6 +182,13 @@ export function InvoiceDialog({
   const taxAmount = (subtotal * taxRate) / 100;
   const total = subtotal - discount + taxAmount;
   const remainingAmount = total - paidAmount;
+
+  // Pour les clients de passage, le montant payé doit toujours être égal au total
+  useEffect(() => {
+    if (isWalkInCustomer && paymentMethod !== 'credit') {
+      form.setValue('paidAmount', total);
+    }
+  }, [isWalkInCustomer, total, paymentMethod, form]);
 
   // Ajouter un produit à la facture
   const addProduct = () => {
@@ -361,20 +403,16 @@ export function InvoiceDialog({
             <div className="space-y-3">
               <FormLabel>Ajouter des produits</FormLabel>
               <div className="flex gap-2">
-                <div className="relative flex-1">
+                <div className="relative flex-1" ref={productDropdownRef}>
                   <Input
-                    placeholder="Rechercher un produit par nom ou code... (min. 3 caractères)"
+                    placeholder="Rechercher un produit par nom ou code..."
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
+                    onFocus={() => setShowProductDropdown(true)}
                   />
-                  {productSearch.length > 0 && productSearch.length < 3 && (
-                    <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg p-3 text-sm text-muted-foreground">
-                      Continuez à taper... (min 3 caractères)
-                    </div>
-                  )}
-                  {debouncedProductSearch.length >= 3 && filteredProducts.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                      {filteredProducts.slice(0, 10).map((product) => (
+                  {showProductDropdown && filteredProducts.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-96 overflow-y-auto">
+                      {filteredProducts.map((product) => (
                         <div
                           key={product.id}
                           className="px-3 py-2 hover:bg-muted cursor-pointer"
@@ -382,6 +420,7 @@ export function InvoiceDialog({
                             setSelectedProductId(product.id);
                             addProductById(product.id);
                             setProductSearch('');
+                            setShowProductDropdown(false);
                           }}
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -406,6 +445,7 @@ export function InvoiceDialog({
                     if (selectedProductId) {
                       addProduct();
                       setProductSearch('');
+                      setShowProductDropdown(false);
                     }
                   }}
                   disabled={!selectedProductId}
@@ -584,7 +624,9 @@ export function InvoiceDialog({
                         <SelectItem value="cash">Espèces</SelectItem>
                         <SelectItem value="mobile">Mobile Money</SelectItem>
                         <SelectItem value="bank">Paiement bancaire</SelectItem>
-                        <SelectItem value="credit">Crédit</SelectItem>
+                        <SelectItem value="credit" disabled={isWalkInCustomer}>
+                          Crédit {isWalkInCustomer && "(réservé aux clients enregistrés)"}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -683,12 +725,18 @@ export function InvoiceDialog({
                         <NumberInput
                           min={0}
                           placeholder="0"
-                          value={field.value}
+                          value={isWalkInCustomer ? total : field.value}
                           onChange={field.onChange}
+                          disabled={isWalkInCustomer}
+                          className={isWalkInCustomer ? "bg-muted" : ""}
                         />
                       </FormControl>
                       <FormDescription>
-                        {remainingAmount > 0 ? (
+                        {isWalkInCustomer ? (
+                          <span className="text-muted-foreground">
+                            Les clients de passage doivent payer la totalité de la facture
+                          </span>
+                        ) : remainingAmount > 0 ? (
                           <span className="text-orange-600">
                             Reste à payer: {remainingAmount.toLocaleString()} FCFA
                           </span>

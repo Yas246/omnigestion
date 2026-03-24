@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,8 +18,7 @@ import { PermissionGate } from "@/components/auth";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { hasPermission, isAdmin } = usePermissions();
+  const { hasPermission, isAdmin, getFirstAccessiblePage } = usePermissions();
   const { company, settings, warehouses, loading, error, refresh } =
     useSettings();
   const [activeTab, setActiveTab] = useState("company");
@@ -30,11 +28,11 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!hasAccess) {
       const timer = setTimeout(() => {
-        router.push("/");
+        router.push(getFirstAccessiblePage());
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [hasAccess, router]);
+  }, [hasAccess, router, getFirstAccessiblePage]);
 
   if (!hasAccess) {
     return (
@@ -50,8 +48,8 @@ export default function SettingsPage() {
               page.
             </p>
           </div>
-          <Button onClick={() => router.push("/")}>
-            Retour au tableau de bord
+          <Button onClick={() => router.push(getFirstAccessiblePage())}>
+            Retour à l'accueil
           </Button>
         </div>
       </div>
@@ -155,7 +153,16 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="users" className="space-y-6">
-          <UsersTab />
+          {isAdmin ? (
+            <UsersTab />
+          ) : (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Vous n&apos;avez pas la permission de gérer les utilisateurs.
+                Cette fonctionnalité est réservée aux administrateurs.
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="system" className="space-y-6">

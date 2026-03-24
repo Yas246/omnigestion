@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useInvoicesStoreState, useInvoices, useInvoicesLoading, useInvoicesHasMore } from '@/lib/stores/useInvoicesStore';
 import { useInvoices as useInvoicesHelpers } from '@/lib/hooks/useInvoices';
 import { useClientCredits } from '@/lib/hooks/useClientCredits';
@@ -58,7 +59,15 @@ export default function SalesPage() {
   const { credits } = useClientCredits();
   const { user } = useAuth();
   const { company, settings } = useSettings();
-  const { canCreateSale, canDeleteSale } = usePermissions();
+  const { canCreateSale, canDeleteSale, canAccessModule, getFirstAccessiblePage } = usePermissions();
+  const router = useRouter();
+
+  // Vérifier les permissions - rediriger si pas d'accès
+  useEffect(() => {
+    if (!canAccessModule('sales')) {
+      router.push(getFirstAccessiblePage());
+    }
+  }, [canAccessModule, getFirstAccessiblePage, router]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);

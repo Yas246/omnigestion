@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
@@ -9,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus, DollarSign, Calendar } from 'lucide-react';
 import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { CreditPaymentDialog } from '@/components/credits/CreditPaymentDialog';
 import { format } from 'date-fns';
@@ -34,7 +36,17 @@ function useDebounce(value: string, delay: number): string {
 type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
 
 export default function CreditsPage() {
+  const router = useRouter();
+  const { canAccessModule, getFirstAccessiblePage } = usePermissions();
+
   const { credits, loading, addPayment } = useClientCredits();
+
+  // Vérifier les permissions - rediriger si pas d'accès
+  useEffect(() => {
+    if (!canAccessModule('credits')) {
+      router.push(getFirstAccessiblePage());
+    }
+  }, [canAccessModule, getFirstAccessiblePage, router]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active'); // Par défaut: uniquement les actifs
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCredit, setSelectedCredit] = useState<any>(null);

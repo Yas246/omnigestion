@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -30,7 +32,7 @@ import {
 import { useClients } from '@/lib/stores/useClientsStore';
 import { useClientCredits } from '@/lib/hooks/useClientCredits';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { useMemo, useEffect } from 'react';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 import { format, startOfDay, endOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
@@ -64,6 +66,9 @@ ChartJS.register(
 );
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { hasPermission, getFirstAccessiblePage } = usePermissions();
+
   // Store selectors
   const invoices = useInvoices();
   const products = useProducts();
@@ -74,6 +79,23 @@ export default function DashboardPage() {
   // Credits still use hook (no store yet)
   const { credits } = useClientCredits();
   const { user } = useAuth();
+
+  // Vérifier les permissions et rediriger si nécessaire
+  useEffect(() => {
+    if (!hasPermission('dashboard', 'read')) {
+      const firstAccessiblePage = getFirstAccessiblePage();
+      router.push(firstAccessiblePage);
+    }
+  }, [hasPermission, getFirstAccessiblePage, router]);
+
+  // Afficher un message si l'utilisateur n'a pas accès au dashboard
+  if (!hasPermission('dashboard', 'read')) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   // Initialize stores on mount
   useEffect(() => {

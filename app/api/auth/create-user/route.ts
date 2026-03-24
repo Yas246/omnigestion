@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { getAuthenticatedAdmin, forbiddenResponse } from '@/lib/api-auth';
 
 export async function POST(req: NextRequest) {
   try {
+    // Vérifier que l'utilisateur est authentifié et est admin
+    const currentUser = await getAuthenticatedAdmin(req);
+
+    if (!currentUser) {
+      return forbiddenResponse('Seuls les administrateurs peuvent créer des utilisateurs');
+    }
+
     const body = await req.json();
     const {
       email,
@@ -28,6 +36,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Le mot de passe doit contenir au moins 6 caractères' },
         { status: 400 }
+      );
+    }
+
+    // Empêcher la création d'admin via cette API
+    if (role === 'admin') {
+      return NextResponse.json(
+        { error: 'La création de comptes administrateur n\'est pas autorisée via cette API' },
+        { status: 403 }
+      );
+    }
+
+    // Vérifier que l'admin a le droit de créer des utilisateurs pour cette compagnie
+    if (currentUser.currentCompanyId !== companyId) {
+      return NextResponse.json(
+        { error: 'Vous n\'avez pas le droit de créer des utilisateurs pour cette compagnie' },
+        { status: 403 }
       );
     }
 

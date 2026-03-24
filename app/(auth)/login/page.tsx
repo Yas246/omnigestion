@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -21,6 +22,7 @@ import { Loader2 } from "lucide-react";
 export default function LoginPage() {
   const router = useRouter();
   const { signIn, loading, error, user, companies } = useAuth();
+  const { getFirstAccessiblePage } = usePermissions();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,12 +32,14 @@ export default function LoginPage() {
   useEffect(() => {
     if (authSuccess && user && companies.length > 0) {
       if (companies.length === 1) {
-        router.push("/dashboard");
+        // Rediriger vers la première page accessible
+        const firstPage = getFirstAccessiblePage();
+        router.push(firstPage);
       } else {
         router.push("/select-company");
       }
     }
-  }, [authSuccess, user, companies, router]);
+  }, [authSuccess, user, companies, router, getFirstAccessiblePage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

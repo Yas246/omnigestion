@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   useClients,
@@ -11,15 +12,26 @@ import {
 import { useAuthStore } from '@/lib/stores/useAuthStore';
 import { useClients as useClientsHelpers } from '@/lib/hooks/useClients';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 import { ClientsTable } from '@/components/clients/ClientsTable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
 export default function ClientsPage() {
+  const router = useRouter();
+  const { canAccessModule, getFirstAccessiblePage } = usePermissions();
+
   // Store selectors
   const clients = useClients();
   const loading = useClientsLoading();
   const hasMore = useClientsHasMore();
+
+  // Vérifier les permissions - rediriger si pas d'accès
+  useEffect(() => {
+    if (!canAccessModule('clients')) {
+      router.push(getFirstAccessiblePage());
+    }
+  }, [canAccessModule, getFirstAccessiblePage, router]);
 
   // Helper functions for CRUD (keep using hook)
   const { createClient, updateClient, deleteClient } = useClientsHelpers();

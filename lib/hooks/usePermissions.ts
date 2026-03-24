@@ -12,7 +12,7 @@ export function usePermissions() {
 
   /**
    * Vérifie si l'utilisateur a une permission spécifique
-   * @param module - Le module (ex: 'sales', 'stock', 'cash', 'clients', 'credits', 'reports', 'settings')
+   * @param module - Le module (ex: 'dashboard', 'sales', 'stock', 'cash', 'clients', 'credits', 'suppliers', 'reports', 'settings')
    * @param action - L'action (ex: 'create', 'read', 'update', 'delete', 'restock', 'transfer', etc.)
    */
   const hasPermission = (module: string, action: string): boolean => {
@@ -47,8 +47,35 @@ export function usePermissions() {
    */
   const canAccessModule = (module: string): boolean => {
     if (isAdmin) return true;
-    if (module === 'dashboard') return true; // Tout le monde peut voir le dashboard
     return hasPermission(module, 'read');
+  };
+
+  /**
+   * Retourne la première page accessible à l'utilisateur
+   * Ordre de priorité : dashboard > sales > stock > cash > clients > credits > suppliers > reports
+   */
+  const getFirstAccessiblePage = (): string => {
+    if (isAdmin) return '/';
+
+    const priorityOrder = [
+      { module: 'dashboard', path: '/' },
+      { module: 'sales', path: '/sales' },
+      { module: 'stock', path: '/stock' },
+      { module: 'cash', path: '/cash' },
+      { module: 'clients', path: '/clients' },
+      { module: 'credits', path: '/credits/clients' },
+      { module: 'suppliers', path: '/suppliers' },
+      { module: 'reports', path: '/reports' },
+    ];
+
+    for (const { module, path } of priorityOrder) {
+      if (hasPermission(module, 'read')) {
+        return path;
+      }
+    }
+
+    // Fallback : si aucune permission, rediriger vers les paramètres (accès de base)
+    return '/settings';
   };
 
   /**
@@ -59,22 +86,19 @@ export function usePermissions() {
       return ['dashboard', 'sales', 'stock', 'cash', 'clients', 'credits/clients', 'suppliers', 'reports', 'settings'];
     }
 
-    if (!user?.permissions) return ['dashboard'];
+    if (!user?.permissions) return [];
 
     const modules = user.permissions.map((p) => p.module);
     const accessibleModules: string[] = [];
 
-    // Dashboard toujours accessible
-    accessibleModules.push('dashboard');
-
+    // Vérifier chaque module
+    if (hasPermission('dashboard', 'read')) accessibleModules.push('dashboard');
     if (modules.includes('sales')) accessibleModules.push('sales');
     if (modules.includes('stock')) accessibleModules.push('stock');
     if (modules.includes('cash')) accessibleModules.push('cash');
     if (modules.includes('clients')) accessibleModules.push('clients');
-    if (modules.includes('credits')) {
-      accessibleModules.push('credits/clients');
-      accessibleModules.push('suppliers');
-    }
+    if (modules.includes('credits')) accessibleModules.push('credits/clients');
+    if (modules.includes('suppliers')) accessibleModules.push('suppliers');
     if (modules.includes('reports')) accessibleModules.push('reports');
     if (modules.includes('settings')) accessibleModules.push('settings');
 
@@ -108,11 +132,15 @@ export function usePermissions() {
   const canUpdateClient = () => hasPermission('clients', 'update');
   const canDeleteClient = () => hasPermission('clients', 'delete');
 
-  /** CRÉDITS */
-  const canCreateCredit = () => hasPermission('credits', 'create');
-  const canUpdateCredit = () => hasPermission('credits', 'update');
-  const canRecordPayment = () => hasPermission('credits', 'payment');
-  const canCancelCredit = () => hasPermission('credits', 'delete');
+  /** CRÉDITS CLIENTS */
+  const canRecordCreditPayment = () => hasPermission('credits', 'payment');
+
+  /** FOURNISSEURS */
+  const canCreateSupplier = () => hasPermission('suppliers', 'create');
+  const canCreatePurchase = () => hasPermission('suppliers', 'purchase');
+  const canUpdateSupplier = () => hasPermission('suppliers', 'update');
+  const canRecordSupplierPayment = () => hasPermission('suppliers', 'payment');
+  const canDeleteSupplier = () => hasPermission('suppliers', 'delete');
 
   /** RAPPORTS */
   const canViewReports = () => hasPermission('reports', 'read');
@@ -136,6 +164,7 @@ export function usePermissions() {
     canDelete,
     canRead: (module: string) => hasPermission(module, 'read'),
     getAccessibleModules,
+    getFirstAccessiblePage,
     // Ventes
     canCreateSale,
     canUpdateSale,
@@ -157,11 +186,14 @@ export function usePermissions() {
     canCreateClient,
     canUpdateClient,
     canDeleteClient,
-    // Crédits
-    canCreateCredit,
-    canUpdateCredit,
-    canRecordPayment,
-    canCancelCredit,
+    // Crédits clients
+    canRecordCreditPayment,
+    // Fournisseurs
+    canCreateSupplier,
+    canCreatePurchase,
+    canUpdateSupplier,
+    canRecordSupplierPayment,
+    canDeleteSupplier,
     // Rapports
     canViewReports,
     // Paramètres

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useProducts, useProductsLoading, useProductsHasMore, useProductsStore } from '@/lib/stores/useProductsStore';
 import { useStockMovements } from '@/lib/hooks/useStockMovements';
 import { useSettings } from '@/lib/hooks/useSettings';
@@ -23,6 +24,7 @@ import { Plus, Package, AlertTriangle, Upload, RefreshCw } from 'lucide-react';
 
 export default function StockPage() {
   const { user } = useAuth();
+  const router = useRouter();
 
   // Utiliser le store Zustand avec des sélecteurs séparés pour éviter les boucles
   const products = useProducts();
@@ -36,7 +38,14 @@ export default function StockPage() {
   }, [products]); // Seulement products en dépendance
 
   const { warehouses, settings } = useSettings();
-  const { canCreateProduct } = usePermissions();
+  const { canCreateProduct, canAccessModule, getFirstAccessiblePage } = usePermissions();
+
+  // Vérifier les permissions - rediriger si pas d'accès
+  useEffect(() => {
+    if (!canAccessModule('stock')) {
+      router.push(getFirstAccessiblePage());
+    }
+  }, [canAccessModule, getFirstAccessiblePage, router]);
   const {
     movements,
     loading: movementsLoading,
