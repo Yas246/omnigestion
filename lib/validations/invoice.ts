@@ -18,6 +18,8 @@ export const invoiceSchema = z.object({
   clientSearch: z.string().optional(),
   // Sélection du client (optionnel)
   clientId: z.string().optional(),
+  // Date de la vente (optionnel, défaut: aujourd'hui)
+  saleDate: z.date().optional(),
   // Montants
   taxRate: z.number().min(0),
   discount: z.number().min(0),

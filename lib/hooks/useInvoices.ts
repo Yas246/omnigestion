@@ -48,6 +48,7 @@ export interface InvoiceCreateInput {
   discount: number;
   paymentMethod?: 'cash' | 'bank' | 'mobile' | 'credit';
   paidAmount: number;
+  saleDate?: Date; // Date de la vente (optionnel, défaut: aujourd'hui)
   dueDate?: Date;
   notes?: string;
   // Mobile Money
@@ -700,7 +701,8 @@ export function useInvoices() {
         const paymentData: any = {
           companyId: user.currentCompanyId,
           invoiceNumber,
-          date: new Date(),
+          date: data.saleDate || new Date(), // Date de la vente ou date actuelle
+          saleDate: data.saleDate || new Date(), // Conserver saleDate séparément
           items: invoiceItems,
           subtotal,
           taxRate: data.taxRate,

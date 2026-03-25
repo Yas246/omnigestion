@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useProducts } from '@/lib/hooks/useProducts';
 import { useClients } from '@/lib/hooks/useClients';
 import { useSettings } from '@/lib/hooks/useSettings';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 import { invoiceSchema, type InvoiceFormData } from '@/lib/validations/invoice';
 import { useInvoices, type InvoiceItemInput } from '@/lib/hooks/useInvoices';
 import type { Client, Product } from '@/types';
@@ -62,6 +63,7 @@ interface InvoiceDialogProps {
     discount: number;
     paymentMethod?: 'cash' | 'bank' | 'mobile' | 'credit';
     paidAmount: number;
+    saleDate?: Date;
     dueDate?: Date;
     notes?: string;
     // Mobile Money
@@ -83,6 +85,7 @@ export function InvoiceDialog({
   const { products } = useProducts();
   const { clients } = useClients();
   const { settings } = useSettings();
+  const { isAdmin } = usePermissions();
   const [items, setItems] = useState<InvoiceItemInput[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [productSearch, setProductSearch] = useState<string>('');
@@ -128,6 +131,7 @@ export function InvoiceDialog({
       taxRate: defaultTaxRate,
       discount: 0,
       paidAmount: 0,
+      saleDate: new Date(), // Date du jour par défaut
       notes: defaultTerms || '',
       clientSearch: '',
       mobileNumber: '',
@@ -311,6 +315,7 @@ export function InvoiceDialog({
         discount: data.discount,
         paymentMethod: data.paymentMethod,
         paidAmount: data.paymentMethod === 'credit' ? 0 : data.paidAmount,
+        saleDate: data.saleDate, // Date de la vente
         notes: data.notes,
         // Mobile Money
         mobileNumber: data.paymentMethod === 'mobile' ? data.mobileNumber : undefined,
@@ -392,6 +397,34 @@ export function InvoiceDialog({
                     {field.value
                       ? `Client sélectionné: ${clients.find(c => c.id === field.value)?.name}`
                       : 'Laissez vide pour un client de passage'
+                    }
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Date de la vente */}
+            <FormField
+              control={form.control}
+              name="saleDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date de la vente</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      {...field}
+                      value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : null)}
+                      disabled={!isAdmin}
+                      className={!isAdmin ? "bg-muted cursor-not-allowed" : ""}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {!isAdmin
+                      ? "Date du jour (non modifiable)"
+                      : "Sélectionnez la date de la vente (passée ou future)"
                     }
                   </FormDescription>
                   <FormMessage />
