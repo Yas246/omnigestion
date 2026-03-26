@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSettings } from "@/lib/hooks/useSettings";
+import { useSettingsRealtime } from "@/lib/react-query/useSettingsRealtime";
+import { useWarehousesListener } from "@/lib/react-query/useStockLocationsRealtime"; // Pour les entrepôts
+import { useSettings } from "@/lib/hooks/useSettings"; // Garder pour les fonctions CRUD si nécessaires
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,8 +21,17 @@ import { PermissionGate } from "@/components/auth";
 export default function SettingsPage() {
   const router = useRouter();
   const { hasPermission, isAdmin, getFirstAccessiblePage } = usePermissions();
-  const { company, settings, warehouses, loading, error, refresh } =
-    useSettings();
+
+  // NOUVEAU hook React Query + onSnapshot pour temps réel
+  const { settings, isLoading, error } = useSettingsRealtime();
+
+  // NOTE: Les warehouses viennent déjà du listener warehouses dans RealtimeService
+  // On peut les récupérer depuis le cache React Query
+  // Pour l'instant, on garde l'ancien système pour les warehouses
+
+  // Garder l'ancien hook pour les fonctions CRUD (refresh, etc.)
+  const { refresh: legacyRefresh } = useSettings();
+
   const [activeTab, setActiveTab] = useState("company");
 
   const hasAccess = isAdmin || hasPermission("settings", "read");
@@ -33,6 +44,13 @@ export default function SettingsPage() {
       return () => clearTimeout(timer);
     }
   }, [hasAccess, router, getFirstAccessiblePage]);
+
+  // Fonction refresh qui utilise maintenant onSnapshot automatiquement
+  const refresh = () => {
+    // NOTE: Plus besoin de refresh manuel - onSnapshot met à jour automatiquement
+    // Mais on garde la fonction pour la compatibilité avec ThemeSelector
+    console.log('[SettingsPage] Refresh - les données sont synchronisées automatiquement via onSnapshot');
+  };
 
   if (!hasAccess) {
     return (
@@ -56,7 +74,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -64,7 +82,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (error && !company) {
+  if (error && !settings) {
     return (
       <div className="rounded-md bg-destructive/15 p-4 text-destructive">
         {error}
@@ -110,7 +128,7 @@ export default function SettingsPage() {
               </Card>
             )}
           >
-            <CompanyTab company={company} onSaved={refresh} />
+            <CompanyTab company={settings} onSaved={refresh} />
           </PermissionGate>
         </TabsContent>
 
@@ -127,7 +145,7 @@ export default function SettingsPage() {
               </Card>
             )}
           >
-            <InvoiceTab settings={settings?.invoice} onSaved={refresh} />
+            <InvoiceTab settings={settings?.invoiceSettings || settings?.invoice} onSaved={refresh} />
           </PermissionGate>
         </TabsContent>
 
@@ -145,8 +163,8 @@ export default function SettingsPage() {
             )}
           >
             <StockTab
-              settings={settings?.stock}
-              warehouses={warehouses}
+              settings={settings?.stockSettings || settings?.stock}
+              warehouses={settings?.warehouses || []}
               onSaved={refresh}
             />
           </PermissionGate>
@@ -178,7 +196,7 @@ export default function SettingsPage() {
               </Card>
             )}
           >
-            <SystemTab settings={settings?.system} onSaved={refresh} />
+            <SystemTab settings={settings?.systemSettings || settings?.system} onSaved={refresh} />
           </PermissionGate>
         </TabsContent>
       </Tabs>

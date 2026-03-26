@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,21 +21,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, Plus, ArrowUpCircle, ArrowDownCircle, ArrowRightCircle, DollarSign, Pencil, Trash2, MoreVertical, AlertTriangle } from 'lucide-react';
-import {
-  useCashRegisters,
-  useMovements,
-  useBalances,
-  useCashRegistersLoading,
-  useMovementsLoading,
-  useMovementsHasMore,
-  useTodayStats,
-  useCashRegistersStore,
-} from '@/lib/stores/useCashRegistersStore';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { CashMovementDialog } from '@/components/cash/CashMovementDialog';
 import { CashRegisterDialog } from '@/components/cash/CashRegisterDialog';
+import { useCashRegistersRealtime } from '@/lib/react-query/useCashRegistersRealtime';
+import { useCashMovementsRealtime } from '@/lib/react-query/useCashMovementsRealtime';
+import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -44,22 +37,17 @@ import type { CashRegister } from '@/types';
 export default function CashPage() {
   const router = useRouter();
 
-  // Hooks du store Zustand
-  const cashRegisters = useCashRegisters();
-  const movements = useMovements();
-  const registersLoading = useCashRegistersLoading();
-  const movementsLoading = useMovementsLoading();
-  const movementsHasMore = useMovementsHasMore();
-  const todayStats = useTodayStats();
-
-  // Actions du store
+  // NOUVEAUX hooks React Query + onSnapshot pour temps réel
+  const { cashRegisters, isLoading: registersLoading } = useCashRegistersRealtime();
   const {
-    createMovement,
-    deleteCashRegister,
-    fetchMovements,
-    loadMoreMovements,
-    getBalance,
-  } = useCashRegistersStore();
+    movements,
+    loadMore,
+    hasMore: movementsHasMore,
+    isLoading: movementsLoading,
+  } = useCashMovementsRealtime();
+
+  // Garder le store pour les autres fonctions utilitaires (CRUD)
+  const { deleteCashRegister } = useCashRegistersStore();
 
   const { canCreateCashOperation, canAccessModule, getFirstAccessiblePage } = usePermissions();
 
@@ -72,10 +60,6 @@ export default function CashPage() {
 
   // Obtenir l'utilisateur connecté
   const { user } = useAuth();
-  const currentCompanyId = user?.currentCompanyId || null;
-
-  // Obtenir les balances depuis le store (réactif aux changements)
-  const balances = useBalances();
 
   // État local UI seulement
   const [showMovementDialog, setShowMovementDialog] = useState(false);
@@ -84,23 +68,8 @@ export default function CashPage() {
   const [editingCashRegister, setEditingCashRegister] = useState<CashRegister | null>(null);
   const [deletingCashRegister, setDeletingCashRegister] = useState<CashRegister | null>(null);
 
-  // Initialisation quand le companyId change
-  useEffect(() => {
-    if (currentCompanyId) {
-      console.log('[CashPage] Initialisation avec companyId:', currentCompanyId);
-      const store = useCashRegistersStore.getState();
-
-      // Toujours initialiser, pas seulement si cashRegisters est vide
-      // Car après Ctrl+Shift+R, localStorage restaure cashRegisters mais pas movements
-      store.initialize(currentCompanyId);
-
-      // Charger les mouvements si vides ou si pas de mouvements chargés
-      if (store.movements.length === 0) {
-        console.log('[CashPage] Chargement des mouvements...');
-        store.fetchMovements(undefined, true);
-      }
-    }
-  }, [currentCompanyId]);
+  // NOTE: Plus besoin d'initialiser le store manuellement - onSnapshot gère ça automatiquement
+  // NOTE: Plus besoin de fetchMovements - onSnapshot synchronise tout automatiquement
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price);
@@ -119,26 +88,55 @@ export default function CashPage() {
     return labels[category] || category;
   };
 
-  // Calculer le solde total à partir des balances du store (réactif aux changements)
-  const totalBalance = Object.values(balances).reduce((sum, balance) => sum + balance, 0);
+  // Calculer les statistiques localement depuis les données React Query (optimisé)
+  const todayStats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  // Filtrer les mouvements du jour pour l'affichage (limité aux mouvements chargés)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+    const todayMovements = movements.filter(m => {
+      const movementDate = new Date(m.createdAt);
+      movementDate.setHours(0, 0, 0, 0);
+      return movementDate.getTime() === today.getTime();
+    });
 
-  const todayMovements = movements.filter(m => {
-    const movementDate = new Date(m.createdAt);
-    movementDate.setHours(0, 0, 0, 0);
-    return movementDate.getTime() === today.getTime();
-  });
+    const todayIn = todayMovements
+      .filter(m => m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId))
+      .reduce((sum, m) => sum + m.amount, 0);
 
-  const todayInCount = todayMovements
-    .filter(m => m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId))
-    .length;
+    const todayOut = todayMovements
+      .filter(m => m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId))
+      .reduce((sum, m) => sum + m.amount, 0);
 
-  const todayOutCount = todayMovements
-    .filter(m => m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId))
-    .length;
+    return { todayIn, todayOut };
+  }, [movements]);
+
+  // Calculer les totaux du jour pour l'affichage
+  const todayInCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return movements.filter(m => {
+      const movementDate = new Date(m.createdAt);
+      movementDate.setHours(0, 0, 0, 0);
+      return movementDate.getTime() === today.getTime() &&
+        (m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId));
+    }).length;
+  }, [movements]);
+
+  const todayOutCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return movements.filter(m => {
+      const movementDate = new Date(m.createdAt);
+      movementDate.setHours(0, 0, 0, 0);
+      return movementDate.getTime() === today.getTime() &&
+        (m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId));
+    }).length;
+  }, [movements]);
+
+  // Calculer le solde total depuis les caisses (le solde est déjà calculé dans Firestore)
+  const totalBalance = useMemo(() => {
+    return cashRegisters.reduce((sum, cr) => sum + (cr.currentBalance || 0), 0);
+  }, [cashRegisters]);
 
   // Handler pour l'édition d'une caisse
   const handleEditCashRegister = (cashRegister: CashRegister) => {
@@ -148,12 +146,13 @@ export default function CashPage() {
 
   // Handler pour la suppression d'une caisse
   const handleDeleteCashRegister = async () => {
-    if (!deletingCashRegister) return;
+    if (!deletingCashRegister || !user?.currentCompanyId) return;
 
     try {
-      await useCashRegistersStore.getState().deleteCashRegister(deletingCashRegister.id);
+      await deleteCashRegister(deletingCashRegister.id, user.currentCompanyId);
       toast.success('Caisse supprimée avec succès');
       setDeletingCashRegister(null);
+      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch {
       toast.error('Erreur lors de la suppression de la caisse');
     }
@@ -260,7 +259,7 @@ export default function CashPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p className="font-bold">{formatPrice(getBalance(cr.id))} FCFA</p>
+                        <p className="font-bold">{formatPrice(cr.currentBalance || 0)} FCFA</p>
                         {cr.isMain && (
                           <Badge variant="outline" className="text-xs">Principale</Badge>
                         )}
@@ -355,7 +354,7 @@ export default function CashPage() {
                   <div className="flex justify-center pt-4">
                     <Button
                       variant="outline"
-                      onClick={() => loadMoreMovements()}
+                      onClick={() => loadMore()}
                       disabled={movementsLoading}
                     >
                       {movementsLoading ? (
@@ -384,9 +383,8 @@ export default function CashPage() {
         }}
         cashRegisterId={selectedCashRegister}
         onSuccess={() => {
-          // Recharger les mouvements après création
-          const store = useCashRegistersStore.getState();
-          store.fetchMovements(undefined, true);
+          // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
+          toast.success('Mouvement enregistré avec succès');
         }}
       />
 
@@ -399,10 +397,8 @@ export default function CashPage() {
         }}
         cashRegister={editingCashRegister}
         onSuccess={() => {
-          // Recharger les caisses après création/modification
-          if (user?.currentCompanyId) {
-            useCashRegistersStore.getState().fetchCashRegisters(user.currentCompanyId);
-          }
+          // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
+          toast.success(editingCashRegister ? 'Caisse modifiée avec succès' : 'Caisse créée avec succès');
         }}
       />
 

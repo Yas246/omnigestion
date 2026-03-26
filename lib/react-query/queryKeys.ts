@@ -43,8 +43,39 @@ export const queryKeys = {
       all: (companyId: string) => ['companies', companyId, 'warehouses'] as const,
     },
 
+    // NOUVELLES entités
+    cashRegisters: {
+      all: (companyId: string) => ['companies', companyId, 'cashRegisters'] as const,
+    },
+
+    cashMovements: {
+      all: (companyId: string) => ['companies', companyId, 'cashMovements'] as const,
+    },
+
+    clientCredits: {
+      all: (companyId: string) => ['companies', companyId, 'clientCredits'] as const,
+      detail: (companyId: string, creditId: string) =>
+        ['companies', companyId, 'clientCredits', creditId] as const,
+    },
+
+    suppliers: {
+      all: (companyId: string) => ['companies', companyId, 'suppliers'] as const,
+      detail: (companyId: string, supplierId: string) =>
+        ['companies', companyId, 'suppliers', supplierId] as const,
+    },
+
+    supplierCredits: {
+      all: (companyId: string) => ['companies', companyId, 'supplierCredits'] as const,
+      detail: (companyId: string, creditId: string) =>
+        ['companies', companyId, 'supplierCredits', creditId] as const,
+    },
+
     settings: {
       current: (companyId: string) => ['companies', companyId, 'settings'] as const,
+    },
+
+    stockMovements: {
+      all: (companyId: string) => ['companies', companyId, 'stockMovements'] as const,
     },
   },
 } as const;

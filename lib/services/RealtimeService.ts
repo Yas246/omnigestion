@@ -13,6 +13,7 @@ import {
   orderBy,
   where,
   getDocs,
+  doc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Product, Invoice, Client, Warehouse } from '@/types';
@@ -26,28 +27,64 @@ interface WarehouseQuantity {
 }
 
 interface RealtimeState {
+  // Listeners existants
   productsListener: ListenerUnsubscribe | null;
   invoicesListener: ListenerUnsubscribe | null;
   clientsListener: ListenerUnsubscribe | null;
   warehousesListener: ListenerUnsubscribe | null;
+
+  // NOUVEAUX listeners
+  cashRegistersListener: ListenerUnsubscribe | null;
+  cashMovementsListener: ListenerUnsubscribe | null;
+  clientCreditsListener: ListenerUnsubscribe | null;
+  suppliersListener: ListenerUnsubscribe | null;
+  supplierCreditsListener: ListenerUnsubscribe | null;
+  settingsListener: ListenerUnsubscribe | null;
+  stockMovementsListener: ListenerUnsubscribe | null;
+
   currentCompanyId: string | null;
+
+  // Caches existants
   warehouseQuantitiesCache: Map<string, WarehouseQuantity[]>; // productId -> quantities
+
+  // NOUVEAUX caches pour les données imbriquées
+  clientCreditPaymentsCache: Map<string, any[]>; // creditId -> payments[]
+  supplierCreditPaymentsCache: Map<string, any[]>; // creditId -> payments[]
 }
 
 class RealtimeService {
   private state: RealtimeState = {
+    // Listeners existants
     productsListener: null,
     invoicesListener: null,
     clientsListener: null,
     warehousesListener: null,
+
+    // NOUVEAUX listeners
+    cashRegistersListener: null,
+    cashMovementsListener: null,
+    clientCreditsListener: null,
+    suppliersListener: null,
+    supplierCreditsListener: null,
+    settingsListener: null,
+    stockMovementsListener: null,
+
     currentCompanyId: null,
+
+    // Caches
     warehouseQuantitiesCache: new Map(),
+    clientCreditPaymentsCache: new Map(),
+    supplierCreditPaymentsCache: new Map(),
   };
 
   /**
    * Démarre l'écoute des produits (si pas déjà démarrée)
    */
   startProductsListener(queryClient: QueryClient, companyId: string) {
+    if (!queryClient) {
+      console.error('[RealtimeService] ❌ queryClient est undefined');
+      return;
+    }
     // Si déjà connecté à la même compagnie, rien à faire
     if (this.state.productsListener && this.state.currentCompanyId === companyId) {
       console.log('[RealtimeService] ♻️ Produits déjà en écoute');
@@ -102,11 +139,11 @@ class RealtimeService {
         // Changements incrémentiels
         console.log(`[RealtimeService] 📊 ${changes.length} changement(s) produits`);
 
-        const currentProducts = queryClient.getQueryData<Product[]>(
+        const currentProducts = queryClient.getQueryData<Product>(
           ['companies', companyId, 'products']
-        ) || [];
+        );
 
-        let updatedProducts = [...currentProducts];
+        let updatedProducts = Array.isArray(currentProducts) ? [...currentProducts] : [];
 
         changes.forEach((change) => {
           const data = change.doc.data();
@@ -190,6 +227,68 @@ class RealtimeService {
   }
 
   /**
+   * Met en cache les payments d'un crédit client
+   */
+  cacheClientCreditPayments(creditId: string, payments: any[]) {
+    this.state.clientCreditPaymentsCache.set(creditId, payments);
+  }
+
+  /**
+   * Enrichit un crédit client avec ses payments depuis le cache
+   */
+  enrichClientCreditWithPayments(credit: any): any {
+    const cached = this.state.clientCreditPaymentsCache.get(credit.id);
+    if (cached && cached.length > 0) {
+      return {
+        ...credit,
+        payments: cached,
+        amountPaid: cached.reduce((sum, p) => sum + (p.amount || 0), 0),
+        remainingAmount: credit.amount - cached.reduce((sum, p) => sum + (p.amount || 0), 0),
+      };
+    }
+    return credit;
+  }
+
+  /**
+   * Nettoie le cache des client credit payments
+   */
+  clearClientCreditPaymentsCache() {
+    this.state.clientCreditPaymentsCache.clear();
+    console.log('[RealtimeService] 🧹 Cache clientCreditPayments vidé');
+  }
+
+  /**
+   * Met en cache les payments d'un crédit fournisseur
+   */
+  cacheSupplierCreditPayments(creditId: string, payments: any[]) {
+    this.state.supplierCreditPaymentsCache.set(creditId, payments);
+  }
+
+  /**
+   * Enrichit un crédit fournisseur avec ses payments depuis le cache
+   */
+  enrichSupplierCreditWithPayments(credit: any): any {
+    const cached = this.state.supplierCreditPaymentsCache.get(credit.id);
+    if (cached && cached.length > 0) {
+      return {
+        ...credit,
+        payments: cached,
+        amountPaid: cached.reduce((sum, p) => sum + (p.amount || 0), 0),
+        remainingAmount: credit.amount - cached.reduce((sum, p) => sum + (p.amount || 0), 0),
+      };
+    }
+    return credit;
+  }
+
+  /**
+   * Nettoie le cache des supplier credit payments
+   */
+  clearSupplierCreditPaymentsCache() {
+    this.state.supplierCreditPaymentsCache.clear();
+    console.log('[RealtimeService] 🧹 Cache supplierCreditPayments vidé');
+  }
+
+  /**
    * Démarre l'écoute des factures (si pas déjà démarrée)
    */
   startInvoicesListener(queryClient: QueryClient, companyId: string, isEmployee: boolean) {
@@ -255,11 +354,11 @@ class RealtimeService {
         // Changements incrémentiels
         console.log(`[RealtimeService] 📊 ${changes.length} changement(s) factures`);
 
-        const currentInvoices = queryClient.getQueryData<Invoice[]>(
+        const currentInvoices = queryClient.getQueryData<Invoice>(
           ['companies', companyId, 'invoices', isEmployee ? 'today' : 'all']
-        ) || [];
+        );
 
-        let updatedInvoices = [...currentInvoices];
+        let updatedInvoices = Array.isArray(currentInvoices) ? [...currentInvoices] : [];
 
         changes.forEach((change) => {
           const data = change.doc.data();
@@ -367,11 +466,11 @@ class RealtimeService {
         // Changements incrémentiels
         console.log(`[RealtimeService] 📊 ${changes.length} changement(s) clients`);
 
-        const currentClients = queryClient.getQueryData<Client[]>(
+        const currentClients = queryClient.getQueryData<Client>(
           ['companies', companyId, 'clients']
-        ) || [];
+        );
 
-        let updatedClients = [...currentClients];
+        let updatedClients = Array.isArray(currentClients) ? [...currentClients] : [];
 
         changes.forEach((change) => {
           const data = change.doc.data();
@@ -465,11 +564,11 @@ class RealtimeService {
         // Changements incrémentiels
         console.log(`[RealtimeService] 📊 ${changes.length} changement(s) entrepôts`);
 
-        const currentWarehouses = queryClient.getQueryData<Warehouse[]>(
+        const currentWarehouses = queryClient.getQueryData<Warehouse>(
           ['companies', companyId, 'warehouses']
-        ) || [];
+        );
 
-        let updatedWarehouses = [...currentWarehouses];
+        let updatedWarehouses = Array.isArray(currentWarehouses) ? [...currentWarehouses] : [];
 
         changes.forEach((change) => {
           const data = change.doc.data();
@@ -513,11 +612,778 @@ class RealtimeService {
   }
 
   /**
+   * Démarre l'écoute des caisses (si pas déjà démarrée)
+   */
+  startCashRegistersListener(queryClient: QueryClient, companyId: string) {
+    // Si déjà connecté à la même compagnie, rien à faire
+    if (this.state.cashRegistersListener && this.state.currentCompanyId === companyId) {
+      console.log('[RealtimeService] ♻️ Caisses déjà en écoute');
+      return;
+    }
+
+    // Arrêter l'écoute précédente
+    if (this.state.cashRegistersListener) {
+      console.log('[RealtimeService] 🔄 Arrêt écoute caisses (changement compagnie)');
+      this.state.cashRegistersListener();
+      this.state.cashRegistersListener = null;
+    }
+
+    console.log('[RealtimeService] 🔄 Démarrage écoute caisses (GLOBAL)');
+
+    const q = query(
+      collection(db, `companies/${companyId}/cash_registers`),
+      orderBy('name', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, {
+      next: (snapshot) => {
+        const changes = snapshot.docChanges();
+
+        // Snapshot initial
+        if (changes.length === 0) {
+          const cashRegisters = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              createdAt: data.createdAt?.toDate() || new Date(),
+              updatedAt: data.updatedAt?.toDate() || new Date(),
+            };
+          });
+
+          queryClient.setQueryData(
+            ['companies', companyId, 'cashRegisters'],
+            cashRegisters
+          );
+          console.log(`[RealtimeService] ✅ ${cashRegisters.length} caisses chargées (GLOBAL)`);
+          return;
+        }
+
+        // Changements incrémentiels
+        console.log(`[RealtimeService] 📊 ${changes.length} changement(s) caisses`);
+
+        const currentCashRegisters = queryClient.getQueryData<any>(
+          ['companies', companyId, 'cashRegisters']
+        );
+
+        let updatedCashRegisters = Array.isArray(currentCashRegisters) ? [...currentCashRegisters] : [];
+
+        changes.forEach((change) => {
+          const data = change.doc.data();
+          const cashRegister = {
+            id: change.doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+
+          switch (change.type) {
+            case 'added':
+              if (!updatedCashRegisters.find(cr => cr.id === cashRegister.id)) {
+                updatedCashRegisters.push(cashRegister);
+              }
+              break;
+            case 'modified':
+              updatedCashRegisters = updatedCashRegisters.map(cr =>
+                cr.id === cashRegister.id ? cashRegister : cr
+              );
+              break;
+            case 'removed':
+              updatedCashRegisters = updatedCashRegisters.filter(cr => cr.id !== cashRegister.id);
+              break;
+          }
+        });
+
+        updatedCashRegisters.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+
+        queryClient.setQueryData(
+          ['companies', companyId, 'cashRegisters'],
+          updatedCashRegisters
+        );
+      },
+
+      error: (err) => {
+        console.error('[RealtimeService] ❌ Erreur écoute caisses:', err);
+      },
+    });
+
+    this.state.cashRegistersListener = unsubscribe;
+    this.state.currentCompanyId = companyId;
+  }
+
+  /**
+   * Démarre l'écoute des mouvements de caisse (si pas déjà démarrée)
+   */
+  startCashMovementsListener(queryClient: QueryClient, companyId: string, limit: number = 20) {
+    // Vérification de sécurité
+    if (!queryClient) {
+      console.error('[RealtimeService] ❌ queryClient est undefined');
+      return;
+    }
+
+    // Si déjà connecté à la même compagnie, rien à faire
+    if (this.state.cashMovementsListener && this.state.currentCompanyId === companyId) {
+      console.log('[RealtimeService] ♻️ Mouvements de caisse déjà en écoute');
+      return;
+    }
+
+    // Arrêter l'écoute précédente
+    if (this.state.cashMovementsListener) {
+      console.log('[RealtimeService] 🔄 Arrêt écoute mouvements caisse (changement compagnie)');
+      this.state.cashMovementsListener();
+      this.state.cashMovementsListener = null;
+    }
+
+    console.log('[RealtimeService] 🔄 Démarrage écoute mouvements caisse (GLOBAL)');
+
+    const q = query(
+      collection(db, `companies/${companyId}/cash_movements`),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, {
+      next: (snapshot) => {
+        const changes = snapshot.docChanges();
+
+        // Snapshot initial
+        if (changes.length === 0) {
+          const movements = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              createdAt: data.createdAt?.toDate() || new Date(),
+              updatedAt: data.updatedAt?.toDate() || new Date(),
+            };
+          });
+
+          // Stocker un tableau simple (pas de structure useInfiniteQuery)
+          queryClient.setQueryData(
+            ['companies', companyId, 'cashMovements'],
+            movements
+          );
+          console.log(`[RealtimeService] ✅ ${movements.length} mouvements caisse chargés (GLOBAL)`);
+          return;
+        }
+
+        // Changements incrémentiels
+        console.log(`[RealtimeService] 📊 ${changes.length} changement(s) mouvements caisse`);
+
+        const currentMovements = queryClient.getQueryData<any>(
+          ['companies', companyId, 'cashMovements']
+        );
+
+        let updatedMovements = Array.isArray(currentMovements) ? [...currentMovements] : [];
+
+        changes.forEach((change) => {
+          const data = change.doc.data();
+          const movement = {
+            id: change.doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+
+          switch (change.type) {
+            case 'added':
+              if (!updatedMovements.find(m => m.id === movement.id)) {
+                updatedMovements.push(movement);
+              }
+              break;
+            case 'modified':
+              updatedMovements = updatedMovements.map(m =>
+                m.id === movement.id ? movement : m
+              );
+              break;
+            case 'removed':
+              updatedMovements = updatedMovements.filter(m => m.id !== movement.id);
+              break;
+          }
+        });
+
+        updatedMovements.sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        // Stocker un tableau simple
+        queryClient.setQueryData(
+          ['companies', companyId, 'cashMovements'],
+          updatedMovements
+        );
+      },
+
+      error: (err) => {
+        console.error('[RealtimeService] ❌ Erreur écoute mouvements caisse:', err);
+      },
+    });
+
+    this.state.cashMovementsListener = unsubscribe;
+    this.state.currentCompanyId = companyId;
+  }
+
+  /**
+   * Démarre l'écoute des crédits clients (si pas déjà démarrée)
+   */
+  startClientCreditsListener(queryClient: QueryClient, companyId: string) {
+    // Si déjà connecté à la même compagnie, rien à faire
+    if (this.state.clientCreditsListener && this.state.currentCompanyId === companyId) {
+      console.log('[RealtimeService] ♻️ Crédits clients déjà en écoute');
+      return;
+    }
+
+    // Arrêter l'écoute précédente
+    if (this.state.clientCreditsListener) {
+      console.log('[RealtimeService] 🔄 Arrêt écoute crédits clients (changement compagnie)');
+      this.state.clientCreditsListener();
+      this.state.clientCreditsListener = null;
+    }
+
+    console.log('[RealtimeService] 🔄 Démarrage écoute crédits clients (GLOBAL)');
+
+    const q = query(
+      collection(db, `companies/${companyId}/client_credits`),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, {
+      next: async (snapshot) => {
+        const changes = snapshot.docChanges();
+
+        // Snapshot initial
+        if (changes.length === 0) {
+          const credits = snapshot.docs.map(doc => {
+            const data = doc.data();
+            const credit: any = {
+              ...data,
+              id: doc.id,
+              createdAt: data.createdAt?.toDate() || new Date(),
+              updatedAt: data.updatedAt?.toDate() || new Date(),
+            };
+            // Enrichir avec les payments du cache (si disponible)
+            return this.enrichClientCreditWithPayments(credit);
+          });
+
+          // Charger les payments pour chaque crédit de manière asynchrone
+          const enrichedCredits = await Promise.all(
+            credits.map(async (credit) => {
+              // Si déjà enrichi avec des payments, retourner tel quel
+              if (credit.payments && credit.payments.length > 0) {
+                return credit;
+              }
+
+              // Sinon, charger les payments depuis Firestore
+              try {
+                const paymentsSnapshot = await getDocs(
+                  query(collection(db, `companies/${companyId}/client_credits/${credit.id}/payments`))
+                );
+
+                const payments = paymentsSnapshot.docs.map((doc) => ({
+                  id: doc.id,
+                  ...doc.data(),
+                  paidAt: doc.data().paidAt?.toDate() || new Date(),
+                  createdAt: doc.data().createdAt?.toDate() || new Date(),
+                }));
+
+                const amountPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+                const remainingAmount = credit.amount - amountPaid;
+
+                // Mettre en cache pour les mises à jour incrémentales
+                this.state.clientCreditPaymentsCache.set(credit.id, payments);
+
+                return {
+                  ...credit,
+                  payments,
+                  amountPaid,
+                  remainingAmount,
+                };
+              } catch (err) {
+                console.error(`[RealtimeService] ❌ Erreur chargement payments pour crédit ${credit.id}:`, err);
+                return credit;
+              }
+            })
+          );
+
+          queryClient.setQueryData(
+            ['companies', companyId, 'clientCredits'],
+            enrichedCredits
+          );
+          console.log(`[RealtimeService] ✅ ${enrichedCredits.length} crédits clients chargés (GLOBAL)`);
+          return;
+        }
+
+        // Changements incrémentiels
+        console.log(`[RealtimeService] 📊 ${changes.length} changement(s) crédits clients`);
+
+        const currentCredits = queryClient.getQueryData<any>(
+          ['companies', companyId, 'clientCredits']
+        );
+
+        let updatedCredits = Array.isArray(currentCredits) ? [...currentCredits] : [];
+
+        changes.forEach((change) => {
+          const data = change.doc.data();
+          const credit = {
+            id: change.doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+
+          // Enrichir avec les payments du cache (si disponible)
+          const enrichedCredit = this.enrichClientCreditWithPayments(credit);
+
+          switch (change.type) {
+            case 'added':
+              if (!updatedCredits.find(c => c.id === enrichedCredit.id)) {
+                updatedCredits.push(enrichedCredit);
+              }
+              break;
+            case 'modified':
+              updatedCredits = updatedCredits.map(c =>
+                c.id === enrichedCredit.id ? enrichedCredit : c
+              );
+              break;
+            case 'removed':
+              updatedCredits = updatedCredits.filter(c => c.id !== enrichedCredit.id);
+              // Retirer du cache quand le crédit est supprimé
+              this.state.clientCreditPaymentsCache.delete(enrichedCredit.id);
+              break;
+          }
+        });
+
+        updatedCredits.sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        queryClient.setQueryData(
+          ['companies', companyId, 'clientCredits'],
+          updatedCredits
+        );
+      },
+
+      error: (err) => {
+        console.error('[RealtimeService] ❌ Erreur écoute crédits clients:', err);
+      },
+    });
+
+    this.state.clientCreditsListener = unsubscribe;
+    this.state.currentCompanyId = companyId;
+  }
+
+  /**
+   * Démarre l'écoute des fournisseurs (si pas déjà démarrée)
+   */
+  startSuppliersListener(queryClient: QueryClient, companyId: string) {
+    // Si déjà connecté à la même compagnie, rien à faire
+    if (this.state.suppliersListener && this.state.currentCompanyId === companyId) {
+      console.log('[RealtimeService] ♻️ Fournisseurs déjà en écoute');
+      return;
+    }
+
+    // Arrêter l'écoute précédente
+    if (this.state.suppliersListener) {
+      console.log('[RealtimeService] 🔄 Arrêt écoute fournisseurs (changement compagnie)');
+      this.state.suppliersListener();
+      this.state.suppliersListener = null;
+    }
+
+    console.log('[RealtimeService] 🔄 Démarrage écoute fournisseurs (GLOBAL)');
+
+    const q = query(
+      collection(db, `companies/${companyId}/suppliers`),
+      orderBy('name', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, {
+      next: (snapshot) => {
+        const changes = snapshot.docChanges();
+
+        // Snapshot initial
+        if (changes.length === 0) {
+          const suppliers = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              createdAt: data.createdAt?.toDate() || new Date(),
+              updatedAt: data.updatedAt?.toDate() || new Date(),
+            };
+          });
+
+          suppliers.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+
+          queryClient.setQueryData(
+            ['companies', companyId, 'suppliers'],
+            suppliers
+          );
+          console.log(`[RealtimeService] ✅ ${suppliers.length} fournisseurs chargés (GLOBAL)`);
+          return;
+        }
+
+        // Changements incrémentiels
+        console.log(`[RealtimeService] 📊 ${changes.length} changement(s) fournisseurs`);
+
+        const currentSuppliers = queryClient.getQueryData<any>(
+          ['companies', companyId, 'suppliers']
+        );
+
+        let updatedSuppliers = Array.isArray(currentSuppliers) ? [...currentSuppliers] : [];
+
+        changes.forEach((change) => {
+          const data = change.doc.data();
+          const supplier = {
+            id: change.doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+
+          switch (change.type) {
+            case 'added':
+              if (!updatedSuppliers.find(s => s.id === supplier.id)) {
+                updatedSuppliers.push(supplier);
+              }
+              break;
+            case 'modified':
+              updatedSuppliers = updatedSuppliers.map(s =>
+                s.id === supplier.id ? supplier : s
+              );
+              break;
+            case 'removed':
+              updatedSuppliers = updatedSuppliers.filter(s => s.id !== supplier.id);
+              break;
+          }
+        });
+
+        updatedSuppliers.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+
+        queryClient.setQueryData(
+          ['companies', companyId, 'suppliers'],
+          updatedSuppliers
+        );
+      },
+
+      error: (err) => {
+        console.error('[RealtimeService] ❌ Erreur écoute fournisseurs:', err);
+      },
+    });
+
+    this.state.suppliersListener = unsubscribe;
+    this.state.currentCompanyId = companyId;
+  }
+
+  /**
+   * Démarre l'écoute des crédits fournisseurs (si pas déjà démarrée)
+   */
+  startSupplierCreditsListener(queryClient: QueryClient, companyId: string) {
+    // Si déjà connecté à la même compagnie, rien à faire
+    if (this.state.supplierCreditsListener && this.state.currentCompanyId === companyId) {
+      console.log('[RealtimeService] ♻️ Crédits fournisseurs déjà en écoute');
+      return;
+    }
+
+    // Arrêter l'écoute précédente
+    if (this.state.supplierCreditsListener) {
+      console.log('[RealtimeService] 🔄 Arrêt écoute crédits fournisseurs (changement compagnie)');
+      this.state.supplierCreditsListener();
+      this.state.supplierCreditsListener = null;
+    }
+
+    console.log('[RealtimeService] 🔄 Démarrage écoute crédits fournisseurs (GLOBAL)');
+
+    const q = query(
+      collection(db, `companies/${companyId}/supplier_credits`),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, {
+      next: async (snapshot) => {
+        const changes = snapshot.docChanges();
+
+        // Snapshot initial
+        if (changes.length === 0) {
+          const credits = snapshot.docs.map(doc => {
+            const data = doc.data();
+            const credit: any = {
+              ...data,
+              id: doc.id,
+              createdAt: data.createdAt?.toDate() || new Date(),
+              updatedAt: data.updatedAt?.toDate() || new Date(),
+            };
+            // Enrichir avec les payments du cache (si disponible)
+            return this.enrichSupplierCreditWithPayments(credit);
+          });
+
+          // Charger les payments pour chaque crédit de manière asynchrone
+          const enrichedCredits = await Promise.all(
+            credits.map(async (credit) => {
+              // Si déjà enrichi avec des payments, retourner tel quel
+              if (credit.payments && credit.payments.length > 0) {
+                return credit;
+              }
+
+              // Sinon, charger les payments depuis Firestore
+              try {
+                const paymentsSnapshot = await getDocs(
+                  query(collection(db, `companies/${companyId}/supplier_credits/${credit.id}/payments`))
+                );
+
+                const payments = paymentsSnapshot.docs.map((doc) => ({
+                  id: doc.id,
+                  ...doc.data(),
+                  paidAt: doc.data().paidAt?.toDate() || new Date(),
+                  createdAt: doc.data().createdAt?.toDate() || new Date(),
+                }));
+
+                const amountPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+                const remainingAmount = credit.amount - amountPaid;
+
+                // Mettre en cache pour les mises à jour incrémentales
+                this.state.supplierCreditPaymentsCache.set(credit.id, payments);
+
+                return {
+                  ...credit,
+                  payments,
+                  amountPaid,
+                  remainingAmount,
+                };
+              } catch (err) {
+                console.error(`[RealtimeService] ❌ Erreur chargement payments pour crédit ${credit.id}:`, err);
+                return credit;
+              }
+            })
+          );
+
+          queryClient.setQueryData(
+            ['companies', companyId, 'supplierCredits'],
+            enrichedCredits
+          );
+          console.log(`[RealtimeService] ✅ ${enrichedCredits.length} crédits fournisseurs chargés (GLOBAL)`);
+          return;
+        }
+
+        // Changements incrémentiels
+        console.log(`[RealtimeService] 📊 ${changes.length} changement(s) crédits fournisseurs`);
+
+        const currentCredits = queryClient.getQueryData<any>(
+          ['companies', companyId, 'supplierCredits']
+        );
+
+        let updatedCredits = Array.isArray(currentCredits) ? [...currentCredits] : [];
+
+        changes.forEach((change) => {
+          const data = change.doc.data();
+          const credit = {
+            id: change.doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+
+          // Enrichir avec les payments du cache (si disponible)
+          const enrichedCredit = this.enrichSupplierCreditWithPayments(credit);
+
+          switch (change.type) {
+            case 'added':
+              if (!updatedCredits.find(c => c.id === enrichedCredit.id)) {
+                updatedCredits.push(enrichedCredit);
+              }
+              break;
+            case 'modified':
+              updatedCredits = updatedCredits.map(c =>
+                c.id === enrichedCredit.id ? enrichedCredit : c
+              );
+              break;
+            case 'removed':
+              updatedCredits = updatedCredits.filter(c => c.id !== enrichedCredit.id);
+              // Retirer du cache quand le crédit est supprimé
+              this.state.supplierCreditPaymentsCache.delete(enrichedCredit.id);
+              break;
+          }
+        });
+
+        updatedCredits.sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        queryClient.setQueryData(
+          ['companies', companyId, 'supplierCredits'],
+          updatedCredits
+        );
+      },
+
+      error: (err) => {
+        console.error('[RealtimeService] ❌ Erreur écoute crédits fournisseurs:', err);
+      },
+    });
+
+    this.state.supplierCreditsListener = unsubscribe;
+    this.state.currentCompanyId = companyId;
+  }
+
+  /**
+   * Démarre l'écoute des paramètres (si pas déjà démarrée)
+   * Note: Écoute un document unique, pas une collection
+   */
+  startSettingsListener(queryClient: QueryClient, companyId: string) {
+    // Si déjà connecté à la même compagnie, rien à faire
+    if (this.state.settingsListener && this.state.currentCompanyId === companyId) {
+      console.log('[RealtimeService] ♻️ Paramètres déjà en écoute');
+      return;
+    }
+
+    // Arrêter l'écoute précédente
+    if (this.state.settingsListener) {
+      console.log('[RealtimeService] 🔄 Arrêt écoute paramètres (changement compagnie)');
+      this.state.settingsListener();
+      this.state.settingsListener = null;
+    }
+
+    console.log('[RealtimeService] 🔄 Démarrage écoute paramètres (GLOBAL)');
+
+    const companyRef = doc(db, `companies/${companyId}`);
+
+    const unsubscribe = onSnapshot(companyRef, {
+      next: (snapshot) => {
+        if (!snapshot.exists()) {
+          console.warn('[RealtimeService] ⚠️ Document compagnie introuvable');
+          return;
+        }
+
+        const data = snapshot.data();
+        const settings = {
+          ...data,
+          id: snapshot.id,
+          createdAt: data?.createdAt?.toDate() || new Date(),
+          updatedAt: data?.updatedAt?.toDate() || new Date(),
+        };
+
+        queryClient.setQueryData(
+          ['companies', companyId, 'settings'],
+          settings
+        );
+        console.log('[RealtimeService] ✅ Paramètres chargés (GLOBAL)');
+      },
+
+      error: (err) => {
+        console.error('[RealtimeService] ❌ Erreur écoute paramètres:', err);
+      },
+    });
+
+    this.state.settingsListener = unsubscribe;
+    this.state.currentCompanyId = companyId;
+  }
+
+  /**
+   * Démarre l'écoute des mouvements de stock (si pas déjà démarrée)
+   */
+  startStockMovementsListener(queryClient: QueryClient, companyId: string, limit: number = 20) {
+    // Si déjà connecté à la même compagnie, rien à faire
+    if (this.state.stockMovementsListener && this.state.currentCompanyId === companyId) {
+      console.log('[RealtimeService] ♻️ Mouvements stock déjà en écoute');
+      return;
+    }
+
+    // Arrêter l'écoute précédente
+    if (this.state.stockMovementsListener) {
+      console.log('[RealtimeService] 🔄 Arrêt écoute mouvements stock (changement compagnie)');
+      this.state.stockMovementsListener();
+      this.state.stockMovementsListener = null;
+    }
+
+    console.log('[RealtimeService] 🔄 Démarrage écoute mouvements stock (GLOBAL)');
+
+    const q = query(
+      collection(db, `companies/${companyId}/stock_movements`),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, {
+      next: (snapshot) => {
+        const changes = snapshot.docChanges();
+
+        // Snapshot initial
+        if (changes.length === 0) {
+          const movements = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              createdAt: data.createdAt?.toDate() || new Date(),
+              updatedAt: data.updatedAt?.toDate() || new Date(),
+            };
+          });
+
+          // Stocker un tableau simple
+          queryClient.setQueryData(
+            ['companies', companyId, 'stockMovements'],
+            movements
+          );
+          console.log(`[RealtimeService] ✅ ${movements.length} mouvements stock chargés (GLOBAL)`);
+          return;
+        }
+
+        // Changements incrémentiels
+        console.log(`[RealtimeService] 📊 ${changes.length} changement(s) mouvements stock`);
+
+        const currentMovements = queryClient.getQueryData<any>(
+          ['companies', companyId, 'stockMovements']
+        );
+
+        let updatedMovements = Array.isArray(currentMovements) ? [...currentMovements] : [];
+
+        changes.forEach((change) => {
+          const data = change.doc.data();
+          const movement = {
+            id: change.doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+
+          switch (change.type) {
+            case 'added':
+              if (!updatedMovements.find(m => m.id === movement.id)) {
+                updatedMovements.push(movement);
+              }
+              break;
+            case 'modified':
+              updatedMovements = updatedMovements.map(m =>
+                m.id === movement.id ? movement : m
+              );
+              break;
+            case 'removed':
+              updatedMovements = updatedMovements.filter(m => m.id !== movement.id);
+              break;
+          }
+        });
+
+        updatedMovements.sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        queryClient.setQueryData(
+          ['companies', companyId, 'stockMovements'],
+          updatedMovements
+        );
+      },
+
+      error: (err) => {
+        console.error('[RealtimeService] ❌ Erreur écoute mouvements stock:', err);
+      },
+    });
+
+    this.state.stockMovementsListener = unsubscribe;
+    this.state.currentCompanyId = companyId;
+  }
+
+  /**
    * Arrête toutes les écoutes (changement de compagnie)
    */
   stopAllListeners() {
     console.log('[RealtimeService] 🛑 Arrêt de toutes les écoutes');
 
+    // Listeners existants
     if (this.state.productsListener) {
       this.state.productsListener();
       this.state.productsListener = null;
@@ -538,8 +1404,46 @@ class RealtimeService {
       this.state.warehousesListener = null;
     }
 
-    // Nettoyer le cache des warehouseQuantities
+    // NOUVEAUX listeners
+    if (this.state.cashRegistersListener) {
+      this.state.cashRegistersListener();
+      this.state.cashRegistersListener = null;
+    }
+
+    if (this.state.cashMovementsListener) {
+      this.state.cashMovementsListener();
+      this.state.cashMovementsListener = null;
+    }
+
+    if (this.state.clientCreditsListener) {
+      this.state.clientCreditsListener();
+      this.state.clientCreditsListener = null;
+    }
+
+    if (this.state.suppliersListener) {
+      this.state.suppliersListener();
+      this.state.suppliersListener = null;
+    }
+
+    if (this.state.supplierCreditsListener) {
+      this.state.supplierCreditsListener();
+      this.state.supplierCreditsListener = null;
+    }
+
+    if (this.state.settingsListener) {
+      this.state.settingsListener();
+      this.state.settingsListener = null;
+    }
+
+    if (this.state.stockMovementsListener) {
+      this.state.stockMovementsListener();
+      this.state.stockMovementsListener = null;
+    }
+
+    // Nettoyer tous les caches
     this.clearWarehouseQuantitiesCache();
+    this.clearClientCreditPaymentsCache();
+    this.clearSupplierCreditPaymentsCache();
 
     this.state.currentCompanyId = null;
   }

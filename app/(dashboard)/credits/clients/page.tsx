@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,12 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus, DollarSign, Calendar } from 'lucide-react';
-import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
+import { useClientCredits } from '@/lib/hooks/useClientCredits'; // Garder pour les fonctions CRUD
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { CreditPaymentDialog } from '@/components/credits/CreditPaymentDialog';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 // Custom hook pour le debouncing
 function useDebounce(value: string, delay: number): string {
@@ -39,7 +41,11 @@ export default function CreditsPage() {
   const router = useRouter();
   const { canAccessModule, getFirstAccessiblePage } = usePermissions();
 
-  const { credits, loading, addPayment } = useClientCredits();
+  // NOUVEAU hook React Query + onSnapshot pour temps réel
+  const { credits, isLoading } = useClientCreditsRealtime();
+
+  // Garder l'ancien hook pour les fonctions CRUD (addPayment)
+  const { addPayment } = useClientCredits();
 
   // Vérifier les permissions - rediriger si pas d'accès
   useEffect(() => {
@@ -47,6 +53,7 @@ export default function CreditsPage() {
       router.push(getFirstAccessiblePage());
     }
   }, [canAccessModule, getFirstAccessiblePage, router]);
+
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active'); // Par défaut: uniquement les actifs
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCredit, setSelectedCredit] = useState<any>(null);
@@ -70,29 +77,37 @@ export default function CreditsPage() {
     return labels[status] || { label: status, variant: 'outline' };
   };
 
-  const filteredCredits = credits.filter((credit) => {
-    // 'active' inclut à la fois 'active' et 'partial'
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'active' && (credit.status === 'active' || credit.status === 'partial')) ||
-      credit.status === statusFilter;
+  // Filtrage local optimisé avec useMemo
+  const filteredCredits = useMemo(() => {
+    return credits.filter((credit) => {
+      // 'active' inclut à la fois 'active' et 'partial'
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'active' && (credit.status === 'active' || credit.status === 'partial')) ||
+        credit.status === statusFilter;
 
-    // Ne filtrer que si la recherche est vide ou a minimum 3 caractères
-    if (debouncedSearchQuery.length > 0 && debouncedSearchQuery.length < 3) {
-      return false; // Masquer tous les résultats si moins de 3 caractères
-    }
-    const matchesSearch =
-      debouncedSearchQuery === '' ||
-      credit.clientName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-      credit.invoiceNumber?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
+      // Ne filtrer que si la recherche est vide ou a minimum 3 caractères
+      if (debouncedSearchQuery.length > 0 && debouncedSearchQuery.length < 3) {
+        return false; // Masquer tous les résultats si moins de 3 caractères
+      }
+      const matchesSearch =
+        debouncedSearchQuery === '' ||
+        credit.clientName?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        credit.invoiceNumber?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+  }, [credits, statusFilter, debouncedSearchQuery]);
 
-  // Crédits actifs uniquement (ni payés, ni annulés) pour les statistiques
-  const activeCredits = credits.filter((c) => c.status !== 'paid' && c.status !== 'cancelled');
-  const totalCredits = activeCredits.reduce((sum, c) => sum + c.amount, 0);
-  const totalPaid = activeCredits.reduce((sum, c) => sum + c.amountPaid, 0);
-  const totalRemaining = activeCredits.reduce((sum, c) => sum + c.remainingAmount, 0);
+  // Crédits actifs uniquement (ni payés, ni annulés) pour les statistiques - optimisé avec useMemo
+  const { totalCredits, totalPaid, totalRemaining, activeCreditsCount } = useMemo(() => {
+    const activeCredits = credits.filter((c) => c.status !== 'paid' && c.status !== 'cancelled');
+    return {
+      totalCredits: activeCredits.reduce((sum, c) => sum + (c.amount || 0), 0),
+      totalPaid: activeCredits.reduce((sum, c) => sum + (c.amountPaid || 0), 0),
+      totalRemaining: activeCredits.reduce((sum, c) => sum + (c.remainingAmount || 0), 0),
+      activeCreditsCount: activeCredits.length,
+    };
+  }, [credits]);
 
   const handlePayment = async (data: any) => {
     if (!selectedCredit) return;
@@ -100,8 +115,11 @@ export default function CreditsPage() {
       await addPayment(selectedCredit.id, data);
       setShowPaymentDialog(false);
       setSelectedCredit(null);
+      toast.success('Paiement enregistré avec succès');
+      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch (error: any) {
       console.error('Erreur lors du paiement:', error);
+      toast.error('Erreur lors de l\'enregistrement du paiement');
     }
   };
 
@@ -127,7 +145,7 @@ export default function CreditsPage() {
           />
           <KpiCardValue
             value={`${formatPrice(totalCredits)} FCFA`}
-            label={`${activeCredits.length} crédit(s) actif(s)`}
+            label={`${activeCreditsCount} crédit(s) actif(s)`}
             variant="warning"
           />
         </KpiCard>
@@ -184,7 +202,7 @@ export default function CreditsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
@@ -213,17 +231,17 @@ export default function CreditsPage() {
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-muted-foreground">
-                        Total : {formatPrice(credit.amount)} FCFA
+                        Total : {formatPrice(credit.amount || 0)} FCFA
                       </span>
                       <span className="text-[oklch(0.65_0.12_145)]">
-                        Payé : {formatPrice(credit.amountPaid)} FCFA
+                        Payé : {formatPrice(credit.amountPaid || 0)} FCFA
                       </span>
                       <span className="text-[oklch(0.75_0.15_75)] font-medium">
-                        Reste : {formatPrice(credit.remainingAmount)} FCFA
+                        Reste : {formatPrice(credit.remainingAmount || 0)} FCFA
                       </span>
                       <span className="text-muted-foreground flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        {format(new Date(credit.date), 'dd/MM/yyyy', { locale: fr })}
+                        {format(new Date(credit.createdAt || credit.date), 'dd/MM/yyyy', { locale: fr })}
                       </span>
                       {credit.dueDate && (
                         <span className="text-muted-foreground">

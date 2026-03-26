@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,8 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus, DollarSign, Calendar, Package, User, Edit, Trash2 } from 'lucide-react';
-import { useSuppliers } from '@/lib/hooks/useSuppliers';
-import { useSupplierCredits } from '@/lib/hooks/useSupplierCredits';
+import { useSuppliersRealtime } from '@/lib/react-query/useSuppliersRealtime';
+import { useSupplierCreditsRealtime } from '@/lib/react-query/useSupplierCreditsRealtime';
+import { useSuppliers } from '@/lib/hooks/useSuppliers'; // Garder pour les fonctions CRUD
+import { useSupplierCredits } from '@/lib/hooks/useSupplierCredits'; // Garder pour les fonctions CRUD
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { SupplierCreditPaymentDialog } from '@/components/suppliers/SupplierCreditPaymentDialog';
@@ -19,6 +21,7 @@ import { SupplierEditDialog } from '@/components/suppliers/SupplierEditDialog';
 import { PurchaseDialog } from '@/components/suppliers/PurchaseDialog';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 // Custom hook pour le debouncing
 function useDebounce(value: string, delay: number): string {
@@ -43,8 +46,14 @@ type TabType = 'suppliers' | 'credits';
 export default function SuppliersPage() {
   const router = useRouter();
   const { canAccessModule, getFirstAccessiblePage } = usePermissions();
-  const { suppliers, loading: suppliersLoading, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
-  const { credits, loading: creditsLoading, addPayment } = useSupplierCredits();
+
+  // NOUVEAUX hooks React Query + onSnapshot pour temps réel
+  const { suppliers, isLoading: suppliersLoading } = useSuppliersRealtime();
+  const { credits, isLoading: creditsLoading } = useSupplierCreditsRealtime();
+
+  // Garder les anciens hooks pour les fonctions CRUD
+  const { createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
+  const { addPayment } = useSupplierCredits();
 
   // Vérifier les permissions - rediriger si pas d'accès
   useEffect(() => {
@@ -52,6 +61,7 @@ export default function SuppliersPage() {
       router.push(getFirstAccessiblePage());
     }
   }, [canAccessModule, getFirstAccessiblePage, router]);
+
   const [activeTab, setActiveTab] = useState<TabType>('suppliers');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -82,27 +92,35 @@ export default function SuppliersPage() {
     return labels[status] || { label: status, variant: 'outline' };
   };
 
-  const filteredCredits = credits.filter((credit) => {
-    // 'active' inclut à la fois 'active' et 'partial'
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'active' && (credit.status === 'active' || credit.status === 'partial')) ||
-      credit.status === statusFilter;
+  // Filtrage local optimisé pour les crédits
+  const filteredCredits = useMemo(() => {
+    return credits.filter((credit) => {
+      // 'active' inclut à la fois 'active' et 'partial'
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'active' && (credit.status === 'active' || credit.status === 'partial')) ||
+        credit.status === statusFilter;
 
-    // Ne filtrer que si la recherche est vide ou a minimum 3 caractères
-    if (debouncedSearchQuery.length > 0 && debouncedSearchQuery.length < 3) {
-      return false; // Masquer tous les résultats si moins de 3 caractères
-    }
-    const matchesSearch =
-      debouncedSearchQuery === '' ||
-      credit.supplierName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-      credit.invoiceNumber?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
+      // Ne filtrer que si la recherche est vide ou a minimum 3 caractères
+      if (debouncedSearchQuery.length > 0 && debouncedSearchQuery.length < 3) {
+        return false; // Masquer tous les résultats si moins de 3 caractères
+      }
+      const matchesSearch =
+        debouncedSearchQuery === '' ||
+        credit.supplierName?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        credit.invoiceNumber?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+  }, [credits, statusFilter, debouncedSearchQuery]);
 
-  const totalCredits = credits.reduce((sum, c) => sum + c.amount, 0);
-  const totalPaid = credits.reduce((sum, c) => sum + c.amountPaid, 0);
-  const totalRemaining = credits.reduce((sum, c) => sum + c.remainingAmount, 0);
+  // Statistiques optimisées avec useMemo
+  const { totalCredits, totalPaid, totalRemaining } = useMemo(() => {
+    return {
+      totalCredits: credits.reduce((sum, c) => sum + (c.amount || 0), 0),
+      totalPaid: credits.reduce((sum, c) => sum + (c.amountPaid || 0), 0),
+      totalRemaining: credits.reduce((sum, c) => sum + (c.remainingAmount || 0), 0),
+    };
+  }, [credits]);
 
   const handlePayment = async (data: any) => {
     if (!selectedCredit) return;
@@ -110,8 +128,11 @@ export default function SuppliersPage() {
       await addPayment(selectedCredit.id, data);
       setShowPaymentDialog(false);
       setSelectedCredit(null);
+      toast.success('Paiement enregistré avec succès');
+      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch (error: any) {
       console.error('Erreur lors du paiement:', error);
+      toast.error('Erreur lors de l\'enregistrement du paiement');
     }
   };
 
@@ -119,6 +140,12 @@ export default function SuppliersPage() {
     setIsCreating(true);
     try {
       await createSupplier(data);
+      setShowSupplierDialog(false);
+      toast.success('Fournisseur créé avec succès');
+      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
+    } catch (error: any) {
+      console.error('Erreur lors de la création:', error);
+      toast.error('Erreur lors de la création du fournisseur');
     } finally {
       setIsCreating(false);
     }
@@ -130,6 +157,11 @@ export default function SuppliersPage() {
       await updateSupplier(selectedSupplier.id, data);
       setShowEditDialog(false);
       setSelectedSupplier(null);
+      toast.success('Fournisseur modifié avec succès');
+      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
+    } catch (error: any) {
+      console.error('Erreur lors de la modification:', error);
+      toast.error('Erreur lors de la modification du fournisseur');
     } finally {
       setIsUpdating(false);
     }
@@ -142,8 +174,11 @@ export default function SuppliersPage() {
 
     try {
       await deleteSupplier(supplierId);
+      toast.success('Fournisseur supprimé avec succès');
+      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch (error: any) {
       console.error('Erreur lors de la suppression:', error);
+      toast.error('Erreur lors de la suppression du fournisseur');
     }
   };
 
@@ -377,17 +412,17 @@ export default function SuppliersPage() {
                         </div>
                         <div className="flex items-center gap-4 text-sm">
                           <span className="text-muted-foreground">
-                            Total : {formatPrice(credit.amount)} FCFA
+                            Total : {formatPrice(credit.amount || 0)} FCFA
                           </span>
                           <span className="text-[oklch(0.65_0.12_145)]">
-                            Payé : {formatPrice(credit.amountPaid)} FCFA
+                            Payé : {formatPrice(credit.amountPaid || 0)} FCFA
                           </span>
                           <span className="text-[oklch(0.75_0.15_75)] font-medium">
-                            Reste : {formatPrice(credit.remainingAmount)} FCFA
+                            Reste : {formatPrice(credit.remainingAmount || 0)} FCFA
                           </span>
                           <span className="text-muted-foreground flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {format(new Date(credit.date), 'dd/MM/yyyy', { locale: fr })}
+                            {format(new Date(credit.createdAt || credit.date), 'dd/MM/yyyy', { locale: fr })}
                           </span>
                           {credit.dueDate && (
                             <span className="text-muted-foreground">

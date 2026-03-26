@@ -1,0 +1,122 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { realtimeService } from '@/lib/services/RealtimeService';
+import { collection, query, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+/**
+ * Hook pour les crédits clients avec écoute temps réel GLOBAL
+ *
+ * Le service global maintient la connexion onSnapshot active en permanence,
+ * permettant au cache React Query de persister entre les navigations.
+ *
+ * Les crédits sont enrichis avec leurs payments (nested collections).
+ */
+export function useClientCreditsRealtime() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: credits = [], isLoading, error } = useQuery<any[]>({
+    queryKey: ['companies', user?.currentCompanyId, 'clientCredits'],
+    queryFn: async () => [],
+    enabled: !!user?.currentCompanyId,
+    staleTime: Infinity,
+  });
+
+  // Démarrer l'écoute globale (une seule fois pour toute l'application)
+  useEffect(() => {
+    if (user?.currentCompanyId) {
+      realtimeService.startClientCreditsListener(queryClient, user.currentCompanyId);
+
+      // Charger les payments pour chaque crédit et mettre en cache
+      loadClientCreditPayments(queryClient, user.currentCompanyId);
+    }
+    // NOTE: PAS de cleanup du cache ici! Le cache doit persister entre les navigations.
+    // Le cache sera vidé uniquement lors d'un changement de compagnie (géré par RealtimeService)
+  }, [user?.currentCompanyId, queryClient]);
+
+  return {
+    credits,
+    isLoading,
+    error,
+  };
+}
+
+/**
+ * Charge les payments pour tous les crédits clients et les met en cache
+ */
+async function loadClientCreditPayments(queryClient: any, companyId: string) {
+  try {
+    // Récupérer tous les crédits depuis le cache
+    const credits = queryClient.getQueryData<any[]>(
+      ['companies', companyId, 'clientCredits']
+    ) || [];
+
+    if (credits.length === 0) {
+      console.log('[useClientCreditsRealtime] ⚠️ Aucun crédit à traiter');
+      return;
+    }
+
+    // Vérifier si les payments sont déjà chargés
+    const firstCredit = credits[0];
+    if (firstCredit?.payments && firstCredit.payments.length > 0) {
+      console.log('[useClientCreditsRealtime] ♻️ Payments déjà chargés pour cette compagnie');
+      return;
+    }
+
+    console.log('[useClientCreditsRealtime] 🔨 Chargement des payments...');
+
+    // Pour chaque crédit, charger ses payments
+    const creditsWithPayments = await Promise.all(
+      credits.map(async (credit) => {
+        try {
+          const paymentsSnapshot = await getDocs(
+            query(
+              collection(db, `companies/${companyId}/client_credits/${credit.id}/payments`)
+            )
+          );
+
+          const payments = paymentsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+            paidAt: doc.data().paidAt?.toDate() || new Date(),
+            createdAt: doc.data().createdAt?.toDate() || new Date(),
+          }));
+
+          console.log(`[useClientCreditsRealtime] 📦 Crédit ${credit.id}: ${payments.length} payment(s)`);
+
+          return {
+            ...credit,
+            payments,
+            amountPaid: payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+            remainingAmount: credit.amount - payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+          };
+        } catch (err) {
+          console.error(`[useClientCreditsRealtime] ❌ Erreur chargement payments pour crédit ${credit.id}:`, err);
+          return credit;
+        }
+      })
+    );
+
+    // Mettre à jour le cache avec les crédits enrichis
+    queryClient.setQueryData(
+      ['companies', companyId, 'clientCredits'],
+      creditsWithPayments
+    );
+
+    // 🔄 IMPORTANT: Stocker les payments dans le cache RealtimeService
+    // pour qu'ils soient préservés lors des mises à jour onSnapshot
+    creditsWithPayments.forEach((credit) => {
+      if (credit.payments && credit.payments.length > 0) {
+        realtimeService.cacheClientCreditPayments(credit.id, credit.payments);
+      }
+    });
+
+    console.log(`[useClientCreditsRealtime] ✅ ${creditsWithPayments.length} crédits mis à jour avec leurs payments (CACHÉ)`);
+  } catch (err) {
+    console.error('[useClientCreditsRealtime] ❌ Erreur chargement payments:', err);
+  }
+}

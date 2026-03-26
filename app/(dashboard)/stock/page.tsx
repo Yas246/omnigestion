@@ -22,18 +22,23 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Plus, Package, AlertTriangle, Upload, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function StockPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   // Utiliser React Query + onSnapshot pour les produits temps réel
   // NOTE: Avec la nouvelle architecture, les produits contiennent déjà leurs warehouseQuantities
   const { products: rawProducts, isLoading } = useProductsRealtime();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Filtrer les produits localement avec useMemo (garder les filtres du store Zustand)
+  // Écouter les changements de filtres dans le store Zustand
+  const filters = useProductsStore(state => state.filters);
+
+  // Filtrer les produits localement avec useMemo (maintenant filters est dans les dépendances)
   const filteredProducts = useMemo(() => {
-    const filters = useProductsStore.getState().filters;
     let filtered = rawProducts;
 
     // Filtrer par entrepôt
@@ -67,7 +72,7 @@ export default function StockPage() {
     }
 
     return filtered;
-  }, [rawProducts]); // Recalculer seulement quand rawProducts change
+  }, [rawProducts, filters]); // ✅ Maintenant filters est dans les dépendances !
 
   const { warehouses, settings } = useSettings();
   const { canCreateProduct, canAccessModule, getFirstAccessiblePage } = usePermissions();
@@ -316,6 +321,94 @@ export default function StockPage() {
     setIsFiltering(false);
   };
 
+  // Recharger manuellement les warehouse quantities depuis Firestore
+  const handleRefreshWarehouseQuantities = async () => {
+    if (!user?.currentCompanyId) return;
+
+    setIsRefreshing(true);
+    try {
+      const { collection, query, getDocs } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const { realtimeService } = await import('@/lib/services/RealtimeService');
+
+      // Récupérer les produits depuis le cache
+      const products = queryClient.getQueryData<any[]>(
+        ['companies', user.currentCompanyId, 'products']
+      ) || [];
+
+      if (products.length === 0) {
+        console.log('[StockPage] ⚠️ Aucun produit à traiter');
+        return;
+      }
+
+      console.log('[StockPage] 🔨 Rechargement des warehouseQuantities...');
+
+      // Récupérer les entrepôts pour avoir leurs noms
+      const warehousesSnapshot = await getDocs(
+        query(collection(db, `companies/${user.currentCompanyId}/warehouses`))
+      );
+
+      const warehousesMap = new Map(
+        warehousesSnapshot.docs.map(doc => [doc.id, doc.data()])
+      );
+
+      // Pour chaque produit, charger ses stock_locations
+      const productsWithWarehouses = await Promise.all(
+        products.map(async (product) => {
+          try {
+            const stockSnapshot = await getDocs(
+              query(
+                collection(db, `companies/${user.currentCompanyId}/products/${product.id}/stock_locations`)
+              )
+            );
+
+            const warehouseQuantities = stockSnapshot.docs.map((doc) => {
+              const warehouseData = warehousesMap.get(doc.data().warehouseId);
+              return {
+                warehouseId: doc.data().warehouseId,
+                warehouseName: warehouseData?.name || 'Entrepôt inconnu',
+                quantity: doc.data().quantity,
+              };
+            });
+
+            // Calculer currentStock comme la SOMME des warehouseQuantities
+            const calculatedStock = warehouseQuantities.reduce((sum, wq) => sum + wq.quantity, 0);
+
+            console.log(`[StockPage] 📦 ${product.name}: ${warehouseQuantities.length} dépôts, stock total = ${calculatedStock}`);
+
+            return {
+              ...product,
+              warehouseQuantities,
+              currentStock: calculatedStock,
+            };
+          } catch (err) {
+            console.error(`[StockPage] ❌ Erreur chargement stock_locations pour ${product.name}:`, err);
+            return product;
+          }
+        })
+      );
+
+      // Mettre à jour le cache avec les produits enrichis
+      queryClient.setQueryData(
+        ['companies', user.currentCompanyId, 'products'],
+        productsWithWarehouses
+      );
+
+      // Stocker les warehouseQuantities dans le cache RealtimeService
+      productsWithWarehouses.forEach((product) => {
+        if (product.warehouseQuantities && product.warehouseQuantities.length > 0) {
+          realtimeService.cacheWarehouseQuantities(product.id, product.warehouseQuantities);
+        }
+      });
+
+      console.log(`[StockPage] ✅ ${productsWithWarehouses.length} produits mis à jour avec leurs dépôts`);
+    } catch (error) {
+      console.error('[StockPage] ❌ Erreur rechargement warehouseQuantities:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Calculer les statistiques pour l'affichage (basées sur les produits filtrés)
   const totalProducts = rawProducts.length;
   const activeProducts = rawProducts.filter((p) => p.isActive).length;
@@ -331,17 +424,15 @@ export default function StockPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/*
-          Bouton d'actualisation manuel supprimé car onSnapshot gère la synchro automatiquement
           <Button
             variant="outline"
-            disabled={isLoading}
-            title="Les données sont synchronisées en temps réel"
+            onClick={handleRefreshWarehouseQuantities}
+            disabled={isRefreshing || isLoading}
+            title="Recharger les quantités par entrepôt depuis Firestore"
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isSubscribed ? 'text-green-600' : ''}`} />
-            {isSubscribed ? 'Sync' : 'Sync...'}
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Actualiser
           </Button>
-          */}
           <PermissionGate module="stock" action="create">
             <Button onClick={handleOpenDialog}>
               <Plus className="mr-2 h-4 w-4" />

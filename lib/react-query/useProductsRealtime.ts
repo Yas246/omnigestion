@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { realtimeService } from '@/lib/services/RealtimeService';
-import { collection, query, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Product } from '@/types';
 
@@ -29,12 +29,27 @@ export function useProductsRealtime() {
   useEffect(() => {
     if (user?.currentCompanyId) {
       realtimeService.startProductsListener(queryClient, user.currentCompanyId);
-      // Charger les warehouseQuantities et recalculer currentStock (une seule fois par compagnie)
-      loadWarehouseQuantities(queryClient, user.currentCompanyId);
     }
     // NOTE: PAS de cleanup du cache ici! Le cache doit persister entre les navigations.
     // Le cache sera vidé uniquement lors d'un changement de compagnie (géré par RealtimeService)
   }, [user?.currentCompanyId, queryClient]);
+
+  // État pour éviter les rechargements multiples de warehouse quantities
+  const [warehouseQuantitiesLoaded, setWarehouseQuantitiesLoaded] = useState(false);
+
+  // Charger les warehouse quantities AUTOMATIQUEMENT quand les produits sont arrivés
+  useEffect(() => {
+    // Seulement si les produits sont chargés ET qu'on n'a pas encore chargé les warehouse quantities
+    if (products.length > 0 && !warehouseQuantitiesLoaded && user?.currentCompanyId) {
+      console.log('[useProductsRealtime] 🔨 Produits chargés, chargement des warehouse quantities...');
+
+      // Charger les warehouse quantities de manière asynchrone (sans bloquer)
+      loadWarehouseQuantities(queryClient, user.currentCompanyId).then(() => {
+        setWarehouseQuantitiesLoaded(true);
+        console.log('[useProductsRealtime] ✅ Warehouse quantities chargés automatiquement');
+      });
+    }
+  }, [products.length, warehouseQuantitiesLoaded, user?.currentCompanyId, queryClient]);
 
   return {
     products,
@@ -59,7 +74,6 @@ async function loadWarehouseQuantities(queryClient: QueryClient, companyId: stri
     }
 
     // Vérifier si les warehouseQuantities sont déjà chargés
-    // (on vérifie le premier produit : s'il a warehouseQuantities, c'est que tout est chargé)
     const firstProduct = products[0];
     if (firstProduct?.warehouseQuantities && firstProduct.warehouseQuantities.length > 0) {
       console.log('[useProductsRealtime] ♻️ warehouseQuantities déjà chargés pour cette compagnie');
@@ -104,11 +118,10 @@ async function loadWarehouseQuantities(queryClient: QueryClient, companyId: stri
           return {
             ...product,
             warehouseQuantities,
-            currentStock: calculatedStock, // 🔄 IMPORTANT : Recalculé comme somme des dépôts
+            currentStock: calculatedStock,
           };
         } catch (err) {
           console.error(`[useProductsRealtime] ❌ Erreur chargement stock_locations pour ${product.name}:`, err);
-          // En cas d'erreur, garder le currentStock original
           return product;
         }
       })
@@ -120,18 +133,14 @@ async function loadWarehouseQuantities(queryClient: QueryClient, companyId: stri
       productsWithWarehouses
     );
 
-    // Trier par nom alphabétique après mise à jour
-    productsWithWarehouses.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
-
     // 🔄 IMPORTANT: Stocker les warehouseQuantities dans le cache RealtimeService
-    // pour qu'elles soient préservées lors des mises à jour onSnapshot
     productsWithWarehouses.forEach((product) => {
       if (product.warehouseQuantities && product.warehouseQuantities.length > 0) {
         realtimeService.cacheWarehouseQuantities(product.id, product.warehouseQuantities);
       }
     });
 
-    console.log(`[useProductsRealtime] ✅ ${productsWithWarehouses.length} produits mis à jour avec leurs dépôts (CACHEÉ)`);
+    console.log(`[useProductsRealtime] ✅ ${productsWithWarehouses.length} produits mis à jour avec leurs dépôts`);
   } catch (err) {
     console.error('[useProductsRealtime] ❌ Erreur chargement warehouseQuantities:', err);
   }

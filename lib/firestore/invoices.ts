@@ -154,6 +154,43 @@ export async function createInvoice(
             quantity: newPrimaryStock,
             updatedAt: serverTimestamp(),
           });
+
+          // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
+          const warehouseQuantitiesRef = doc(
+            db,
+            `companies/${companyId}/warehouse_quantities`,
+            item.productId
+          );
+
+          // Récupérer le document actuel s'il existe
+          const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+          let quantities: any[] = [];
+          if (warehouseQuantitiesDoc.exists()) {
+            quantities = warehouseQuantitiesDoc.data().quantities || [];
+          }
+
+          // Mettre à jour la quantité pour ce dépôt
+          const updatedQuantities = quantities.map((q: any) =>
+            q.warehouseId === primaryWarehouseId
+              ? { ...q, quantity: newPrimaryStock }
+              : q
+          );
+
+          // Si le dépôt n'est pas dans la liste, l'ajouter
+          if (!updatedQuantities.some((q: any) => q.warehouseId === primaryWarehouseId)) {
+            updatedQuantities.push({
+              warehouseId: primaryWarehouseId,
+              warehouseName: 'Boutique', // TODO: Récupérer le nom depuis la collection warehouses
+              quantity: newPrimaryStock,
+            });
+          }
+
+          transaction.set(warehouseQuantitiesRef, {
+            productId: item.productId,
+            quantities: updatedQuantities,
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
         }
       }
 
