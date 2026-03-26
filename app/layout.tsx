@@ -4,6 +4,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { SWRegistration, PWAInstallPrompt } from "@/components/pwa";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -65,12 +66,14 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <AuthProvider>
-            {children}
-            <Toaster richColors position="top-right" />
-            <SWRegistration />
-            <PWAInstallPrompt />
-          </AuthProvider>
+          <Providers>
+            <AuthProvider>
+              {children}
+              <Toaster richColors position="top-right" />
+              <SWRegistration />
+              <PWAInstallPrompt />
+            </AuthProvider>
+          </Providers>
         </ThemeProvider>
       </body>
     </html>

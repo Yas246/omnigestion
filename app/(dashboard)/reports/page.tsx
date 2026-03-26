@@ -15,14 +15,8 @@ import { StockReport } from '@/components/reports/StockReport';
 import { CashReport } from '@/components/reports/CashReport';
 import { ExportButton } from '@/components/ui/ExportButton';
 import { exportToExcel, exportToCSV, type ExportColumn } from '@/lib/utils/export';
-import {
-  useInvoices,
-  useInvoicesStore
-} from '@/lib/stores/useInvoicesStore';
-import {
-  useProducts,
-  useProductsStore
-} from '@/lib/stores/useProductsStore';
+import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
+import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
 import {
   useCashRegisters,
   useMovements,
@@ -48,28 +42,17 @@ export default function ReportsPage() {
     }
   }, [canAccessModule, getFirstAccessiblePage, router]);
 
-  // Store selectors
-  const invoices = useInvoices();
-  const products = useProducts();
+  // React Query + onSnapshot hooks
+  const { invoices } = useInvoicesRealtime();
+  const { products } = useProductsRealtime();
   const cashRegisters = useCashRegisters();
   const movements = useMovements();
 
   // Auth user for store initialization
   const { user } = useAuth();
 
-  // Initialize stores on mount
-  useEffect(() => {
-    if (user?.currentCompanyId) {
-      if (invoices.length === 0) {
-        console.log('[ReportsPage] Chargement initial des factures');
-        useInvoicesStore.getState().fetchInvoices(user.currentCompanyId, { reset: true });
-      }
-      if (products.length === 0) {
-        console.log('[ReportsPage] Chargement initial des produits');
-        useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true });
-      }
-    }
-  }, [user?.currentCompanyId, invoices.length, products.length]);
+  // ⚠️ Plus besoin de charger les données - onSnapshot gère tout automatiquement
+  // Les données sont mises en cache par React Query entre les navigations
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price);

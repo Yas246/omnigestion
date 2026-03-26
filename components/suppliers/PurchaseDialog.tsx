@@ -14,8 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, Trash2, Package, AlertTriangle } from 'lucide-react';
-import { useProducts } from '@/lib/hooks/useProducts';
-import { useWarehouses } from '@/lib/hooks/useWarehouses';
+import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
+import { useWarehousesRealtime } from '@/lib/react-query/useWarehousesRealtime';
 import { useSupplierPurchases } from '@/lib/hooks/useSupplierPurchases';
 import type { Product } from '@/types';
 
@@ -61,8 +61,8 @@ interface PurchaseDialogProps {
 }
 
 export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialogProps) {
-  const { products } = useProducts();
-  const { warehouses } = useWarehouses();
+  const { products } = useProductsRealtime();
+  const { warehouses } = useWarehousesRealtime();
   const { createPurchase } = useSupplierPurchases();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [items, setItems] = useState<PurchaseItem[]>([]);

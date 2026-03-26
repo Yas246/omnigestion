@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import type { Product, Warehouse } from '@/types';
-import { useProductsStore } from '@/lib/stores/useProductsStore';
+import { useProductDisplayStock } from '@/lib/react-query/useStockLocationsRealtime';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +70,12 @@ export function ProductsTable({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'ok' | 'low' | 'out' | 'inactive'>('all');
+
+  // Auth pour avoir le companyId
+  const { user } = useAuth();
+
+  // Hook pour obtenir le stock d'affichage (avec filtre entrepôt)
+  const { getDisplayStock } = useProductDisplayStock();
 
   // Filtrer les produits par recherche et statut (côté client)
   // IMPORTANT: Utiliser useMemo pour éviter les boucles infinies de re-render
@@ -285,7 +292,7 @@ export function ProductsTable({
                   </TableCell>
                   <TableCell className="text-center">
                     <span className="font-medium">
-                      {useProductsStore.getState().getProductDisplayStock(product.id)}
+                      {getDisplayStock(product.id, user?.currentCompanyId || '', selectedWarehouse)}
                       {product.unit && ` ${product.unit}`}
                     </span>
                   </TableCell>

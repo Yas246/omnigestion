@@ -20,16 +20,9 @@ import {
   DollarSign,
   AlertTriangle,
 } from "lucide-react";
-import {
-  useInvoices,
-  useInvoicesLoading,
-  useInvoicesStore
-} from '@/lib/stores/useInvoicesStore';
-import {
-  useProducts,
-  useProductsLoading
-} from '@/lib/stores/useProductsStore';
-import { useClients } from '@/lib/stores/useClientsStore';
+import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
+import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
+import { useClientsRealtime } from '@/lib/react-query/useClientsRealtime';
 import { useClientCredits } from '@/lib/hooks/useClientCredits';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePermissions } from '@/lib/hooks/usePermissions';
@@ -69,12 +62,10 @@ export default function DashboardPage() {
   const router = useRouter();
   const { hasPermission, getFirstAccessiblePage } = usePermissions();
 
-  // Store selectors
-  const invoices = useInvoices();
-  const products = useProducts();
-  const clients = useClients();
-  const invoicesLoading = useInvoicesLoading();
-  const productsLoading = useProductsLoading();
+  // React Query + onSnapshot hooks
+  const { invoices, isLoading: invoicesLoading } = useInvoicesRealtime();
+  const { products, isLoading: productsLoading } = useProductsRealtime();
+  const { clients } = useClientsRealtime();
 
   // Credits still use hook (no store yet)
   const { credits } = useClientCredits();
@@ -97,16 +88,8 @@ export default function DashboardPage() {
     );
   }
 
-  // Initialize stores on mount
-  useEffect(() => {
-    if (user?.currentCompanyId && invoices.length === 0) {
-      console.log('[DashboardPage] Chargement initial des factures (pagination normale)');
-      // Charger les factures avec pagination normale (20)
-      useInvoicesStore.getState().fetchInvoices(user.currentCompanyId, { reset: true });
-    }
-    // Products et clients sont chargés par leurs pages respectives
-    // On compte sur le cache localStorage pour le Dashboard
-  }, [user?.currentCompanyId, invoices.length]);
+  // ⚠️ Plus besoin de charger les données - onSnapshot gère tout automatiquement
+  // Les données sont mises en cache par React Query entre les navigations
 
   // Calculate all stats from store data
   const stats = useMemo(() => {

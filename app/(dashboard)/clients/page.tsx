@@ -3,13 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import {
-  useClients,
-  useClientsLoading,
-  useClientsHasMore,
-  useClientsStore
-} from '@/lib/stores/useClientsStore';
-import { useAuthStore } from '@/lib/stores/useAuthStore';
+import { useClientsRealtime } from '@/lib/react-query/useClientsRealtime';
 import { useClients as useClientsHelpers } from '@/lib/hooks/useClients';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePermissions } from '@/lib/hooks/usePermissions';
@@ -21,10 +15,9 @@ export default function ClientsPage() {
   const router = useRouter();
   const { canAccessModule, getFirstAccessiblePage } = usePermissions();
 
-  // Store selectors
-  const clients = useClients();
-  const loading = useClientsLoading();
-  const hasMore = useClientsHasMore();
+  // React Query + onSnapshot hook
+  const { clients, isLoading: loading } = useClientsRealtime();
+  const hasMore = false; // Plus de pagination - onSnapshot synchronise tout
 
   // Vérifier les permissions - rediriger si pas d'accès
   useEffect(() => {
@@ -39,15 +32,7 @@ export default function ClientsPage() {
   // Auth user for store initialization
   const { user } = useAuth();
 
-  // Initialize store on mount
-  useEffect(() => {
-    if (user?.currentCompanyId && clients.length === 0) {
-      console.log('[ClientsPage] Chargement initial des clients', {
-        companyId: user.currentCompanyId
-      });
-      useClientsStore.getState().fetchClients(user.currentCompanyId, { reset: true });
-    }
-  }, [user?.currentCompanyId, clients.length]);
+  // ⚠️ Plus besoin de charger les données - onSnapshot gère tout automatiquement
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -115,8 +100,6 @@ export default function ClientsPage() {
           <ClientsTable
             clients={clients}
             loading={loading}
-            hasMore={hasMore}
-            onLoadMore={() => useClientsStore.getState().loadMore()}
             onCreate={handleCreate}
             onUpdate={handleUpdate}
             onDelete={handleDelete}

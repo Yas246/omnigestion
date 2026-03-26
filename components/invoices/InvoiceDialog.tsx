@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { useProducts } from '@/lib/hooks/useProducts';
-import { useClients } from '@/lib/hooks/useClients';
+import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
+import { useClientsRealtime } from '@/lib/react-query/useClientsRealtime';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { invoiceSchema, type InvoiceFormData } from '@/lib/validations/invoice';
@@ -82,8 +82,8 @@ export function InvoiceDialog({
   onCreateInvoice,
   isSubmitting = false,
 }: InvoiceDialogProps) {
-  const { products } = useProducts();
-  const { clients } = useClients();
+  const { products } = useProductsRealtime();
+  const { clients } = useClientsRealtime();
   const { settings } = useSettings();
   const { isAdmin } = usePermissions();
   const [items, setItems] = useState<InvoiceItemInput[]>([]);

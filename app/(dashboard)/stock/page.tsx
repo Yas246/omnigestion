@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProducts, useProductsLoading, useProductsHasMore, useProductsStore } from '@/lib/stores/useProductsStore';
+import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
+import { useProductsStore } from '@/lib/stores/useProductsStore';
 import { useStockMovements } from '@/lib/hooks/useStockMovements';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { usePermissions } from '@/lib/hooks/usePermissions';
@@ -26,16 +27,47 @@ export default function StockPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  // Utiliser le store Zustand avec des sélecteurs séparés pour éviter les boucles
-  const products = useProducts();
-  const loading = useProductsLoading();
-  const hasMore = useProductsHasMore();
+  // Utiliser React Query + onSnapshot pour les produits temps réel
+  // NOTE: Avec la nouvelle architecture, les produits contiennent déjà leurs warehouseQuantities
+  const { products: rawProducts, isLoading } = useProductsRealtime();
 
-  // Filtrer les produits localement avec useMemo
-  // IMPORTANT: Utiliser getState() directement pour éviter les boucles infinies
+  // Filtrer les produits localement avec useMemo (garder les filtres du store Zustand)
   const filteredProducts = useMemo(() => {
-    return useProductsStore.getState().getFilteredProducts();
-  }, [products]); // Seulement products en dépendance
+    const filters = useProductsStore.getState().filters;
+    let filtered = rawProducts;
+
+    // Filtrer par entrepôt
+    if (filters.warehouseId) {
+      filtered = filtered.filter(p => {
+        const warehouseQty = p.warehouseQuantities?.find(wq => wq.warehouseId === filters.warehouseId);
+        return warehouseQty && warehouseQty.quantity > 0;
+      });
+    }
+
+    // Filtrer par catégorie
+    if (filters.category) {
+      filtered = filtered.filter(p => p.category === filters.category);
+    }
+
+    // Filtrer par recherche
+    if (filters.search) {
+      const search = filters.search.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(search) ||
+        (p.code && p.code.toLowerCase().includes(search))
+      );
+    }
+
+    // Filtrer par plage de prix (retailPrice)
+    if (filters.minPrice !== null) {
+      filtered = filtered.filter(p => p.retailPrice >= filters.minPrice!);
+    }
+    if (filters.maxPrice !== null) {
+      filtered = filtered.filter(p => p.retailPrice <= filters.maxPrice!);
+    }
+
+    return filtered;
+  }, [rawProducts]); // Recalculer seulement quand rawProducts change
 
   const { warehouses, settings } = useSettings();
   const { canCreateProduct, canAccessModule, getFirstAccessiblePage } = usePermissions();
@@ -85,30 +117,11 @@ export default function StockPage() {
 
   // Mettre à jour le filtre d'entrepôt dans le store Zustand
   useEffect(() => {
-    // Utiliser le filtre local du store au lieu de recharger depuis Firestore
     useProductsStore.getState().setWarehouseFilter(selectedWarehouse);
-  }, [selectedWarehouse]); // PAS de productsActions dans les dépendances !
+  }, [selectedWarehouse]);
 
-  // Charger les produits au montage
-  useEffect(() => {
-    if (user?.currentCompanyId && products.length === 0) {
-      console.log('[StockPage] Chargement initial des produits', { companyId: user.currentCompanyId });
-      useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true });
-    }
-  }, [user?.currentCompanyId, products.length]); // PAS de productsActions dans les dépendances !
-
-  // Charger automatiquement tous les produits restants en arrière-plan
-  useEffect(() => {
-    if (user?.currentCompanyId && products.length > 0 && !loading) {
-      const hasMore = useProductsStore.getState().hasMore;
-      if (hasMore) {
-        console.log('[StockPage] Lancement chargement automatique en arrière-plan');
-        // Ne pas await pour ne pas bloquer l'UI
-        // Passer explicitement le companyId pour éviter les problèmes de timing
-        useProductsStore.getState().loadAllRemainingProducts(user.currentCompanyId);
-      }
-    }
-  }, [user?.currentCompanyId, products.length, loading]);
+  // NOTE: Plus besoin de charger les produits - onSnapshot gère ça automatiquement
+  // NOTE: Plus besoin de loadAllRemainingProducts - onSnapshot synchronise tout automatiquement
 
   // Charger les statistiques globales depuis Firestore
   const fetchGlobalStats = async () => {
@@ -244,10 +257,7 @@ export default function StockPage() {
     setIsTransferring(true);
     try {
       await transferStock(params);
-      // Recharger depuis le store Zustand
-      if (user?.currentCompanyId) {
-        await useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true });
-      }
+      // ⚠️ Plus besoin de recharger - onSnapshot met à jour automatiquement
       await fetchMovements();
     } finally {
       setIsTransferring(false);
@@ -268,10 +278,7 @@ export default function StockPage() {
     setIsRestocking(true);
     try {
       await recordInMovement(params);
-      // Recharger depuis le store Zustand
-      if (user?.currentCompanyId) {
-        await useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true });
-      }
+      // ⚠️ Plus besoin de recharger - onSnapshot met à jour automatiquement
       await fetchMovements();
     } finally {
       setIsRestocking(false);
@@ -292,10 +299,7 @@ export default function StockPage() {
     setIsRecordingLoss(true);
     try {
       await recordOutMovement(params);
-      // Recharger depuis le store Zustand
-      if (user?.currentCompanyId) {
-        await useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true });
-      }
+      // ⚠️ Plus besoin de recharger - onSnapshot met à jour automatiquement
       await fetchMovements();
     } finally {
       setIsRecordingLoss(false);
@@ -313,8 +317,8 @@ export default function StockPage() {
   };
 
   // Calculer les statistiques pour l'affichage (basées sur les produits filtrés)
-  const totalProducts = products.length;
-  const activeProducts = products.filter((p) => p.isActive).length;
+  const totalProducts = rawProducts.length;
+  const activeProducts = rawProducts.filter((p) => p.isActive).length;
 
   return (
     <div className="space-y-6">
@@ -327,15 +331,17 @@ export default function StockPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {/*
+          Bouton d'actualisation manuel supprimé car onSnapshot gère la synchro automatiquement
           <Button
             variant="outline"
-            onClick={() => user?.currentCompanyId && useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true })}
-            disabled={loading}
-            title="Forcer le rechargement depuis Firestore"
+            disabled={isLoading}
+            title="Les données sont synchronisées en temps réel"
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Actualiser
+            <RefreshCw className={`mr-2 h-4 w-4 ${isSubscribed ? 'text-green-600' : ''}`} />
+            {isSubscribed ? 'Sync' : 'Sync...'}
           </Button>
+          */}
           <PermissionGate module="stock" action="create">
             <Button onClick={handleOpenDialog}>
               <Plus className="mr-2 h-4 w-4" />
@@ -427,10 +433,8 @@ export default function StockPage() {
           <ProductsTable
             products={filteredProducts}
             warehouses={warehouses}
-            loading={loading}
-            hasMore={selectedWarehouse ? false : hasMore}
-            totalLoaded={products.length}
-            onLoadMore={selectedWarehouse ? undefined : () => useProductsStore.getState().loadMore()}
+            loading={isLoading}
+            // NOTE: Plus de pagination - onSnapshot synchronise tout automatiquement
             onFilterByWarehouse={handleFilterByWarehouse}
             onEdit={handleEdit}
             onDelete={handleDelete}
@@ -466,7 +470,7 @@ export default function StockPage() {
             <StockMovementsTable
               movements={movements.map(m => ({
                 ...m,
-                productName: products.find(p => p.id === m.productId)?.name,
+                productName: rawProducts.find(p => p.id === m.productId)?.name,
                 warehouseName: warehouses.find(w => w.id === m.warehouseId)?.name,
               }))}
               loading={movementsLoading}
@@ -529,10 +533,7 @@ export default function StockPage() {
         open={isImportModalOpen}
         onOpenChange={setIsImportModalOpen}
         onImportComplete={() => {
-          // Forcer le rechargement depuis Firestore pour synchroniser les IDs
-          if (user?.currentCompanyId) {
-            useProductsStore.getState().fetchProducts(user.currentCompanyId, { reset: true });
-          }
+          // ⚠️ Plus besoin de recharger - onSnapshot captura les nouveaux produits automatiquement
           fetchGlobalStats();
         }}
       />
