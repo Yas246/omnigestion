@@ -91,6 +91,49 @@ export async function createProduct(
     deletedAt: null,
   });
 
+  const productId = docRef.id;
+
+  // 🔄 Créer les stock_locations et warehouse_quantities si fournis
+  if (data.warehouseQuantities && data.warehouseQuantities.length > 0) {
+    await runTransaction(db, async (transaction) => {
+      // 1. Créer les stock_locations pour chaque entrepôt
+      for (const warehouseQty of data.warehouseQuantities!) {
+        const stockLocationRef = doc(
+          collection(db, `companies/${companyId}/products/${productId}/stock_locations`)
+        );
+
+        transaction.set(stockLocationRef, {
+          productId,
+          warehouseId: warehouseQty.warehouseId,
+          quantity: warehouseQty.quantity,
+          alertThreshold: data.alertThreshold || 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // 2. Créer le document warehouse_quantities (collection centralisée)
+      const warehouseQuantitiesRef = doc(
+        db,
+        `companies/${companyId}/warehouse_quantities`,
+        productId
+      );
+
+      transaction.set(warehouseQuantitiesRef, {
+        productId: productId,
+        quantities: data.warehouseQuantities.map(wq => ({
+          warehouseId: wq.warehouseId,
+          warehouseName: wq.warehouseName,
+          quantity: wq.quantity,
+        })),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      console.log(`[createProduct] ✅ Créé stock_locations et warehouse_quantities pour ${productId} avec ${data.warehouseQuantities.length} dépôts`);
+    });
+  }
+
   const docSnap = await getDoc(docRef);
   if (!docSnap.exists()) {
     throw new Error('Failed to create product');
@@ -361,6 +404,43 @@ export async function updateProductStockInWarehouse(
         quantity: newQuantity,
         updatedAt: serverTimestamp(),
       });
+
+      // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
+      const warehouseQuantitiesRef = doc(
+        db,
+        `companies/${companyId}/warehouse_quantities`,
+        productId
+      );
+
+      // Récupérer le document actuel s'il existe
+      const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+      let quantities: any[] = [];
+      if (warehouseQuantitiesDoc.exists()) {
+        quantities = warehouseQuantitiesDoc.data().quantities || [];
+      }
+
+      // Mettre à jour la quantité pour ce dépôt
+      const updatedQuantities = quantities.map((q: any) =>
+        q.warehouseId === warehouseId
+          ? { ...q, quantity: newQuantity }
+          : q
+      );
+
+      // Si le dépôt n'est pas dans la liste, l'ajouter
+      if (!updatedQuantities.some((q: any) => q.warehouseId === warehouseId)) {
+        updatedQuantities.push({
+          warehouseId: warehouseId,
+          warehouseName: warehouseId, // TODO: Récupérer le nom depuis la collection warehouses
+          quantity: newQuantity,
+        });
+      }
+
+      transaction.set(warehouseQuantitiesRef, {
+        productId: productId,
+        quantities: updatedQuantities,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
     }
   } else {
     // Nouvelle transaction
@@ -375,6 +455,43 @@ export async function updateProductStockInWarehouse(
           quantity: newQuantity,
           updatedAt: serverTimestamp(),
         });
+
+        // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
+        const warehouseQuantitiesRef = doc(
+          db,
+          `companies/${companyId}/warehouse_quantities`,
+          productId
+        );
+
+        // Récupérer le document actuel s'il existe
+        const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+        let quantities: any[] = [];
+        if (warehouseQuantitiesDoc.exists()) {
+          quantities = warehouseQuantitiesDoc.data().quantities || [];
+        }
+
+        // Mettre à jour la quantité pour ce dépôt
+        const updatedQuantities = quantities.map((q: any) =>
+          q.warehouseId === warehouseId
+            ? { ...q, quantity: newQuantity }
+            : q
+        );
+
+        // Si le dépôt n'est pas dans la liste, l'ajouter
+        if (!updatedQuantities.some((q: any) => q.warehouseId === warehouseId)) {
+          updatedQuantities.push({
+            warehouseId: warehouseId,
+            warehouseName: warehouseId, // TODO: Récupérer le nom depuis la collection warehouses
+            quantity: newQuantity,
+          });
+        }
+
+        txn.set(warehouseQuantitiesRef, {
+          productId: productId,
+          quantities: updatedQuantities,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
       }
     });
   }

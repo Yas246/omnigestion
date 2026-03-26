@@ -30,9 +30,8 @@ export function useClientCreditsRealtime() {
   useEffect(() => {
     if (user?.currentCompanyId) {
       realtimeService.startClientCreditsListener(queryClient, user.currentCompanyId);
-
-      // Charger les payments pour chaque crédit et mettre en cache
-      loadClientCreditPayments(queryClient, user.currentCompanyId);
+      // NOTE: Les payments sont chargés automatiquement par startClientCreditsListener
+      // Plus besoin d'appeler loadClientCreditPayments manuellement
     }
     // NOTE: PAS de cleanup du cache ici! Le cache doit persister entre les navigations.
     // Le cache sera vidé uniquement lors d'un changement de compagnie (géré par RealtimeService)
@@ -60,10 +59,10 @@ async function loadClientCreditPayments(queryClient: any, companyId: string) {
       return;
     }
 
-    // Vérifier si les payments sont déjà chargés
-    const firstCredit = credits[0];
-    if (firstCredit?.payments && firstCredit.payments.length > 0) {
-      console.log('[useClientCreditsRealtime] ♻️ Payments déjà chargés pour cette compagnie');
+    // Vérifier si les payments sont déjà chargés pour TOUS les crédits
+    const allHavePayments = credits.every(credit => credit.hasOwnProperty('payments'));
+    if (allHavePayments) {
+      console.log('[useClientCreditsRealtime] ♻️ Payments déjà chargés pour tous les crédits');
       return;
     }
 

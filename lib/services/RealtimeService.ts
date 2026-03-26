@@ -41,8 +41,13 @@ interface RealtimeState {
   supplierCreditsListener: ListenerUnsubscribe | null;
   settingsListener: ListenerUnsubscribe | null;
   stockMovementsListener: ListenerUnsubscribe | null;
+  warehouseQuantitiesListener: ListenerUnsubscribe | null;
 
   currentCompanyId: string | null;
+
+  // Flags pour savoir si le chargement initial est fait
+  clientCreditsInitialLoadDone: boolean;
+  supplierCreditsInitialLoadDone: boolean;
 
   // Caches existants
   warehouseQuantitiesCache: Map<string, WarehouseQuantity[]>; // productId -> quantities
@@ -68,8 +73,13 @@ class RealtimeService {
     supplierCreditsListener: null,
     settingsListener: null,
     stockMovementsListener: null,
+    warehouseQuantitiesListener: null,
 
     currentCompanyId: null,
+
+    // Flags
+    clientCreditsInitialLoadDone: false,
+    supplierCreditsInitialLoadDone: false,
 
     // Caches
     warehouseQuantitiesCache: new Map(),
@@ -907,6 +917,10 @@ class RealtimeService {
             ['companies', companyId, 'clientCredits'],
             enrichedCredits
           );
+
+          // 🔄 Marquer que les crédits sont chargés avec leurs payments
+          this.state.clientCreditsInitialLoadDone = true;
+
           console.log(`[RealtimeService] ✅ ${enrichedCredits.length} crédits clients chargés (GLOBAL)`);
           return;
         }
@@ -929,24 +943,27 @@ class RealtimeService {
             updatedAt: data.updatedAt?.toDate() || new Date(),
           };
 
-          // Enrichir avec les payments du cache (si disponible)
-          const enrichedCredit = this.enrichClientCreditWithPayments(credit);
+          // 🔄 IMPORTANT: Préserver les payments existants du crédit actuel
+          const existingCredit = updatedCredits.find(c => c.id === credit.id);
+          const creditWithPayments = existingCredit?.payments
+            ? { ...credit, payments: existingCredit.payments, amountPaid: existingCredit.amountPaid, remainingAmount: existingCredit.remainingAmount }
+            : this.enrichClientCreditWithPayments(credit);
 
           switch (change.type) {
             case 'added':
-              if (!updatedCredits.find(c => c.id === enrichedCredit.id)) {
-                updatedCredits.push(enrichedCredit);
+              if (!updatedCredits.find(c => c.id === creditWithPayments.id)) {
+                updatedCredits.push(creditWithPayments);
               }
               break;
             case 'modified':
               updatedCredits = updatedCredits.map(c =>
-                c.id === enrichedCredit.id ? enrichedCredit : c
+                c.id === creditWithPayments.id ? creditWithPayments : c
               );
               break;
             case 'removed':
-              updatedCredits = updatedCredits.filter(c => c.id !== enrichedCredit.id);
+              updatedCredits = updatedCredits.filter(c => c.id !== creditWithPayments.id);
               // Retirer du cache quand le crédit est supprimé
-              this.state.clientCreditPaymentsCache.delete(enrichedCredit.id);
+              this.state.clientCreditPaymentsCache.delete(creditWithPayments.id);
               break;
           }
         });
@@ -959,6 +976,12 @@ class RealtimeService {
           ['companies', companyId, 'clientCredits'],
           updatedCredits
         );
+
+        // 🔄 Force React Query à déclencher un re-render
+        queryClient.invalidateQueries({
+          queryKey: ['companies', companyId, 'clientCredits'],
+          refetchType: 'none', // Ne pas recharger depuis Firestore, juste notifier les subscribers
+        });
       },
 
       error: (err) => {
@@ -1158,6 +1181,10 @@ class RealtimeService {
             ['companies', companyId, 'supplierCredits'],
             enrichedCredits
           );
+
+          // 🔄 Marquer que les crédits sont chargés avec leurs payments
+          this.state.supplierCreditsInitialLoadDone = true;
+
           console.log(`[RealtimeService] ✅ ${enrichedCredits.length} crédits fournisseurs chargés (GLOBAL)`);
           return;
         }
@@ -1180,24 +1207,27 @@ class RealtimeService {
             updatedAt: data.updatedAt?.toDate() || new Date(),
           };
 
-          // Enrichir avec les payments du cache (si disponible)
-          const enrichedCredit = this.enrichSupplierCreditWithPayments(credit);
+          // 🔄 IMPORTANT: Préserver les payments existants du crédit actuel
+          const existingCredit = updatedCredits.find(c => c.id === credit.id);
+          const creditWithPayments = existingCredit?.payments
+            ? { ...credit, payments: existingCredit.payments, amountPaid: existingCredit.amountPaid, remainingAmount: existingCredit.remainingAmount }
+            : this.enrichSupplierCreditWithPayments(credit);
 
           switch (change.type) {
             case 'added':
-              if (!updatedCredits.find(c => c.id === enrichedCredit.id)) {
-                updatedCredits.push(enrichedCredit);
+              if (!updatedCredits.find(c => c.id === creditWithPayments.id)) {
+                updatedCredits.push(creditWithPayments);
               }
               break;
             case 'modified':
               updatedCredits = updatedCredits.map(c =>
-                c.id === enrichedCredit.id ? enrichedCredit : c
+                c.id === creditWithPayments.id ? creditWithPayments : c
               );
               break;
             case 'removed':
-              updatedCredits = updatedCredits.filter(c => c.id !== enrichedCredit.id);
+              updatedCredits = updatedCredits.filter(c => c.id !== creditWithPayments.id);
               // Retirer du cache quand le crédit est supprimé
-              this.state.supplierCreditPaymentsCache.delete(enrichedCredit.id);
+              this.state.supplierCreditPaymentsCache.delete(creditWithPayments.id);
               break;
           }
         });
@@ -1210,6 +1240,12 @@ class RealtimeService {
           ['companies', companyId, 'supplierCredits'],
           updatedCredits
         );
+
+        // 🔄 Force React Query à déclencher un re-render
+        queryClient.invalidateQueries({
+          queryKey: ['companies', companyId, 'supplierCredits'],
+          refetchType: 'none', // Ne pas recharger depuis Firestore, juste notifier les subscribers
+        });
       },
 
       error: (err) => {
@@ -1378,6 +1414,163 @@ class RealtimeService {
   }
 
   /**
+   * Démarre l'écoute des warehouse_quantities (si pas déjà démarrée)
+   */
+  startWarehouseQuantitiesListener(queryClient: QueryClient, companyId: string) {
+    if (!queryClient) {
+      console.error('[RealtimeService] ❌ queryClient est undefined');
+      return;
+    }
+
+    // Si déjà connecté à la même compagnie, rien à faire
+    if (this.state.warehouseQuantitiesListener && this.state.currentCompanyId === companyId) {
+      console.log('[RealtimeService] ♻️ Warehouse quantities déjà en écoute');
+      return;
+    }
+
+    // Arrêter l'écoute précédente si différente compagnie
+    if (this.state.warehouseQuantitiesListener && this.state.currentCompanyId !== companyId) {
+      console.log('[RealtimeService] 🔄 Arrêt écoute warehouse quantities (changement compagnie)');
+      this.state.warehouseQuantitiesListener();
+      this.state.warehouseQuantitiesListener = null;
+      this.clearWarehouseQuantitiesCache();
+    }
+
+    console.log('[RealtimeService] 🔄 Démarrage écoute warehouse quantities (GLOBAL)');
+
+    const q = query(
+      collection(db, `companies/${companyId}/warehouse_quantities`),
+      orderBy('productId', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, {
+      next: (snapshot) => {
+        const changes = snapshot.docChanges();
+
+        // Initial load : tous les documents
+        if (changes.length === snapshot.docs.length && snapshot.docs.length > 0) {
+          console.log(`[RealtimeService] ✅ ${snapshot.docs.length} warehouse quantities chargés (GLOBAL)`);
+
+          const warehouseQuantitiesMap = new Map<string, WarehouseQuantity[]>();
+
+          snapshot.docs.forEach((doc) => {
+            const data = doc.data();
+            const quantities: WarehouseQuantity[] = data.quantities || [];
+            warehouseQuantitiesMap.set(doc.id, quantities);
+
+            // Mettre en cache les warehouseQuantities
+            this.cacheWarehouseQuantities(doc.id, quantities);
+          });
+
+          // Enrichir les produits avec leurs warehouseQuantities
+          const products = queryClient.getQueryData<Product[]>(
+            ['companies', companyId, 'products']
+          ) || [];
+
+          if (products.length > 0) {
+            const enrichedProducts = products.map((product) => {
+              const quantities = warehouseQuantitiesMap.get(product.id) || [];
+              // Calculer currentStock comme la SOMME des warehouseQuantities
+              const calculatedStock = quantities.reduce((sum: number, wq: WarehouseQuantity) => sum + wq.quantity, 0);
+
+              return {
+                ...product,
+                warehouseQuantities: quantities,
+                currentStock: calculatedStock,
+              };
+            });
+
+            queryClient.setQueryData(
+              ['companies', companyId, 'products'],
+              enrichedProducts
+            );
+
+            // 🔄 Force React Query à déclencher un re-render
+            queryClient.invalidateQueries({
+              queryKey: ['companies', companyId, 'products'],
+              refetchType: 'none', // Ne pas recharger depuis Firestore, juste notifier les subscribers
+            });
+
+            console.log(`[RealtimeService] ✅ ${enrichedProducts.length} produits enrichis avec leurs warehouse quantities`);
+          }
+
+          return;
+        }
+
+        // Mises à jour incrémentales
+        if (changes.length > 0) {
+          console.log(`[RealtimeService] 📊 ${changes.length} changement(s) warehouse quantities`);
+
+          // Récupérer les produits actuels depuis le cache
+          const products = queryClient.getQueryData<Product[]>(
+            ['companies', companyId, 'products']
+          ) || [];
+
+          if (products.length === 0) return;
+
+          const updatedProducts = [...products];
+
+          changes.forEach((change) => {
+            const doc = change.doc;
+            const data = doc.data();
+            const quantities: WarehouseQuantity[] = data.quantities || [];
+            const productId = doc.id;
+
+            // Mettre à jour le cache
+            this.cacheWarehouseQuantities(productId, quantities);
+
+            // Trouver et mettre à jour le produit
+            const productIndex = updatedProducts.findIndex(p => p.id === productId);
+
+            if (productIndex !== -1) {
+              switch (change.type) {
+                case 'added':
+                case 'modified':
+                  // Recalculer currentStock comme la SOMME des warehouseQuantities
+                  const calculatedStock = quantities.reduce((sum: number, wq: WarehouseQuantity) => sum + wq.quantity, 0);
+
+                  updatedProducts[productIndex] = {
+                    ...updatedProducts[productIndex],
+                    warehouseQuantities: quantities,
+                    currentStock: calculatedStock,
+                  };
+                  console.log(`[RealtimeService] 📦 Produit ${productId} mis à jour avec ${quantities.length} dépôt(s), stock total = ${calculatedStock}`);
+                  break;
+                case 'removed':
+                  updatedProducts[productIndex] = {
+                    ...updatedProducts[productIndex],
+                    warehouseQuantities: [],
+                    currentStock: 0,
+                  };
+                  break;
+              }
+            }
+          });
+
+          // Mettre à jour le cache React Query
+          queryClient.setQueryData(
+            ['companies', companyId, 'products'],
+            updatedProducts
+          );
+
+          // 🔄 Force React Query à déclencher un re-render
+          queryClient.invalidateQueries({
+            queryKey: ['companies', companyId, 'products'],
+            refetchType: 'none', // Ne pas recharger depuis Firestore, juste notifier les subscribers
+          });
+        }
+      },
+
+      error: (err) => {
+        console.error('[RealtimeService] ❌ Erreur écoute warehouse quantities:', err);
+      },
+    });
+
+    this.state.warehouseQuantitiesListener = unsubscribe;
+    this.state.currentCompanyId = companyId;
+  }
+
+  /**
    * Arrête toutes les écoutes (changement de compagnie)
    */
   stopAllListeners() {
@@ -1438,6 +1631,11 @@ class RealtimeService {
     if (this.state.stockMovementsListener) {
       this.state.stockMovementsListener();
       this.state.stockMovementsListener = null;
+    }
+
+    if (this.state.warehouseQuantitiesListener) {
+      this.state.warehouseQuantitiesListener();
+      this.state.warehouseQuantitiesListener = null;
     }
 
     // Nettoyer tous les caches

@@ -209,6 +209,23 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
               alertThreshold: Number(parsedProduct.alertThreshold) || 5,
               updatedAt: Timestamp.now(),
             });
+
+            // 🔄 Créer le document warehouse_quantities (collection centralisée)
+            const warehouseQuantitiesRef = doc(
+              db,
+              `companies/${user.currentCompanyId}/warehouse_quantities`,
+              productId
+            );
+            batch.set(warehouseQuantitiesRef, {
+              productId: productId,
+              quantities: [{
+                warehouseId: defaultWarehouseId,
+                warehouseName: defaultWarehouseId, // TODO: Récupérer le nom depuis la collection warehouses
+                quantity: Number(parsedProduct.quantity) || 0,
+              }],
+              createdAt: Timestamp.now(),
+              updatedAt: Timestamp.now(),
+            });
           }
 
           currentBatch++;

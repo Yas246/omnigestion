@@ -30,9 +30,8 @@ export function useSupplierCreditsRealtime() {
   useEffect(() => {
     if (user?.currentCompanyId) {
       realtimeService.startSupplierCreditsListener(queryClient, user.currentCompanyId);
-
-      // Charger les payments pour chaque crédit et mettre en cache
-      loadSupplierCreditPayments(queryClient, user.currentCompanyId);
+      // NOTE: Les payments sont chargés automatiquement par startSupplierCreditsListener
+      // Plus besoin d'appeler loadSupplierCreditPayments manuellement
     }
     // NOTE: PAS de cleanup du cache ici! Le cache doit persister entre les navigations.
     // Le cache sera vidé uniquement lors d'un changement de compagnie (géré par RealtimeService)

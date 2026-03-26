@@ -15,6 +15,7 @@ import {
   getDoc,
   updateDoc,
   runTransaction,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db, COLLECTIONS, SUB_COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
@@ -159,6 +160,60 @@ export function useStockMovements() {
           });
         }
 
+        // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
+        const warehouseQuantitiesRef = doc(
+          db,
+          `companies/${user.currentCompanyId}/warehouse_quantities`,
+          productId
+        );
+
+        // Récupérer le document actuel s'il existe
+        const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+        let quantities: any[] = [];
+        if (warehouseQuantitiesDoc.exists()) {
+          quantities = warehouseQuantitiesDoc.data().quantities || [];
+        }
+
+        // Mettre à jour les quantités pour les deux dépôts
+        const updatedQuantities = quantities.map((q: any) => {
+          if (q.warehouseId === fromWarehouseId) {
+            return { ...q, quantity: newFromQuantity };
+          }
+          if (q.warehouseId === toWarehouseId) {
+            const toStockData = toStockSnapshot.docs[0]?.data();
+            const newToQuantity = toStockData ? toStockData.quantity + quantity : quantity;
+            return { ...q, quantity: newToQuantity };
+          }
+          return q;
+        });
+
+        // Si le dépôt source n'est pas dans la liste, l'ajouter
+        if (!updatedQuantities.some((q: any) => q.warehouseId === fromWarehouseId)) {
+          updatedQuantities.push({
+            warehouseId: fromWarehouseId,
+            warehouseName: fromWarehouseId, // TODO: Récupérer le nom depuis la collection warehouses
+            quantity: newFromQuantity,
+          });
+        }
+
+        // Si le dépôt destination n'est pas dans la liste, l'ajouter
+        if (!updatedQuantities.some((q: any) => q.warehouseId === toWarehouseId)) {
+          const toStockData = toStockSnapshot.docs[0]?.data();
+          const newToQuantity = toStockData ? toStockData.quantity + quantity : quantity;
+          updatedQuantities.push({
+            warehouseId: toWarehouseId,
+            warehouseName: toWarehouseId, // TODO: Récupérer le nom depuis la collection warehouses
+            quantity: newToQuantity,
+          });
+        }
+
+        transaction.set(warehouseQuantitiesRef, {
+          productId: productId,
+          quantities: updatedQuantities,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+
         // 3. Mettre à jour le stock total du produit
         const productRef = doc(db, COLLECTIONS.companyProducts(user.currentCompanyId), productId);
         const productSnap = await getDoc(productRef);
@@ -263,6 +318,43 @@ export function useStockMovements() {
             updatedAt: new Date(),
           });
         }
+
+        // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
+        const warehouseQuantitiesRef = doc(
+          db,
+          `companies/${user.currentCompanyId}/warehouse_quantities`,
+          productId
+        );
+
+        // Récupérer le document actuel s'il existe
+        const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+        let quantities: any[] = [];
+        if (warehouseQuantitiesDoc.exists()) {
+          quantities = warehouseQuantitiesDoc.data().quantities || [];
+        }
+
+        // Mettre à jour la quantité pour ce dépôt
+        const updatedQuantities = quantities.map((q: any) =>
+          q.warehouseId === warehouseId
+            ? { ...q, quantity: newQuantity }
+            : q
+        );
+
+        // Si le dépôt n'est pas dans la liste, l'ajouter
+        if (!updatedQuantities.some((q: any) => q.warehouseId === warehouseId)) {
+          updatedQuantities.push({
+            warehouseId: warehouseId,
+            warehouseName: warehouseId, // TODO: Récupérer le nom depuis la collection warehouses
+            quantity: newQuantity,
+          });
+        }
+
+        transaction.set(warehouseQuantitiesRef, {
+          productId: productId,
+          quantities: updatedQuantities,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
 
         // 2. Mettre à jour le stock total du produit
         const productRef = doc(db, COLLECTIONS.companyProducts(user.currentCompanyId), productId);
@@ -373,6 +465,43 @@ export function useStockMovements() {
           quantity: newQuantity,
           updatedAt: new Date(),
         });
+
+        // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
+        const warehouseQuantitiesRef = doc(
+          db,
+          `companies/${user.currentCompanyId}/warehouse_quantities`,
+          productId
+        );
+
+        // Récupérer le document actuel s'il existe
+        const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+        let quantities: any[] = [];
+        if (warehouseQuantitiesDoc.exists()) {
+          quantities = warehouseQuantitiesDoc.data().quantities || [];
+        }
+
+        // Mettre à jour la quantité pour ce dépôt
+        const updatedQuantities = quantities.map((q: any) =>
+          q.warehouseId === warehouseId
+            ? { ...q, quantity: newQuantity }
+            : q
+        );
+
+        // Si le dépôt n'est pas dans la liste, l'ajouter
+        if (!updatedQuantities.some((q: any) => q.warehouseId === warehouseId)) {
+          updatedQuantities.push({
+            warehouseId: warehouseId,
+            warehouseName: warehouseId, // TODO: Récupérer le nom depuis la collection warehouses
+            quantity: newQuantity,
+          });
+        }
+
+        transaction.set(warehouseQuantitiesRef, {
+          productId: productId,
+          quantities: updatedQuantities,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
 
         // 2. Mettre à jour le stock total du produit
         const productRef = doc(db, COLLECTIONS.companyProducts(user.currentCompanyId), productId);

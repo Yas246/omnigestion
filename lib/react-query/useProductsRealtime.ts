@@ -29,6 +29,8 @@ export function useProductsRealtime() {
   useEffect(() => {
     if (user?.currentCompanyId) {
       realtimeService.startProductsListener(queryClient, user.currentCompanyId);
+      // 🔄 Activer l'écoute des warehouse quantities en temps réel
+      realtimeService.startWarehouseQuantitiesListener(queryClient, user.currentCompanyId);
     }
     // NOTE: PAS de cleanup du cache ici! Le cache doit persister entre les navigations.
     // Le cache sera vidé uniquement lors d'un changement de compagnie (géré par RealtimeService)
