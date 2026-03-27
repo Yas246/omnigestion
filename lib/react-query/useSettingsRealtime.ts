@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { realtimeService } from '@/lib/services/RealtimeService';
+import type { Company } from '@/types';
 
 /**
  * Hook pour les paramètres avec écoute temps réel GLOBAL
@@ -17,7 +18,7 @@ export function useSettingsRealtime() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: settings, isLoading, error } = useQuery({
+  const { data: settings, isLoading, error } = useQuery<Company | null>({
     queryKey: ['companies', user?.currentCompanyId, 'settings'],
     queryFn: async () => null,
     enabled: !!user?.currentCompanyId,

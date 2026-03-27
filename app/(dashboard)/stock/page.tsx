@@ -321,89 +321,26 @@ export default function StockPage() {
     setIsFiltering(false);
   };
 
-  // Recharger manuellement les warehouse quantities depuis Firestore
+  // Recharger manuellement les warehouse quantités
+  // NOTE: Avec le listener temps réel, cette fonction est moins nécessaire
+  // mais elle peut servir à forcer un re-refresh si besoin
   const handleRefreshWarehouseQuantities = async () => {
     if (!user?.currentCompanyId) return;
 
     setIsRefreshing(true);
     try {
-      const { collection, query, getDocs } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      const { realtimeService } = await import('@/lib/services/RealtimeService');
+      console.log('[StockPage] 🔄 Actualisation forcée des données');
 
-      // Récupérer les produits depuis le cache
-      const products = queryClient.getQueryData<any[]>(
-        ['companies', user.currentCompanyId, 'products']
-      ) || [];
-
-      if (products.length === 0) {
-        console.log('[StockPage] ⚠️ Aucun produit à traiter');
-        return;
-      }
-
-      console.log('[StockPage] 🔨 Rechargement des warehouseQuantities...');
-
-      // Récupérer les entrepôts pour avoir leurs noms
-      const warehousesSnapshot = await getDocs(
-        query(collection(db, `companies/${user.currentCompanyId}/warehouses`))
-      );
-
-      const warehousesMap = new Map(
-        warehousesSnapshot.docs.map(doc => [doc.id, doc.data()])
-      );
-
-      // Pour chaque produit, charger ses stock_locations
-      const productsWithWarehouses = await Promise.all(
-        products.map(async (product) => {
-          try {
-            const stockSnapshot = await getDocs(
-              query(
-                collection(db, `companies/${user.currentCompanyId}/products/${product.id}/stock_locations`)
-              )
-            );
-
-            const warehouseQuantities = stockSnapshot.docs.map((doc) => {
-              const warehouseData = warehousesMap.get(doc.data().warehouseId);
-              return {
-                warehouseId: doc.data().warehouseId,
-                warehouseName: warehouseData?.name || 'Entrepôt inconnu',
-                quantity: doc.data().quantity,
-              };
-            });
-
-            // Calculer currentStock comme la SOMME des warehouseQuantities
-            const calculatedStock = warehouseQuantities.reduce((sum, wq) => sum + wq.quantity, 0);
-
-            console.log(`[StockPage] 📦 ${product.name}: ${warehouseQuantities.length} dépôts, stock total = ${calculatedStock}`);
-
-            return {
-              ...product,
-              warehouseQuantities,
-              currentStock: calculatedStock,
-            };
-          } catch (err) {
-            console.error(`[StockPage] ❌ Erreur chargement stock_locations pour ${product.name}:`, err);
-            return product;
-          }
-        })
-      );
-
-      // Mettre à jour le cache avec les produits enrichis
-      queryClient.setQueryData(
-        ['companies', user.currentCompanyId, 'products'],
-        productsWithWarehouses
-      );
-
-      // Stocker les warehouseQuantities dans le cache RealtimeService
-      productsWithWarehouses.forEach((product) => {
-        if (product.warehouseQuantities && product.warehouseQuantities.length > 0) {
-          realtimeService.cacheWarehouseQuantities(product.id, product.warehouseQuantities);
-        }
+      // Invalider les requêtes pour forcer React Query à rafraîchir depuis le cache
+      // Les données sont déjà à jour grâce aux listeners onSnapshot
+      queryClient.invalidateQueries({
+        queryKey: ['companies', user.currentCompanyId, 'products'],
+        refetchType: 'none', // Ne pas recharger depuis Firestore, juste utiliser le cache
       });
 
-      console.log(`[StockPage] ✅ ${productsWithWarehouses.length} produits mis à jour avec leurs dépôts`);
+      console.log('[StockPage] ✅ Données actualisées (depuis le cache temps réel)');
     } catch (error) {
-      console.error('[StockPage] ❌ Erreur rechargement warehouseQuantities:', error);
+      console.error('[StockPage] ❌ Erreur actualisation:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -428,7 +365,7 @@ export default function StockPage() {
             variant="outline"
             onClick={handleRefreshWarehouseQuantities}
             disabled={isRefreshing || isLoading}
-            title="Recharger les quantités par entrepôt depuis Firestore"
+            title="Actualiser les données (les données sont synchronisées automatiquement)"
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             Actualiser

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSettingsRealtime } from "@/lib/react-query/useSettingsRealtime";
-import { useWarehousesListener } from "@/lib/react-query/useStockLocationsRealtime"; // Pour les entrepôts
+import { useWarehousesRealtime } from "@/lib/react-query/useWarehousesRealtime"; // Pour les entrepôts
 import { useSettings } from "@/lib/hooks/useSettings"; // Garder pour les fonctions CRUD si nécessaires
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -85,7 +85,7 @@ export default function SettingsPage() {
   if (error && !settings) {
     return (
       <div className="rounded-md bg-destructive/15 p-4 text-destructive">
-        {error}
+        {error instanceof Error ? error.message : 'Une erreur est survenue'}
       </div>
     );
   }
@@ -128,7 +128,7 @@ export default function SettingsPage() {
               </Card>
             )}
           >
-            <CompanyTab company={settings} onSaved={refresh} />
+            <CompanyTab company={settings || null} onSaved={refresh} />
           </PermissionGate>
         </TabsContent>
 
@@ -145,7 +145,7 @@ export default function SettingsPage() {
               </Card>
             )}
           >
-            <InvoiceTab settings={settings?.invoiceSettings || settings?.invoice} onSaved={refresh} />
+            <InvoiceTab settings={(settings as any)?.invoiceSettings || (settings as any)?.invoice || undefined} onSaved={refresh} />
           </PermissionGate>
         </TabsContent>
 
@@ -163,8 +163,8 @@ export default function SettingsPage() {
             )}
           >
             <StockTab
-              settings={settings?.stockSettings || settings?.stock}
-              warehouses={settings?.warehouses || []}
+              settings={(settings as any)?.stockSettings || (settings as any)?.stock || undefined}
+              warehouses={(settings as any)?.warehouses || []}
               onSaved={refresh}
             />
           </PermissionGate>
@@ -196,7 +196,7 @@ export default function SettingsPage() {
               </Card>
             )}
           >
-            <SystemTab settings={settings?.systemSettings || settings?.system} onSaved={refresh} />
+            <SystemTab settings={(settings as any)?.systemSettings || (settings as any)?.system || undefined} onSaved={refresh} />
           </PermissionGate>
         </TabsContent>
       </Tabs>

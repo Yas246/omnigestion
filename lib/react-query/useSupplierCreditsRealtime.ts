@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { realtimeService } from '@/lib/services/RealtimeService';
 import { collection, query, getDocs } from 'firebase/firestore';
@@ -47,7 +47,7 @@ export function useSupplierCreditsRealtime() {
 /**
  * Charge les payments pour tous les crédits fournisseurs et les met en cache
  */
-async function loadSupplierCreditPayments(queryClient: any, companyId: string) {
+async function loadSupplierCreditPayments(queryClient: QueryClient, companyId: string) {
   try {
     // Récupérer tous les crédits depuis le cache
     const credits = queryClient.getQueryData<any[]>(
@@ -59,10 +59,10 @@ async function loadSupplierCreditPayments(queryClient: any, companyId: string) {
       return;
     }
 
-    // Vérifier si les payments sont déjà chargés
-    const firstCredit = credits[0];
-    if (firstCredit?.payments && firstCredit.payments.length > 0) {
-      console.log('[useSupplierCreditsRealtime] ♻️ Payments déjà chargés pour cette compagnie');
+    // Vérifier si les payments sont déjà chargés pour TOUS les crédits
+    const allHavePayments = credits.every((credit: any) => credit.hasOwnProperty('payments'));
+    if (allHavePayments) {
+      console.log('[useSupplierCreditsRealtime] ♻️ Payments déjà chargés pour tous les crédits');
       return;
     }
 
@@ -70,7 +70,7 @@ async function loadSupplierCreditPayments(queryClient: any, companyId: string) {
 
     // Pour chaque crédit, charger ses payments
     const creditsWithPayments = await Promise.all(
-      credits.map(async (credit) => {
+      credits.map(async (credit: any) => {
         try {
           const paymentsSnapshot = await getDocs(
             query(
@@ -90,8 +90,8 @@ async function loadSupplierCreditPayments(queryClient: any, companyId: string) {
           return {
             ...credit,
             payments,
-            amountPaid: payments.reduce((sum, p) => sum + (p.amount || 0), 0),
-            remainingAmount: credit.amount - payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+            amountPaid: payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
+            remainingAmount: credit.amount - payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
           };
         } catch (err) {
           console.error(`[useSupplierCreditsRealtime] ❌ Erreur chargement payments pour crédit ${credit.id}:`, err);

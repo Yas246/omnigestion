@@ -119,9 +119,11 @@ export async function createProduct(
         productId
       );
 
+      const quantities = data.warehouseQuantities || [];
+
       transaction.set(warehouseQuantitiesRef, {
         productId: productId,
-        quantities: data.warehouseQuantities.map(wq => ({
+        quantities: quantities.map(wq => ({
           warehouseId: wq.warehouseId,
           warehouseName: wq.warehouseName,
           quantity: wq.quantity,
@@ -130,7 +132,7 @@ export async function createProduct(
         updatedAt: serverTimestamp(),
       });
 
-      console.log(`[createProduct] ✅ Créé stock_locations et warehouse_quantities pour ${productId} avec ${data.warehouseQuantities.length} dépôts`);
+      console.log(`[createProduct] ✅ Créé stock_locations et warehouse_quantities pour ${productId} avec ${quantities.length} dépôts`);
     });
   }
 

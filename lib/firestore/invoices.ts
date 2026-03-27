@@ -145,53 +145,69 @@ export async function createInvoice(
         const stockQuery = query(stockLocationsRef, where('warehouseId', '==', primaryWarehouseId));
         const stockSnap = await getDocs(stockQuery);
 
+        let newPrimaryStock: number;
         if (!stockSnap.empty) {
+          // Cas normal : déduire du stock existant
           const stockDoc = stockSnap.docs[0];
           const primaryStock = stockDoc.data().quantity || 0;
-          const newPrimaryStock = primaryStock - item.quantity;
+          newPrimaryStock = primaryStock - item.quantity;
 
           transaction.update(stockDoc.ref, {
             quantity: newPrimaryStock,
             updatedAt: serverTimestamp(),
           });
-
-          // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
-          const warehouseQuantitiesRef = doc(
-            db,
-            `companies/${companyId}/warehouse_quantities`,
-            item.productId
-          );
-
-          // Récupérer le document actuel s'il existe
-          const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
-
-          let quantities: any[] = [];
-          if (warehouseQuantitiesDoc.exists()) {
-            quantities = warehouseQuantitiesDoc.data().quantities || [];
-          }
-
-          // Mettre à jour la quantité pour ce dépôt
-          const updatedQuantities = quantities.map((q: any) =>
-            q.warehouseId === primaryWarehouseId
-              ? { ...q, quantity: newPrimaryStock }
-              : q
-          );
-
-          // Si le dépôt n'est pas dans la liste, l'ajouter
-          if (!updatedQuantities.some((q: any) => q.warehouseId === primaryWarehouseId)) {
-            updatedQuantities.push({
-              warehouseId: primaryWarehouseId,
-              warehouseName: 'Boutique', // TODO: Récupérer le nom depuis la collection warehouses
-              quantity: newPrimaryStock,
-            });
-          }
-
-          transaction.set(warehouseQuantitiesRef, {
+        } else {
+          // Cas anormal : pas de stock_location pour ce dépôt
+          // Créer une nouvelle entrée avec un stock négatif pour tracer l'incohérence
+          newPrimaryStock = -item.quantity;
+          const newStockRef = doc(collection(db, `companies/${companyId}/products/${item.productId}/stock_locations`));
+          transaction.set(newStockRef, {
             productId: item.productId,
-            quantities: updatedQuantities,
+            warehouseId: primaryWarehouseId,
+            quantity: newPrimaryStock,
+            createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
-          }, { merge: true });
+          });
+          console.warn(`[createInvoice] ⚠️ Stock_location manquant pour ${productData.name} dans dépôt ${primaryWarehouseId}. Création avec stock négatif: ${newPrimaryStock}`);
         }
+
+        // 🔄 TOUJOURS mettre à jour warehouse_quantities (collection centralisée)
+        // Même si stock_location n'existait pas, on doit garantir la cohérence
+        const warehouseQuantitiesRef = doc(
+          db,
+          `companies/${companyId}/warehouse_quantities`,
+          item.productId
+        );
+
+        // Récupérer le document actuel s'il existe
+        const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+        let quantities: any[] = [];
+        if (warehouseQuantitiesDoc.exists()) {
+          quantities = warehouseQuantitiesDoc.data().quantities || [];
+        }
+
+        // Mettre à jour la quantité pour ce dépôt
+        const updatedQuantities = quantities.map((q: any) =>
+          q.warehouseId === primaryWarehouseId
+            ? { ...q, quantity: newPrimaryStock }
+            : q
+        );
+
+        // Si le dépôt n'est pas dans la liste, l'ajouter
+        if (!updatedQuantities.some((q: any) => q.warehouseId === primaryWarehouseId)) {
+          updatedQuantities.push({
+            warehouseId: primaryWarehouseId,
+            warehouseName: 'Boutique', // TODO: Récupérer le nom depuis la collection warehouses
+            quantity: newPrimaryStock,
+          });
+        }
+
+        transaction.set(warehouseQuantitiesRef, {
+          productId: item.productId,
+          quantities: updatedQuantities,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
       }
 
       // 4. Retourner les données de la facture créée

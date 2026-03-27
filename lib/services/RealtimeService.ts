@@ -219,12 +219,15 @@ class RealtimeService {
   enrichProductWithWarehouses(product: Product): Product {
     const cached = this.state.warehouseQuantitiesCache.get(product.id);
     if (cached && cached.length > 0) {
+      const calculatedStock = cached.reduce((sum, wq) => sum + wq.quantity, 0);
+      console.log(`[enrichProductWithWarehouses] 📦 ${product.name}: ${cached.length} dépôts, stock Firestore = ${product.currentStock}, stock calculé = ${calculatedStock}`);
       return {
         ...product,
         warehouseQuantities: cached,
-        currentStock: cached.reduce((sum, wq) => sum + wq.quantity, 0),
+        currentStock: calculatedStock, // PRIO: Doit être APRÈS ...product pour écraser la valeur Firestore
       };
     }
+    console.log(`[enrichProductWithWarehouses] ⚠️ ${product.name}: Pas de warehouseQuantities dans le cache (currentStock = ${product.currentStock})`);
     return product;
   }
 
@@ -894,7 +897,7 @@ class RealtimeService {
                   createdAt: doc.data().createdAt?.toDate() || new Date(),
                 }));
 
-                const amountPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+                const amountPaid = payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
                 const remainingAmount = credit.amount - amountPaid;
 
                 // Mettre en cache pour les mises à jour incrémentales
@@ -1031,7 +1034,7 @@ class RealtimeService {
               createdAt: data.createdAt?.toDate() || new Date(),
               updatedAt: data.updatedAt?.toDate() || new Date(),
             };
-          });
+          }) as any[];
 
           suppliers.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
 
@@ -1158,7 +1161,7 @@ class RealtimeService {
                   createdAt: doc.data().createdAt?.toDate() || new Date(),
                 }));
 
-                const amountPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+                const amountPaid = payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
                 const remainingAmount = credit.amount - amountPaid;
 
                 // Mettre en cache pour les mises à jour incrémentales
@@ -1462,27 +1465,21 @@ class RealtimeService {
             this.cacheWarehouseQuantities(doc.id, quantities);
           });
 
-          // Enrichir les produits avec leurs warehouseQuantities
+          // ✅ Maintenant que le cache est peuplé, ré-enrichir tous les produits
           const products = queryClient.getQueryData<Product[]>(
             ['companies', companyId, 'products']
           ) || [];
 
           if (products.length > 0) {
-            const enrichedProducts = products.map((product) => {
-              const quantities = warehouseQuantitiesMap.get(product.id) || [];
-              // Calculer currentStock comme la SOMME des warehouseQuantities
-              const calculatedStock = quantities.reduce((sum: number, wq: WarehouseQuantity) => sum + wq.quantity, 0);
+            console.log(`[RealtimeService] 🔄 Ré-enrichissement de ${products.length} produits avec le cache maintenant peuplé...`);
 
-              return {
-                ...product,
-                warehouseQuantities: quantities,
-                currentStock: calculatedStock,
-              };
+            const reEnrichedProducts = products.map((product) => {
+              return this.enrichProductWithWarehouses(product);
             });
 
             queryClient.setQueryData(
               ['companies', companyId, 'products'],
-              enrichedProducts
+              reEnrichedProducts
             );
 
             // 🔄 Force React Query à déclencher un re-render
@@ -1491,7 +1488,7 @@ class RealtimeService {
               refetchType: 'none', // Ne pas recharger depuis Firestore, juste notifier les subscribers
             });
 
-            console.log(`[RealtimeService] ✅ ${enrichedProducts.length} produits enrichis avec leurs warehouse quantities`);
+            console.log(`[RealtimeService] ✅ ${reEnrichedProducts.length} produits ré-enrichis avec leurs warehouse quantities`);
           }
 
           return;
@@ -1526,17 +1523,15 @@ class RealtimeService {
               switch (change.type) {
                 case 'added':
                 case 'modified':
-                  // Recalculer currentStock comme la SOMME des warehouseQuantities
-                  const calculatedStock = quantities.reduce((sum: number, wq: WarehouseQuantity) => sum + wq.quantity, 0);
-
-                  updatedProducts[productIndex] = {
-                    ...updatedProducts[productIndex],
-                    warehouseQuantities: quantities,
-                    currentStock: calculatedStock,
-                  };
-                  console.log(`[RealtimeService] 📦 Produit ${productId} mis à jour avec ${quantities.length} dépôt(s), stock total = ${calculatedStock}`);
+                  // 🔄 Mettre à jour le cache PUIS enrichir le produit
+                  this.cacheWarehouseQuantities(productId, quantities);
+                  const enrichedProduct = this.enrichProductWithWarehouses(updatedProducts[productIndex]);
+                  updatedProducts[productIndex] = enrichedProduct;
+                  console.log(`[RealtimeService] 📦 Produit ${productId} mis à jour avec ${quantities.length} dépôt(s), stock total = ${enrichedProduct.currentStock}`);
                   break;
                 case 'removed':
+                  // Supprimer du cache et réinitialiser le produit
+                  this.state.warehouseQuantitiesCache.delete(productId);
                   updatedProducts[productIndex] = {
                     ...updatedProducts[productIndex],
                     warehouseQuantities: [],

@@ -296,22 +296,25 @@ export function useStockMovements() {
         );
         const stockSnapshot = await getDocs(stockRef);
 
+        // Calculer la nouvelle quantité pour les deux cas
+        let newQuantity: number;
         if (stockSnapshot.empty) {
           // Créer la répartition de stock si elle n'existe pas (cas des produits importés)
+          newQuantity = quantity; // Nouveau stock = quantité entrante
           const newStockRef = doc(collection(db, SUB_COLLECTIONS.productStockLocations(user.currentCompanyId, productId)));
           transaction.set(newStockRef, {
             productId,
             warehouseId,
-            quantity,
+            quantity: newQuantity,
             createdAt: new Date(),
             updatedAt: new Date(),
           });
-          console.log(`[recordInMovement] Création répartition de stock pour produit ${productId} dans dépôt ${warehouseId}: ${quantity}`);
+          console.log(`[recordInMovement] Création répartition de stock pour produit ${productId} dans dépôt ${warehouseId}: ${newQuantity}`);
         } else {
           // Mettre à jour la répartition existante
           const stockDoc = stockSnapshot.docs[0];
           const stockData = stockDoc.data();
-          const newQuantity = stockData.quantity + quantity;
+          newQuantity = stockData.quantity + quantity; // Nouveau stock = existant + entrant
 
           transaction.update(stockDoc.ref, {
             quantity: newQuantity,

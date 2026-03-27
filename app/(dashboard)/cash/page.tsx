@@ -149,7 +149,7 @@ export default function CashPage() {
     if (!deletingCashRegister || !user?.currentCompanyId) return;
 
     try {
-      await deleteCashRegister(deletingCashRegister.id, user.currentCompanyId);
+      await deleteCashRegister(deletingCashRegister.id);
       toast.success('Caisse supprimée avec succès');
       setDeletingCashRegister(null);
       // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement

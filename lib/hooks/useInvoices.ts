@@ -632,58 +632,71 @@ export function useInvoices() {
             );
             const primaryStockSnap = await getDocs(primaryStockRef);
 
+            let newPrimaryQuantity: number;
             if (!primaryStockSnap.empty) {
-              // Déduire du dépôt principal
+              // Cas normal : déduire du stock existant
               const primaryStockDoc = primaryStockSnap.docs[0];
               const primaryStockData = primaryStockDoc.data();
-              const newPrimaryQuantity = primaryStockData.quantity - item.quantity;
+              newPrimaryQuantity = primaryStockData.quantity - item.quantity;
 
               transaction.update(primaryStockDoc.ref, {
                 quantity: newPrimaryQuantity,
                 updatedAt: new Date(),
               });
 
-              // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
-              const warehouseQuantitiesRef = doc(
-                db,
-                `companies/${user.currentCompanyId}/warehouse_quantities`,
-                item.productId
-              );
-
-              // Récupérer le document actuel s'il existe
-              const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
-
-              let quantities: any[] = [];
-              if (warehouseQuantitiesDoc.exists()) {
-                quantities = warehouseQuantitiesDoc.data().quantities || [];
-              }
-
-              // Mettre à jour la quantité pour ce dépôt
-              const updatedQuantities = quantities.map((q: any) =>
-                q.warehouseId === primaryWarehouseId
-                  ? { ...q, quantity: newPrimaryQuantity }
-                  : q
-              );
-
-              // Si le dépôt n'est pas dans la liste, l'ajouter
-              if (!updatedQuantities.some((q: any) => q.warehouseId === primaryWarehouseId)) {
-                updatedQuantities.push({
-                  warehouseId: primaryWarehouseId,
-                  warehouseName: primaryWarehouseId, // TODO: Récupérer le nom depuis la collection warehouses
-                  quantity: newPrimaryQuantity,
-                });
-              }
-
-              transaction.set(warehouseQuantitiesRef, {
-                productId: item.productId,
-                quantities: updatedQuantities,
-                updatedAt: serverTimestamp(),
-              }, { merge: true });
-
               console.log(`[createInvoice] Déduit ${item.quantity} de ${item.productName} du dépôt principal (${primaryWarehouseId}): ${primaryStockData.quantity} → ${newPrimaryQuantity}`);
             } else {
-              console.log(`[createInvoice] ⚠️ Aucun stock_location trouvé pour le dépôt principal ${primaryWarehouseId}`);
+              // Cas anormal : pas de stock_location pour ce dépôt
+              // Créer une nouvelle entrée avec un stock négatif pour tracer l'incohérence
+              newPrimaryQuantity = -item.quantity;
+              const newStockRef = doc(collection(db, `companies/${user.currentCompanyId}/products/${item.productId}/stock_locations`));
+              transaction.set(newStockRef, {
+                productId: item.productId,
+                warehouseId: primaryWarehouseId,
+                quantity: newPrimaryQuantity,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              });
+              console.warn(`[createInvoice] ⚠️ Stock_location manquant pour ${item.productName} dans dépôt ${primaryWarehouseId}. Création avec stock négatif: ${newPrimaryQuantity}`);
             }
+
+            // 🔄 TOUJOURS mettre à jour warehouse_quantities (collection centralisée)
+            // Même si stock_location n'existait pas, on doit garantir la cohérence
+            const warehouseQuantitiesRef = doc(
+              db,
+              `companies/${user.currentCompanyId}/warehouse_quantities`,
+              item.productId
+            );
+
+            // Récupérer le document actuel s'il existe
+            const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+            let quantities: any[] = [];
+            if (warehouseQuantitiesDoc.exists()) {
+              quantities = warehouseQuantitiesDoc.data().quantities || [];
+            }
+
+            // Mettre à jour la quantité pour ce dépôt
+            const updatedQuantities = quantities.map((q: any) =>
+              q.warehouseId === primaryWarehouseId
+                ? { ...q, quantity: newPrimaryQuantity }
+                : q
+            );
+
+            // Si le dépôt n'est pas dans la liste, l'ajouter
+            if (!updatedQuantities.some((q: any) => q.warehouseId === primaryWarehouseId)) {
+              updatedQuantities.push({
+                warehouseId: primaryWarehouseId,
+                warehouseName: primaryWarehouseId, // TODO: Récupérer le nom depuis la collection warehouses
+                quantity: newPrimaryQuantity,
+              });
+            }
+
+            transaction.set(warehouseQuantitiesRef, {
+              productId: item.productId,
+              quantities: updatedQuantities,
+              updatedAt: serverTimestamp(),
+            }, { merge: true });
           }
 
           // Créer le mouvement de stock (sortie) depuis le dépôt principal

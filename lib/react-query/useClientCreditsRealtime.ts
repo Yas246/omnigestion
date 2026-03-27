@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { realtimeService } from '@/lib/services/RealtimeService';
 import { collection, query, getDocs } from 'firebase/firestore';
@@ -47,7 +47,7 @@ export function useClientCreditsRealtime() {
 /**
  * Charge les payments pour tous les crédits clients et les met en cache
  */
-async function loadClientCreditPayments(queryClient: any, companyId: string) {
+async function loadClientCreditPayments(queryClient: QueryClient, companyId: string) {
   try {
     // Récupérer tous les crédits depuis le cache
     const credits = queryClient.getQueryData<any[]>(
@@ -60,7 +60,7 @@ async function loadClientCreditPayments(queryClient: any, companyId: string) {
     }
 
     // Vérifier si les payments sont déjà chargés pour TOUS les crédits
-    const allHavePayments = credits.every(credit => credit.hasOwnProperty('payments'));
+    const allHavePayments = credits.every((credit: any) => credit.hasOwnProperty('payments'));
     if (allHavePayments) {
       console.log('[useClientCreditsRealtime] ♻️ Payments déjà chargés pour tous les crédits');
       return;
@@ -70,7 +70,7 @@ async function loadClientCreditPayments(queryClient: any, companyId: string) {
 
     // Pour chaque crédit, charger ses payments
     const creditsWithPayments = await Promise.all(
-      credits.map(async (credit) => {
+      credits.map(async (credit: any) => {
         try {
           const paymentsSnapshot = await getDocs(
             query(
@@ -90,8 +90,8 @@ async function loadClientCreditPayments(queryClient: any, companyId: string) {
           return {
             ...credit,
             payments,
-            amountPaid: payments.reduce((sum, p) => sum + (p.amount || 0), 0),
-            remainingAmount: credit.amount - payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+            amountPaid: payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
+            remainingAmount: credit.amount - payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0),
           };
         } catch (err) {
           console.error(`[useClientCreditsRealtime] ❌ Erreur chargement payments pour crédit ${credit.id}:`, err);
