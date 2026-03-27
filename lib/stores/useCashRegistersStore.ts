@@ -331,6 +331,13 @@ export const useCashRegistersStore = create<CashStore>()(
 
             console.log('[createMovement] Transaction - Solde Firestore avant:', firestoreBalance);
 
+            // Vérifier le solde pour les sorties et transferts
+            if (movement.type === 'out' || (movement.type === 'transfer' && movement.targetCashRegisterId)) {
+              if (firestoreBalance < movement.amount) {
+                throw new Error(`Solde insuffisant (${firestoreBalance.toLocaleString('fr-FR')} FCFA disponibles pour ${movement.amount.toLocaleString('fr-FR')} FCFA demandés)`);
+              }
+            }
+
             // Créer le mouvement - IMPORTANT: Filtrer les champs undefined
             const movementData: any = {
               id: movementRef.id,
@@ -363,15 +370,10 @@ export const useCashRegistersStore = create<CashStore>()(
 
           console.log('[createMovement] ✅ Transaction réussie', { movementId: movementRef.id });
 
-          // Recharger pour confirmer et synchroniser
-          await get().fetchMovements(movement.cashRegisterId, true);
-          await get().fetchCashRegisters(targetCompanyId);
-
           return movementRef.id;
         } catch (error) {
-          // Rollback optimistic update
+          // Rollback optimistic update - onSnapshot se chargera de resynchroniser
           console.error('[createMovement] ❌ Erreur, rollback en cours', error);
-          await get().fetchMovements(get().selectedCashRegisterId || undefined, true);
           set({ error: (error as Error).message });
           throw error;
         } finally {

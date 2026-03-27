@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { getMessaging } from 'firebase-admin/messaging';
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/api-auth';
 import type { PushNotification } from '@/types';
 
 /**
@@ -11,6 +12,12 @@ import type { PushNotification } from '@/types';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Vérifier l'authentification
+    const authUser = await getAuthenticatedUser(request);
+    if (!authUser) {
+      return unauthorizedResponse();
+    }
+
     const notification: PushNotification = await request.json();
     console.log('[API Notifications] Notification reçue:', notification);
 
@@ -171,7 +178,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Erreur lors de l\'envoi de la notification:', error);
     return NextResponse.json(
-      { error: 'Erreur lors de l\'envoi de la notification', details: error.message },
+      { error: 'Erreur lors de l\'envoi de la notification' },
       { status: 500 }
     );
   }

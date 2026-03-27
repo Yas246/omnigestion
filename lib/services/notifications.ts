@@ -3,6 +3,39 @@
  * Permet d'envoyer des notifications pour les ventes et alertes de stock
  */
 
+import { auth } from '@/lib/firebase';
+
+/**
+ * Récupère le token d'authentification Firebase de l'utilisateur courant
+ */
+async function getAuthToken(): Promise<string | null> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return null;
+  try {
+    return await currentUser.getIdToken();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Helper pour faire un fetch authentifié vers l'API notifications
+ */
+async function authedFetch(url: string, options: RequestInit): Promise<Response> {
+  const token = await getAuthToken();
+  if (!token) {
+    throw new Error('Non authentifié');
+  }
+
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+}
+
 /**
  * Données pour une notification de nouvelle vente
  */
@@ -33,12 +66,12 @@ export interface StockAlertData {
  */
 export async function notifyNewSale(data: SaleNotificationData, companyId: string) {
   try {
-    const response = await fetch('/api/notifications/send', {
+    const response = await authedFetch('/api/notifications/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'new_sale',
-        title: '🎉 Nouvelle vente enregistrée',
+        title: '\u{1F389} Nouvelle vente enregistr\u00E9e',
         body: `Facture ${data.invoiceNumber} - ${data.total.toLocaleString('fr-FR')} FCFA\nPar: ${data.employeeName}${data.clientName ? `\nClient: ${data.clientName}` : ''}`,
         data: {
           invoiceId: data.invoiceId,
@@ -87,12 +120,12 @@ export async function notifyLowStock(data: StockAlertData, companyId: string) {
   try {
     const warehouseInfo = data.warehouseName ? ` à ${data.warehouseName}` : '';
 
-    const response = await fetch('/api/notifications/send', {
+    const response = await authedFetch('/api/notifications/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'stock_alert',
-        title: `⚠️ Stock faible: ${data.productName}`,
+        title: `\u26A0\uFE0F Stock faible: ${data.productName}`,
         body: `Stock actuel: ${data.currentStock} (seuil: ${data.threshold})${warehouseInfo}`,
         data: {
           productId: data.productId,
@@ -141,12 +174,12 @@ export async function notifyOutOfStock(data: Omit<StockAlertData, 'currentStock'
   try {
     const warehouseInfo = data.warehouseName ? ` à ${data.warehouseName}` : '';
 
-    const response = await fetch('/api/notifications/send', {
+    const response = await authedFetch('/api/notifications/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'stock_alert',
-        title: `🚨 Stock épuisé: ${data.productName}`,
+        title: `\u{1F6A8} Stock \u00E9puis\u00E9: ${data.productName}`,
         body: `Produit en rupture de stock${warehouseInfo}`,
         data: {
           productId: data.productId,

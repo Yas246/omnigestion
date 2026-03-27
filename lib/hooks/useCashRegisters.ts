@@ -241,7 +241,20 @@ export function useCashRegisters() {
   const createMovement = async (data: CashMovementInput) => {
     if (!user?.currentCompanyId) throw new Error('Utilisateur non connecté');
 
+    // Validation du montant
+    if (!data.amount || data.amount <= 0) {
+      throw new Error('Le montant doit être supérieur à 0');
+    }
+
     try {
+      // Vérifier le solde pour les sorties et transferts
+      if (data.type === 'out' || data.type === 'transfer') {
+        const currentBalance = await calculateBalance(data.cashRegisterId);
+        if (currentBalance < data.amount) {
+          throw new Error(`Solde insuffisant dans la caisse (${currentBalance.toLocaleString('fr-FR')} FCFA disponibles pour ${data.amount.toLocaleString('fr-FR')} FCFA demandés)`);
+        }
+      }
+
       await runTransaction(db, async (transaction) => {
         // Créer le mouvement principal
         const movementsRef = collection(db, COLLECTIONS.companyCashMovements(user.currentCompanyId));

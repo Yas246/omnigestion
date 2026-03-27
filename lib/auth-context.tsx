@@ -50,6 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (firebaseUser: User | null) => {
         if (firebaseUser) {
           try {
+            // Créer le cookie de session pour le middleware
+            const idToken = await firebaseUser.getIdToken();
+            document.cookie = `firebase-session=${idToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Strict`;
+
             // Récupérer les données utilisateur depuis Firestore
             const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
 
@@ -287,6 +291,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOutUser = async () => {
     setError(null);
     try {
+      // Supprimer le cookie de session
+      document.cookie = 'firebase-session=; path=/; max-age=0; SameSite=Strict';
       await firebaseSignOut(auth);
     } catch (err: any) {
       console.error('Erreur de déconnexion:', err);

@@ -13,7 +13,7 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { db, COLLECTIONS } from '@/lib/firebase';
+import { db, COLLECTIONS, auth } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import type { Company, Settings, Warehouse, InvoiceSettings, StockSettings, BackupSettings, SystemSettings } from '@/types';
 
@@ -98,8 +98,17 @@ export function useSettings() {
       formData.append('file', file);
 
       // Upload via l'API Cloudinary
+      // Récupérer le token d'authentification
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      if (!token) {
+        throw new Error('Non authentifié');
+      }
+
       const response = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       });
 

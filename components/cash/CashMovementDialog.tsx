@@ -6,15 +6,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { useCashRegisters, useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
+import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 
 const movementSchema = z.object({
@@ -56,12 +54,12 @@ interface CashMovementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   cashRegisterId?: string | null;
+  cashRegisters: any[];
   onSuccess?: () => void;
 }
 
-export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSuccess }: CashMovementDialogProps) {
+export function CashMovementDialog({ open, onOpenChange, cashRegisterId, cashRegisters, onSuccess }: CashMovementDialogProps) {
   const { user } = useAuth();
-  const cashRegisters = useCashRegisters();
   const createMovement = useCashRegistersStore((state) => state.createMovement);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -80,7 +78,6 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSucce
   const movementType = form.watch('type') as 'in' | 'out' | 'transfer';
   const isTransfer = movementType === 'transfer';
 
-  // Réinitialiser le formulaire quand la boîte s'ouvre
   useEffect(() => {
     if (open) {
       form.reset({
@@ -146,7 +143,6 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSucce
                   <FormLabel>Type de mouvement</FormLabel>
                   <Select onValueChange={(value) => {
                     field.onChange(value);
-                    // Réinitialiser la catégorie quand le type change
                     if (value === 'transfer') {
                       form.setValue('category', 'transfer');
                     } else if (value === 'in') {
@@ -154,7 +150,7 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSucce
                     } else {
                       form.setValue('category', 'expense');
                     }
-                  }} defaultValue={field.value}>
+                  }} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionnez le type" />
@@ -178,7 +174,7 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSucce
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Caisse {isTransfer ? 'source' : ''}</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger disabled={!!cashRegisterId}>
                         <SelectValue placeholder="Sélectionnez la caisse" />
@@ -205,7 +201,7 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSucce
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Caisse destination</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Sélectionnez la caisse de destination" />
@@ -257,7 +253,7 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, onSucce
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Catégorie</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isTransfer}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Sélectionnez la catégorie" />

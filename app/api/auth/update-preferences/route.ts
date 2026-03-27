@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/api-auth';
 import type { UserPreferences } from '@/types';
 
 export async function PUT(req: NextRequest) {
   try {
+    // Vérifier l'authentification
+    const authUser = await getAuthenticatedUser(req);
+    if (!authUser) {
+      return unauthorizedResponse();
+    }
+
     const body = await req.json();
     const { userId, preferences } = body;
+
+    // L'utilisateur ne peut modifier que ses propres préférences
+    if (userId !== authUser.uid) {
+      return NextResponse.json(
+        { error: 'Vous ne pouvez modifier que vos propres préférences' },
+        { status: 403 }
+      );
+    }
 
     // Validation
     if (!userId) {
@@ -44,7 +59,7 @@ export async function PUT(req: NextRequest) {
     console.error('Erreur lors de la mise à jour des préférences:', error);
 
     return NextResponse.json(
-      { error: error.message || 'Erreur lors de la mise à jour des préférences' },
+      { error: 'Erreur lors de la mise à jour des préférences' },
       { status: 500 }
     );
   }

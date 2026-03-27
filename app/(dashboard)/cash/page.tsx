@@ -382,6 +382,7 @@ export default function CashPage() {
           if (!open) setSelectedCashRegister(null);
         }}
         cashRegisterId={selectedCashRegister}
+        cashRegisters={cashRegisters}
         onSuccess={() => {
           // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
           toast.success('Mouvement enregistré avec succès');

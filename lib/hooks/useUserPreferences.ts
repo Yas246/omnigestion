@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { auth } from '@/lib/firebase';
 import type { UserPreferences } from '@/types';
 
 export function useUserPreferences() {
@@ -15,10 +16,17 @@ export function useUserPreferences() {
       throw new Error('Utilisateur non connecté');
     }
 
+    // Récupérer le token d'authentification
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+    if (!token) {
+      throw new Error('Non authentifié');
+    }
+
     const response = await fetch('/api/auth/update-preferences', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         userId: user.id,

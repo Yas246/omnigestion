@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/api-auth';
 
 // Configuration de Cloudinary
 cloudinary.config({
@@ -10,6 +11,12 @@ cloudinary.config({
 
 export async function POST(request: NextRequest) {
   try {
+    // Vérifier l'authentification
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return unauthorizedResponse();
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
@@ -65,6 +72,12 @@ export async function POST(request: NextRequest) {
 // DELETE pour supprimer une image
 export async function DELETE(request: NextRequest) {
   try {
+    // Vérifier l'authentification
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return unauthorizedResponse();
+    }
+
     const { publicId } = await request.json();
 
     if (!publicId) {
