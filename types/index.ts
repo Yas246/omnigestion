@@ -438,6 +438,33 @@ export interface SupplierCreditPayment {
   createdAt: Date;
 }
 
+// ==================== PURCHASES ====================
+
+export interface PurchaseItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface Purchase {
+  id: string;
+  companyId: string;
+  supplierId: string;
+  supplierName: string;
+  purchaseNumber: string;
+  items: PurchaseItem[];
+  total: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: 'paid' | 'active' | 'partial';
+  paymentMethod: 'cash' | 'bank' | 'mobile' | 'credit';
+  notes?: string;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // ==================== AUDIT LOG ====================
 
 export type AuditAction =

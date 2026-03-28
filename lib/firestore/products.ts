@@ -93,26 +93,10 @@ export async function createProduct(
 
   const productId = docRef.id;
 
-  // 🔄 Créer les stock_locations et warehouse_quantities si fournis
+  // 🔄 Créer les warehouse_quantities si fournis
   if (data.warehouseQuantities && data.warehouseQuantities.length > 0) {
     await runTransaction(db, async (transaction) => {
-      // 1. Créer les stock_locations pour chaque entrepôt
-      for (const warehouseQty of data.warehouseQuantities!) {
-        const stockLocationRef = doc(
-          collection(db, `companies/${companyId}/products/${productId}/stock_locations`)
-        );
-
-        transaction.set(stockLocationRef, {
-          productId,
-          warehouseId: warehouseQty.warehouseId,
-          quantity: warehouseQty.quantity,
-          alertThreshold: data.alertThreshold || 0,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      }
-
-      // 2. Créer le document warehouse_quantities (collection centralisée)
+      // Créer le document warehouse_quantities (collection centralisée)
       const warehouseQuantitiesRef = doc(
         db,
         `companies/${companyId}/warehouse_quantities`,
@@ -132,7 +116,7 @@ export async function createProduct(
         updatedAt: serverTimestamp(),
       });
 
-      console.log(`[createProduct] ✅ Créé stock_locations et warehouse_quantities pour ${productId} avec ${quantities.length} dépôts`);
+      console.log(`[createProduct] ✅ Créé warehouse_quantities pour ${productId} avec ${quantities.length} dépôts`);
     });
   }
 
@@ -242,8 +226,8 @@ export async function fetchProducts(
 }
 
 /**
- * READ - Récupérer les stock_locations pour plusieurs produits
- * Optimisé pour éviter N+1 queries avec gestion d'erreurs robuste
+ * READ - Récupérer les warehouse_quantities pour plusieurs produits
+ * Lit depuis la collection centralisée warehouse_quantities
  */
 export async function fetchProductsStockLocations(
   companyId: string,
@@ -252,59 +236,31 @@ export async function fetchProductsStockLocations(
   console.log('[fetchProductsStockLocations] Début', { productIds: productIds.length });
 
   const result: Record<string, any[]> = {};
-  const errors: string[] = [];
   let successCount = 0;
 
-  // Traiter par lots de 10 pour éviter les timeouts
+  // Traiter par lots de 10 pour les requêtes Firestore 'in'
   const batchSize = 10;
   const batches = [];
-
   for (let i = 0; i < productIds.length; i += batchSize) {
     batches.push(productIds.slice(i, i + batchSize));
   }
 
-  console.log('[fetchProductsStockLocations] Traitement par lots', {
-    totalProducts: productIds.length,
-    numberOfBatches: batches.length,
-    batchSize,
-  });
-
-  // Traiter chaque lot
-  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-    const batch = batches[batchIndex];
-
-    console.log(`[fetchProductsStockLocations] Lot ${batchIndex + 1}/${batches.length}`, {
-      productsInBatch: batch.length,
-    });
-
-    // Traiter les produits du lot en parallèle
+  for (const batch of batches) {
     await Promise.all(
       batch.map(async (productId) => {
         try {
-          const snap = await getDocs(
-            query(collection(db, `companies/${companyId}/products/${productId}/stock_locations`))
-          );
+          const wqRef = doc(db, `companies/${companyId}/warehouse_quantities`, productId);
+          const wqSnap = await getDoc(wqRef);
 
-          result[productId] = snap.docs.map((doc) => {
-            const data = doc.data();
-            return {
-              warehouseId: data.warehouseId,
-              warehouseName: data.warehouseName || '',
-              quantity: data.quantity || 0,
-            };
-          });
+          if (wqSnap.exists()) {
+            result[productId] = wqSnap.data().quantities || [];
+          } else {
+            result[productId] = [];
+          }
 
           successCount++;
-
-          if (successCount % 10 === 0) {
-            console.log(`[fetchProductsStockLocations] Progression: ${successCount}/${productIds.length} produits chargés`);
-          }
         } catch (error) {
-          const errorMsg = `Erreur chargement stock_locations pour produit ${productId}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
-          console.error(`[fetchProductsStockLocations] ${errorMsg}`);
-          errors.push(errorMsg);
-
-          // Mettre un tableau vide pour ce produit pour éviter les erreurs de filtrage
+          console.error(`[fetchProductsStockLocations] Erreur pour produit ${productId}:`, error);
           result[productId] = [];
         }
       })
@@ -312,34 +268,27 @@ export async function fetchProductsStockLocations(
   }
 
   console.log('[fetchProductsStockLocations] Terminé', {
-    productsLoaded: Object.keys(result).length,
-    successCount,
-    errorsCount: errors.length,
-    errors: errors.length > 0 ? errors : undefined,
+    productsLoaded: successCount,
   });
 
   return result;
 }
 
 /**
- * READ - Récupérer les stock_locations pour un seul produit
+ * READ - Récupérer les warehouse_quantities pour un seul produit
  */
 export async function fetchProductStockLocations(
   companyId: string,
   productId: string
 ): Promise<Array<{ warehouseId: string; warehouseName: string; quantity: number }>> {
-  const snap = await getDocs(
-    query(collection(db, `companies/${companyId}/products/${productId}/stock_locations`))
-  );
+  const wqRef = doc(db, `companies/${companyId}/warehouse_quantities`, productId);
+  const wqSnap = await getDoc(wqRef);
 
-  return snap.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      warehouseId: data.warehouseId,
-      warehouseName: data.warehouseName || '',
-      quantity: data.quantity || 0,
-    };
-  });
+  if (!wqSnap.exists()) {
+    return [];
+  }
+
+  return wqSnap.data().quantities || [];
 }
 
 /**
@@ -379,6 +328,7 @@ export async function deleteProduct(companyId: string, productId: string): Promi
 
 /**
  * TRANSACTION - Mettre à jour le stock d'un produit dans un entrepôt spécifique
+ * Utilise uniquement warehouse_quantities (collection centralisée)
  */
 export async function updateProductStockInWarehouse(
   companyId: string,
@@ -387,115 +337,49 @@ export async function updateProductStockInWarehouse(
   quantityChange: number,
   transaction?: any
 ): Promise<void> {
-  const stockLocationsRef = collection(
+  const warehouseQuantitiesRef = doc(
     db,
-    `companies/${companyId}/products/${productId}/stock_locations`
+    `companies/${companyId}/warehouse_quantities`,
+    productId
   );
 
-  const q = query(stockLocationsRef, where('warehouseId', '==', warehouseId));
+  const doUpdate = async (txn: any) => {
+    const wqDoc = await getDoc(warehouseQuantitiesRef);
+
+    let quantities: any[] = [];
+    if (wqDoc.exists()) {
+      quantities = wqDoc.data().quantities || [];
+    }
+
+    const entry = quantities.find((q: any) => q.warehouseId === warehouseId);
+    const currentQuantity = entry?.quantity || 0;
+    const newQuantity = currentQuantity + quantityChange;
+
+    const updatedQuantities = quantities.map((q: any) =>
+      q.warehouseId === warehouseId
+        ? { ...q, quantity: newQuantity }
+        : q
+    );
+
+    if (!updatedQuantities.some((q: any) => q.warehouseId === warehouseId)) {
+      updatedQuantities.push({
+        warehouseId,
+        warehouseName: warehouseId,
+        quantity: newQuantity,
+      });
+    }
+
+    txn.set(warehouseQuantitiesRef, {
+      productId,
+      quantities: updatedQuantities,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  };
 
   if (transaction) {
-    // À l'intérieur d'une transaction existante
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      const stockDoc = snap.docs[0];
-      const currentQuantity = stockDoc.data().quantity || 0;
-      const newQuantity = currentQuantity + quantityChange;
-
-      transaction.update(stockDoc.ref, {
-        quantity: newQuantity,
-        updatedAt: serverTimestamp(),
-      });
-
-      // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
-      const warehouseQuantitiesRef = doc(
-        db,
-        `companies/${companyId}/warehouse_quantities`,
-        productId
-      );
-
-      // Récupérer le document actuel s'il existe
-      const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
-
-      let quantities: any[] = [];
-      if (warehouseQuantitiesDoc.exists()) {
-        quantities = warehouseQuantitiesDoc.data().quantities || [];
-      }
-
-      // Mettre à jour la quantité pour ce dépôt
-      const updatedQuantities = quantities.map((q: any) =>
-        q.warehouseId === warehouseId
-          ? { ...q, quantity: newQuantity }
-          : q
-      );
-
-      // Si le dépôt n'est pas dans la liste, l'ajouter
-      if (!updatedQuantities.some((q: any) => q.warehouseId === warehouseId)) {
-        updatedQuantities.push({
-          warehouseId: warehouseId,
-          warehouseName: warehouseId, // TODO: Récupérer le nom depuis la collection warehouses
-          quantity: newQuantity,
-        });
-      }
-
-      transaction.set(warehouseQuantitiesRef, {
-        productId: productId,
-        quantities: updatedQuantities,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-    }
+    await doUpdate(transaction);
   } else {
-    // Nouvelle transaction
-    await runTransaction(db, async (txn) => {
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const stockDoc = snap.docs[0];
-        const currentQuantity = stockDoc.data().quantity || 0;
-        const newQuantity = currentQuantity + quantityChange;
-
-        txn.update(stockDoc.ref, {
-          quantity: newQuantity,
-          updatedAt: serverTimestamp(),
-        });
-
-        // 🔄 Mettre à jour warehouse_quantities (collection centralisée)
-        const warehouseQuantitiesRef = doc(
-          db,
-          `companies/${companyId}/warehouse_quantities`,
-          productId
-        );
-
-        // Récupérer le document actuel s'il existe
-        const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
-
-        let quantities: any[] = [];
-        if (warehouseQuantitiesDoc.exists()) {
-          quantities = warehouseQuantitiesDoc.data().quantities || [];
-        }
-
-        // Mettre à jour la quantité pour ce dépôt
-        const updatedQuantities = quantities.map((q: any) =>
-          q.warehouseId === warehouseId
-            ? { ...q, quantity: newQuantity }
-            : q
-        );
-
-        // Si le dépôt n'est pas dans la liste, l'ajouter
-        if (!updatedQuantities.some((q: any) => q.warehouseId === warehouseId)) {
-          updatedQuantities.push({
-            warehouseId: warehouseId,
-            warehouseName: warehouseId, // TODO: Récupérer le nom depuis la collection warehouses
-            quantity: newQuantity,
-          });
-        }
-
-        txn.set(warehouseQuantitiesRef, {
-          productId: productId,
-          quantities: updatedQuantities,
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      }
-    });
+    await runTransaction(db, doUpdate);
   }
 }
 

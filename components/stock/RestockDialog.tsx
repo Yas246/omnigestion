@@ -5,9 +5,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db, SUB_COLLECTIONS } from '@/lib/firebase';
-import { useAuth } from '@/lib/hooks/useAuth';
 import type { Product, Warehouse } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,7 +61,6 @@ export function RestockDialog({
   onRestock,
   isRestocking = false,
 }: RestockDialogProps) {
-  const { user } = useAuth();
   const [stockByWarehouse, setStockByWarehouse] = useState<Record<string, number>>({});
   const [loadingStocks, setLoadingStocks] = useState(true);
 
@@ -80,40 +76,19 @@ export function RestockDialog({
   const warehouseId = form.watch('warehouseId');
   const quantity = form.watch('quantity');
 
-  // Charger les répartitions de stock depuis Firestore
+  // Charger les répartitions de stock depuis les données du produit (warehouse_quantities)
   useEffect(() => {
-    const fetchStockLocations = async () => {
-      if (!user?.currentCompanyId || !product.id) {
-        setLoadingStocks(false);
-        return;
-      }
-
-      setLoadingStocks(true);
-      try {
-        const stockSnapshot = await getDocs(
-          query(
-            collection(db, SUB_COLLECTIONS.productStockLocations(user.currentCompanyId, product.id))
-          )
-        );
-
-        const stocks: Record<string, number> = {};
-        stockSnapshot.docs.forEach((doc) => {
-          const data = doc.data();
-          stocks[data.warehouseId] = data.quantity;
-        });
-
-        setStockByWarehouse(stocks);
-      } catch (error) {
-        console.error('Erreur lors du chargement des répartitions:', error);
-      } finally {
-        setLoadingStocks(false);
-      }
-    };
-
     if (open) {
-      fetchStockLocations();
+      const stocks: Record<string, number> = {};
+      if (product.warehouseQuantities) {
+        product.warehouseQuantities.forEach((wq) => {
+          stocks[wq.warehouseId] = wq.quantity;
+        });
+      }
+      setStockByWarehouse(stocks);
+      setLoadingStocks(false);
     }
-  }, [open, product.id, user?.currentCompanyId]);
+  }, [open, product.warehouseQuantities]);
 
   const currentStock = warehouseId ? (stockByWarehouse[warehouseId] ?? 0) : 0;
   const newStock = currentStock + quantity;

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Plus, DollarSign, Calendar, Package, User, Edit, Trash2 } from 'lucide-react';
 import { useSuppliersRealtime } from '@/lib/react-query/useSuppliersRealtime';
 import { useSupplierCreditsRealtime } from '@/lib/react-query/useSupplierCreditsRealtime';
+import { usePurchasesRealtime } from '@/lib/react-query/usePurchasesRealtime';
 import { useSuppliers } from '@/lib/hooks/useSuppliers'; // Garder pour les fonctions CRUD
 import { useSupplierCredits } from '@/lib/hooks/useSupplierCredits'; // Garder pour les fonctions CRUD
 import { usePermissions } from '@/lib/hooks/usePermissions';
@@ -41,7 +42,8 @@ function useDebounce(value: string, delay: number): string {
 }
 
 type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
-type TabType = 'suppliers' | 'credits';
+type PurchaseStatusFilter = 'all' | 'paid' | 'active' | 'partial';
+type TabType = 'suppliers' | 'credits' | 'purchases';
 
 export default function SuppliersPage() {
   const router = useRouter();
@@ -50,6 +52,7 @@ export default function SuppliersPage() {
   // NOUVEAUX hooks React Query + onSnapshot pour temps réel
   const { suppliers, isLoading: suppliersLoading } = useSuppliersRealtime();
   const { credits, isLoading: creditsLoading } = useSupplierCreditsRealtime();
+  const { purchases, isLoading: purchasesLoading } = usePurchasesRealtime();
 
   // Garder les anciens hooks pour les fonctions CRUD
   const { createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
@@ -64,6 +67,7 @@ export default function SuppliersPage() {
 
   const [activeTab, setActiveTab] = useState<TabType>('suppliers');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [purchaseStatusFilter, setPurchaseStatusFilter] = useState<PurchaseStatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCredit, setSelectedCredit] = useState<any>(null);
 
@@ -88,6 +92,15 @@ export default function SuppliersPage() {
       paid: { label: 'Payé', variant: 'outline' },
       overdue: { label: 'En retard', variant: 'destructive' },
       cancelled: { label: 'Annulé', variant: 'outline' },
+    };
+    return labels[status] || { label: status, variant: 'outline' };
+  };
+
+  const getPurchaseStatusLabel = (status: string) => {
+    const labels: Record<string, { label: string; variant: any }> = {
+      paid: { label: 'Payé', variant: 'outline' },
+      active: { label: 'Non payé', variant: 'destructive' },
+      partial: { label: 'Partiel', variant: 'default' },
     };
     return labels[status] || { label: status, variant: 'outline' };
   };
@@ -121,6 +134,22 @@ export default function SuppliersPage() {
       totalRemaining: credits.reduce((sum, c) => sum + (c.remainingAmount || 0), 0),
     };
   }, [credits]);
+
+  // Filtrage local pour les achats
+  const filteredPurchases = useMemo(() => {
+    return purchases.filter((purchase) => {
+      const matchesStatus =
+        purchaseStatusFilter === 'all' || purchase.status === purchaseStatusFilter;
+
+      const matchesSearch =
+        debouncedSearchQuery === '' ||
+        debouncedSearchQuery.length < 3 ||
+        purchase.supplierName?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        purchase.purchaseNumber?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [purchases, purchaseStatusFilter, debouncedSearchQuery]);
 
   const handlePayment = async (data: any) => {
     if (!selectedCredit) return;
@@ -235,6 +264,16 @@ export default function SuppliersPage() {
         >
           Crédits ({credits.length})
         </button>
+        <button
+          onClick={() => setActiveTab('purchases')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'purchases'
+              ? 'border-b-2 border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Achats ({purchases.length})
+        </button>
       </div>
 
       {activeTab === 'suppliers' ? (
@@ -313,7 +352,7 @@ export default function SuppliersPage() {
             )}
           </CardContent>
         </Card>
-      ) : (
+      ) : activeTab === 'credits' ? (
         /* Liste des crédits fournisseurs */
         <>
           {/* Statistiques */}
@@ -389,7 +428,7 @@ export default function SuppliersPage() {
                 </div>
               ) : filteredCredits.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  {debouncedSearchQuery ? 'Aucun crédit trouvé' : 'Aucun crédit trouvé'}
+                  Aucun crédit trouvé
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -453,6 +492,89 @@ export default function SuppliersPage() {
             </CardContent>
           </Card>
         </>
+      ) : (
+        /* Liste des achats */
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle>Achats fournisseurs</CardTitle>
+              <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
+                <Input
+                  placeholder="Rechercher fournisseur, n° achat... (min. 3 caractères)"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full sm:w-64"
+                />
+                <Select value={purchaseStatusFilter} onValueChange={(v: any) => setPurchaseStatusFilter(v)}>
+                  <SelectTrigger className="w-full sm:w-40">
+                    <SelectValue placeholder="Statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous</SelectItem>
+                    <SelectItem value="paid">Payé</SelectItem>
+                    <SelectItem value="active">Non payé</SelectItem>
+                    <SelectItem value="partial">Partiel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {purchasesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredPurchases.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Aucun achat trouvé
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {filteredPurchases.map((purchase) => (
+                  <div
+                    key={purchase.id}
+                    className="flex flex-wrap items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors sm:flex-nowrap sm:justify-between"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-medium">{purchase.supplierName}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {purchase.purchaseNumber}
+                        </span>
+                        <Badge variant={getPurchaseStatusLabel(purchase.status).variant}>
+                          {getPurchaseStatusLabel(purchase.status).label}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-muted-foreground">
+                          Total : {formatPrice(purchase.total || 0)} FCFA
+                        </span>
+                        <span className="text-[oklch(0.65_0.12_145)]">
+                          Payé : {formatPrice(purchase.paidAmount || 0)} FCFA
+                        </span>
+                        {purchase.remainingAmount > 0 && (
+                          <span className="text-[oklch(0.75_0.15_75)] font-medium">
+                            Reste : {formatPrice(purchase.remainingAmount || 0)} FCFA
+                          </span>
+                        )}
+                        <span className="text-muted-foreground">
+                          {purchase.items?.length || 0} article(s)
+                        </span>
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(purchase.createdAt), 'dd/MM/yyyy', { locale: fr })}
+                        </span>
+                      </div>
+                      {purchase.notes && (
+                        <p className="text-xs text-muted-foreground mt-1">{purchase.notes}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Dialogs */}

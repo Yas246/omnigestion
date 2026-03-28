@@ -87,6 +87,4 @@ export const SUB_COLLECTIONS = {
     `companies/${companyId}/invoices/${invoiceId}/lines`,
   creditPayments: (companyId: string, creditId: string, type: 'client' | 'supplier') =>
     `companies/${companyId}/${type}_credits/${creditId}/payments`,
-  productStockLocations: (companyId: string, productId: string) =>
-    `companies/${companyId}/products/${productId}/stock_locations`,
 } as const;

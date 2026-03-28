@@ -70,6 +70,10 @@ export const queryKeys = {
         ['companies', companyId, 'supplierCredits', creditId] as const,
     },
 
+    purchases: {
+      all: (companyId: string) => ['companies', companyId, 'purchases'] as const,
+    },
+
     settings: {
       current: (companyId: string) => ['companies', companyId, 'settings'] as const,
     },

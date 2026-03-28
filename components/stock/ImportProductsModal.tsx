@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { FileSpreadsheet, Check, X, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
-import { db, COLLECTIONS, SUB_COLLECTIONS } from '@/lib/firebase';
+import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { parseProductFile, type ParsedProduct } from '@/lib/utils/excelParser';
@@ -199,18 +199,7 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
 
           // Créer la répartition de stock dans le dépôt par défaut
           if (defaultWarehouseId) {
-            const stockLocationRef = doc(
-              collection(db, SUB_COLLECTIONS.productStockLocations(user.currentCompanyId, productId))
-            );
-            batch.set(stockLocationRef, {
-              productId,
-              warehouseId: defaultWarehouseId,
-              quantity: Number(parsedProduct.quantity) || 0,
-              alertThreshold: Number(parsedProduct.alertThreshold) || 5,
-              updatedAt: Timestamp.now(),
-            });
-
-            // 🔄 Créer le document warehouse_quantities (collection centralisée)
+            // Créer le document warehouse_quantities (collection centralisée)
             const warehouseQuantitiesRef = doc(
               db,
               `companies/${user.currentCompanyId}/warehouse_quantities`,
@@ -220,7 +209,7 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
               productId: productId,
               quantities: [{
                 warehouseId: defaultWarehouseId,
-                warehouseName: defaultWarehouseId, // TODO: Récupérer le nom depuis la collection warehouses
+                warehouseName: defaultWarehouseId,
                 quantity: Number(parsedProduct.quantity) || 0,
               }],
               createdAt: Timestamp.now(),

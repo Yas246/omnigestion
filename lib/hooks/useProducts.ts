@@ -13,8 +13,10 @@ import {
   where,
   orderBy,
   onSnapshot,
+  runTransaction,
+  serverTimestamp,
 } from 'firebase/firestore';
-import { db, COLLECTIONS, SUB_COLLECTIONS } from '@/lib/firebase';
+import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useSettings } from './useSettings';
 import type { Product } from '@/types';
@@ -139,31 +141,45 @@ export function useProducts() {
 
       const productId = docRef.id;
 
-      // Créer les répartitions de stock si en mode avancé
+      // Créer les warehouse_quantities si en mode avancé
       if (stockAllocations && stockAllocations.length > 0) {
-        for (const allocation of stockAllocations) {
-          await addDoc(
-            collection(db, SUB_COLLECTIONS.productStockLocations(user.currentCompanyId, productId)),
-            {
-              productId,
-              warehouseId: allocation.warehouseId,
-              quantity: allocation.quantity,
-              alertThreshold: productData.alertThreshold,
-              updatedAt: new Date(),
-            }
+        await runTransaction(db, async (transaction) => {
+          const warehouseQuantitiesRef = doc(
+            db,
+            `companies/${user.currentCompanyId}/warehouse_quantities`,
+            productId
           );
-        }
-      } else if (defaultWarehouseId) {
-        await addDoc(
-          collection(db, SUB_COLLECTIONS.productStockLocations(user.currentCompanyId, productId)),
-          {
+
+          transaction.set(warehouseQuantitiesRef, {
             productId,
-            warehouseId: defaultWarehouseId,
-            quantity: productData.currentStock,
-            alertThreshold: productData.alertThreshold,
-            updatedAt: new Date(),
-          }
-        );
+            quantities: stockAllocations.map(a => ({
+              warehouseId: a.warehouseId,
+              warehouseName: a.warehouseId,
+              quantity: a.quantity,
+            })),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        });
+      } else if (defaultWarehouseId) {
+        await runTransaction(db, async (transaction) => {
+          const warehouseQuantitiesRef = doc(
+            db,
+            `companies/${user.currentCompanyId}/warehouse_quantities`,
+            productId
+          );
+
+          transaction.set(warehouseQuantitiesRef, {
+            productId,
+            quantities: [{
+              warehouseId: defaultWarehouseId,
+              warehouseName: defaultWarehouseId,
+              quantity: productData.currentStock,
+            }],
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        });
       }
 
       const newProduct: Product = {
@@ -280,7 +296,7 @@ export function useProducts() {
 
       const result = productsWithQuantities.map((p) => {
         // Calculer la somme des quantités par dépôt
-        const totalFromStockLocations = p.warehouseQuantities?.reduce((sum, wq) => sum + wq.quantity, 0) || 0;
+        const totalFromStockLocations = p.warehouseQuantities?.reduce((sum: number, wq: any) => sum + wq.quantity, 0) || 0;
 
         // Utiliser la somme SI elle existe et est > 0, sinon utiliser currentStock
         const displayQuantity = totalFromStockLocations > 0 ? totalFromStockLocations : p.currentStock;
@@ -299,19 +315,18 @@ export function useProducts() {
     const filtered = await Promise.all(
       products.map(async (product) => {
         try {
-          const stockSnapshot = await getDocs(
-            query(
-              collection(db, SUB_COLLECTIONS.productStockLocations(user.currentCompanyId, product.id)),
-              where('warehouseId', '==', warehouseId)
-            )
-          );
+          const wqRef = doc(db, `companies/${user.currentCompanyId}/warehouse_quantities`, product.id);
+          const wqSnap = await getDoc(wqRef);
 
-          if (!stockSnapshot.empty) {
-            const quantity = stockSnapshot.docs.reduce((sum, doc) => sum + doc.data().quantity, 0);
-            return {
-              ...product,
-              displayQuantity: quantity,
-            };
+          if (wqSnap.exists()) {
+            const quantities = wqSnap.data().quantities || [];
+            const entry = quantities.find((q: any) => q.warehouseId === warehouseId);
+            if (entry && entry.quantity > 0) {
+              return {
+                ...product,
+                displayQuantity: entry.quantity,
+              };
+            }
           }
 
           return null;
@@ -361,38 +376,20 @@ export function useProducts() {
     if (!user?.currentCompanyId || productsToLoad.length === 0) return productsToLoad;
 
     try {
-      const warehousesSnapshot = await getDocs(
-        collection(db, COLLECTIONS.companyWarehouses(user.currentCompanyId))
-      );
-      const warehousesMap = new Map(
-        warehousesSnapshot.docs.map(doc => [doc.id, doc.data()])
-      );
-
       console.log('[fetchProductStockLocations] Chargement pour', productsToLoad.length, 'produits');
 
       const productWithStock = await Promise.all(
         productsToLoad.map(async (product) => {
           try {
-            const stockSnapshot = await getDocs(
-              query(
-                collection(db, SUB_COLLECTIONS.productStockLocations(user.currentCompanyId, product.id))
-              )
-            );
+            const wqRef = doc(db, `companies/${user.currentCompanyId}/warehouse_quantities`, product.id);
+            const wqSnap = await getDoc(wqRef);
 
-            console.log(`[fetchProductStockLocations] ${product.name}: ${stockSnapshot.docs.length} stock_locations trouvés`);
+            const warehouseQuantities = wqSnap.exists()
+              ? (wqSnap.data().quantities || [])
+              : [];
 
-            const warehouseQuantities = stockSnapshot.docs.map((doc) => {
-              const warehouseData = warehousesMap.get(doc.data().warehouseId);
-              return {
-                warehouseId: doc.data().warehouseId,
-                warehouseName: warehouseData?.name || 'Entrepôt inconnu',
-                quantity: doc.data().quantity,
-              };
-            });
-
-            // Calculer la somme totale
-            const totalQuantity = warehouseQuantities.reduce((sum, wq) => sum + wq.quantity, 0);
-            console.log(`[fetchProductStockLocations] ${product.name}: Somme = ${totalQuantity} (${warehouseQuantities.map(w => `${w.warehouseName}: ${w.quantity}`).join(', ')})`);
+            const totalQuantity = warehouseQuantities.reduce((sum: number, wq: any) => sum + wq.quantity, 0);
+            console.log(`[fetchProductStockLocations] ${product.name}: Somme = ${totalQuantity} (${warehouseQuantities.map((w: any) => `${w.warehouseName}: ${w.quantity}`).join(', ')})`);
 
             return { ...product, warehouseQuantities };
           } catch (err) {

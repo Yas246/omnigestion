@@ -80,16 +80,57 @@ export function useSupplierPurchases() {
 
             // Si on ajoute au stock maintenant
             if (data.addToStockNow && data.warehouseId) {
-              const currentStock = productData.currentStock || 0;
-              const newStock = currentStock + item.quantity;
+              // 1. Mettre à jour warehouse_quantities d'abord (source de vérité)
+              const warehouseQuantitiesRef = doc(
+                db,
+                `companies/${user.currentCompanyId}/warehouse_quantities`,
+                item.productId
+              );
+              const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+              let quantities: any[] = [];
+              if (warehouseQuantitiesDoc.exists()) {
+                quantities = warehouseQuantitiesDoc.data().quantities || [];
+              }
+
+              const existingQty = quantities.find((q: any) => q.warehouseId === data.warehouseId);
+              const newQuantity = (existingQty?.quantity || 0) + item.quantity;
+
+              const updatedQuantities = quantities.map((q: any) =>
+                q.warehouseId === data.warehouseId
+                  ? { ...q, quantity: newQuantity }
+                  : q
+              );
+
+              if (!updatedQuantities.some((q: any) => q.warehouseId === data.warehouseId)) {
+                let warehouseName = data.warehouseId;
+                const warehouseDoc = await getDoc(doc(db, `companies/${user.currentCompanyId}/warehouses`, data.warehouseId));
+                if (warehouseDoc.exists()) {
+                  warehouseName = warehouseDoc.data().name;
+                }
+                updatedQuantities.push({
+                  warehouseId: data.warehouseId,
+                  warehouseName,
+                  quantity: newQuantity,
+                });
+              }
+
+              transaction.set(warehouseQuantitiesRef, {
+                productId: item.productId,
+                quantities: updatedQuantities,
+                updatedAt: serverTimestamp(),
+              }, { merge: true });
+
+              // 2. Calculer le stock total depuis warehouse_quantities et mettre à jour le statut
+              const newTotalStock = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
+              const newStatus = newTotalStock === 0 ? 'out' : newTotalStock <= (productData.alertThreshold || 10) ? 'low' : 'ok';
 
               transaction.update(productRef, {
-                currentStock: newStock,
-                status: newStock === 0 ? 'out' : newStock <= (productData.alertThreshold || 10) ? 'low' : 'ok',
+                status: newStatus,
                 updatedAt: new Date(),
               });
 
-              // Créer un mouvement de stock
+              // 3. Créer un mouvement de stock
               const stockMovementsRef = collection(db, COLLECTIONS.companyStockMovements(user.currentCompanyId));
               const movementRef = doc(stockMovementsRef);
               transaction.set(movementRef, {

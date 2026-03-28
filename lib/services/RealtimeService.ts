@@ -42,6 +42,7 @@ interface RealtimeState {
   settingsListener: ListenerUnsubscribe | null;
   stockMovementsListener: ListenerUnsubscribe | null;
   warehouseQuantitiesListener: ListenerUnsubscribe | null;
+  purchasesListener: ListenerUnsubscribe | null;
 
   currentCompanyId: string | null;
 
@@ -74,6 +75,7 @@ class RealtimeService {
     settingsListener: null,
     stockMovementsListener: null,
     warehouseQuantitiesListener: null,
+    purchasesListener: null,
 
     currentCompanyId: null,
 
@@ -1099,6 +1101,110 @@ class RealtimeService {
   }
 
   /**
+   * Démarre l'écoute des achats fournisseurs (si pas déjà démarrée)
+   */
+  startPurchasesListener(queryClient: QueryClient, companyId: string) {
+    // Si déjà connecté à la même compagnie, rien à faire
+    if (this.state.purchasesListener && this.state.currentCompanyId === companyId) {
+      console.log('[RealtimeService] ♻️ Achats déjà en écoute');
+      return;
+    }
+
+    // Arrêter l'écoute précédente
+    if (this.state.purchasesListener) {
+      console.log('[RealtimeService] 🔄 Arrêt écoute achats (changement compagnie)');
+      this.state.purchasesListener();
+      this.state.purchasesListener = null;
+    }
+
+    console.log('[RealtimeService] 🔄 Démarrage écoute achats (GLOBAL)');
+
+    const q = query(
+      collection(db, `companies/${companyId}/purchases`),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, {
+      next: (snapshot) => {
+        const changes = snapshot.docChanges();
+
+        // Snapshot initial
+        if (changes.length === 0) {
+          const purchases = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              createdAt: data.createdAt?.toDate() || new Date(),
+              updatedAt: data.updatedAt?.toDate() || new Date(),
+            };
+          }) as any[];
+
+          queryClient.setQueryData(
+            ['companies', companyId, 'purchases'],
+            purchases
+          );
+          console.log(`[RealtimeService] ✅ ${purchases.length} achats chargés (GLOBAL)`);
+          return;
+        }
+
+        // Changements incrémentiels
+        console.log(`[RealtimeService] 📊 ${changes.length} changement(s) achats`);
+
+        const currentPurchases = queryClient.getQueryData<any>(
+          ['companies', companyId, 'purchases']
+        );
+
+        let updatedPurchases = Array.isArray(currentPurchases) ? [...currentPurchases] : [];
+
+        changes.forEach((change) => {
+          const data = change.doc.data();
+          const purchase = {
+            id: change.doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+
+          switch (change.type) {
+            case 'added':
+              if (!updatedPurchases.find(p => p.id === purchase.id)) {
+                updatedPurchases.push(purchase);
+              }
+              break;
+            case 'modified':
+              updatedPurchases = updatedPurchases.map(p =>
+                p.id === purchase.id ? purchase : p
+              );
+              break;
+            case 'removed':
+              updatedPurchases = updatedPurchases.filter(p => p.id !== purchase.id);
+              break;
+          }
+        });
+
+        updatedPurchases.sort((a, b) => {
+          const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+          const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+          return dateB - dateA; // Plus récent en premier
+        });
+
+        queryClient.setQueryData(
+          ['companies', companyId, 'purchases'],
+          updatedPurchases
+        );
+      },
+
+      error: (err) => {
+        console.error('[RealtimeService] ❌ Erreur écoute achats:', err);
+      },
+    });
+
+    this.state.purchasesListener = unsubscribe;
+    this.state.currentCompanyId = companyId;
+  }
+
+  /**
    * Démarre l'écoute des crédits fournisseurs (si pas déjà démarrée)
    */
   startSupplierCreditsListener(queryClient: QueryClient, companyId: string) {
@@ -1631,6 +1737,11 @@ class RealtimeService {
     if (this.state.warehouseQuantitiesListener) {
       this.state.warehouseQuantitiesListener();
       this.state.warehouseQuantitiesListener = null;
+    }
+
+    if (this.state.purchasesListener) {
+      this.state.purchasesListener();
+      this.state.purchasesListener = null;
     }
 
     // Nettoyer tous les caches
