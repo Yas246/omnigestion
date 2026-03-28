@@ -14,6 +14,7 @@ import {
   updateDoc,
   deleteDoc,
   limit,
+  increment,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
@@ -204,18 +205,17 @@ export function useClientCredits() {
             userId: user.id,
             createdAt: new Date(),
           });
+
+          // Mettre à jour le solde de la caisse atomiquement (entrée = crédit)
+          const cashRegisterRef = doc(db, COLLECTIONS.companyCashRegisters(user.currentCompanyId), cashRegisterId);
+          transaction.update(cashRegisterRef, {
+            currentBalance: increment(data.amount),
+            updatedAt: new Date(),
+          });
         }
       });
 
       await fetchCredits();
-
-      // Rafraîchir les soldes des caisses après création du mouvement
-      try {
-        const cashStore = useCashRegistersStore.getState();
-        await cashStore.refreshBalances(false, user.currentCompanyId);
-      } catch (error) {
-        console.error('[addPayment] Erreur lors du rafraîchissement des soldes:', error);
-      }
 
       return { success: true };
     } catch (err: any) {

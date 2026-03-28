@@ -18,6 +18,7 @@ import {
   deleteDoc,
   runTransaction,
   serverTimestamp,
+  increment,
 } from 'firebase/firestore';
 import { db, COLLECTIONS, SUB_COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
@@ -887,6 +888,13 @@ export function useInvoices() {
               userId: user.id,
               createdAt: new Date(),
             });
+
+            // Mettre à jour le solde de la caisse atomiquement
+            const cashRegisterRef = doc(db, COLLECTIONS.companyCashRegisters(user.currentCompanyId), cashRegisterId);
+            transaction.update(cashRegisterRef, {
+              currentBalance: increment(data.paidAmount),
+              updatedAt: new Date(),
+            });
           }
 
           // Créer un crédit client automatiquement si reste à payer
@@ -929,16 +937,6 @@ export function useInvoices() {
       // Mettre à jour le cache IndexedDB avec les nouveaux stocks
       // Rafraîchir la liste
       await fetchInvoices();
-
-      // Rafraîchir les soldes des caisses après création du mouvement
-      if (cashRegisterId) {
-        try {
-          const cashStore = useCashRegistersStore.getState();
-          await cashStore.refreshBalances(false, user.currentCompanyId);
-        } catch (error) {
-          console.error('[addInvoice] Erreur lors du rafraîchissement des soldes:', error);
-        }
-      }
 
       // ===== NOUVEAU: Envoyer notification aux admins =====
       try {

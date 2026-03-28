@@ -1,6 +1,6 @@
 'use client';
 
-import { runTransaction, doc, getDoc, collection, addDoc, getDocs, query, where, limit } from 'firebase/firestore';
+import { runTransaction, doc, getDoc, collection, addDoc, getDocs, query, where, limit, increment, serverTimestamp } from 'firebase/firestore';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
@@ -143,6 +143,13 @@ export function useSupplierPurchases() {
               userId: user.id,
               createdAt: new Date(),
             });
+
+            // Mettre à jour le solde de la caisse atomiquement (sortie = débit)
+            const cashRegisterRef = doc(db, COLLECTIONS.companyCashRegisters(user.currentCompanyId), cashRegisterId);
+            transaction.update(cashRegisterRef, {
+              currentBalance: increment(-data.paidAmount),
+              updatedAt: new Date(),
+            });
           }
         }
 
@@ -175,16 +182,6 @@ export function useSupplierPurchases() {
           remainingAmount,
         };
       });
-
-      // Rafraîchir les soldes des caisses après création du mouvement
-      if (cashRegisterId) {
-        try {
-          const cashStore = useCashRegistersStore.getState();
-          await cashStore.refreshBalances(false, user.currentCompanyId);
-        } catch (error) {
-          console.error('[addPurchase] Erreur lors du rafraîchissement des soldes:', error);
-        }
-      }
 
       return result;
     } catch (err: any) {

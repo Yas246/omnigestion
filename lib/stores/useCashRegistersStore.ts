@@ -13,6 +13,8 @@ import {
   limit,
   startAfter,
   runTransaction,
+  getDoc,
+  increment,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuthStore } from './useAuthStore';
@@ -290,14 +292,7 @@ export const useCashRegistersStore = create<CashStore>()(
           } else if (movement.type === 'out') {
             amountDelta = -movement.amount;
           } else if (movement.type === 'transfer') {
-            // Transfer : débit de la source, crédit de la cible
-            if (movement.sourceCashRegisterId) {
-              // Ce mouvement est pour la caisse cible (crédit)
-              amountDelta = movement.amount;
-            } else if (movement.targetCashRegisterId) {
-              // Ce mouvement est pour la caisse source (débit)
-              amountDelta = -movement.amount;
-            }
+            amountDelta = -movement.amount;
           }
 
           const newBalance = currentBalance + amountDelta;
@@ -309,13 +304,23 @@ export const useCashRegistersStore = create<CashStore>()(
           });
 
           // Optimistic update de l'UI
-          set((state) => ({
-            movements: [tempMovement, ...state.movements],
-            balances: {
+          set((state) => {
+            const newBalances = {
               ...state.balances,
               [movement.cashRegisterId]: newBalance,
-            },
-          }));
+            };
+
+            // Pour un transfert, créditer aussi la caisse destination
+            if (movement.type === 'transfer' && movement.targetCashRegisterId) {
+              const targetBalance = state.balances[movement.targetCashRegisterId] || 0;
+              newBalances[movement.targetCashRegisterId] = targetBalance + movement.amount;
+            }
+
+            return {
+              movements: [tempMovement, ...state.movements],
+              balances: newBalances,
+            };
+          });
 
           console.log('[createMovement] Optimistic update effectué', { newBalance });
 
@@ -323,22 +328,36 @@ export const useCashRegistersStore = create<CashStore>()(
           const movementsRef = collection(db, COLLECTIONS.companyCashMovements(targetCompanyId));
           const movementRef = doc(movementsRef);
           const cashRegisterRef = doc(db, COLLECTIONS.companyCashRegisters(targetCompanyId), movement.cashRegisterId);
+          const targetCashRegisterRef = movement.targetCashRegisterId
+            ? doc(db, COLLECTIONS.companyCashRegisters(targetCompanyId), movement.targetCashRegisterId)
+            : null;
 
           await runTransaction(db, async (transaction) => {
-            // Lire le solde actuel de la caisse depuis Firestore
+            // ========= TOUTES LES LECTURES D'ABORD =========
+
+            // Lire le solde actuel de la caisse source depuis Firestore
             const cashRegisterSnap = await transaction.get(cashRegisterRef);
             const firestoreBalance = cashRegisterSnap.exists() ? (cashRegisterSnap.data().currentBalance || 0) : 0;
 
-            console.log('[createMovement] Transaction - Solde Firestore avant:', firestoreBalance);
+            // Pour un transfert : lire aussi la caisse destination
+            let targetFirestoreBalance = 0;
+            if (movement.type === 'transfer' && targetCashRegisterRef) {
+              const targetSnap = await transaction.get(targetCashRegisterRef);
+              targetFirestoreBalance = targetSnap.exists() ? (targetSnap.data().currentBalance || 0) : 0;
+            }
+
+            console.log('[createMovement] Transaction - Solde source avant:', firestoreBalance, 'Solde destination avant:', targetFirestoreBalance);
 
             // Vérifier le solde pour les sorties et transferts
-            if (movement.type === 'out' || (movement.type === 'transfer' && movement.targetCashRegisterId)) {
+            if (movement.type === 'out' || movement.type === 'transfer') {
               if (firestoreBalance < movement.amount) {
                 throw new Error(`Solde insuffisant (${firestoreBalance.toLocaleString('fr-FR')} FCFA disponibles pour ${movement.amount.toLocaleString('fr-FR')} FCFA demandés)`);
               }
             }
 
-            // Créer le mouvement - IMPORTANT: Filtrer les champs undefined
+            // ========= TOUTES LES ÉCRITURES ENSUITE =========
+
+            // Créer le mouvement
             const movementData: any = {
               id: movementRef.id,
               companyId: targetCompanyId,
@@ -349,7 +368,6 @@ export const useCashRegistersStore = create<CashStore>()(
               createdAt: new Date(),
             };
 
-            // Ajouter les champs optionnels seulement s'ils sont définis
             if (movement.description) movementData.description = movement.description;
             if (movement.targetCashRegisterId) movementData.targetCashRegisterId = movement.targetCashRegisterId;
             if (movement.sourceCashRegisterId) movementData.sourceCashRegisterId = movement.sourceCashRegisterId;
@@ -359,13 +377,23 @@ export const useCashRegistersStore = create<CashStore>()(
 
             transaction.set(movementRef, movementData);
 
-            // Mettre à jour le solde de la caisse dans Firestore
+            // Mettre à jour le solde de la caisse source
             transaction.update(cashRegisterRef, {
               currentBalance: firestoreBalance + amountDelta,
               updatedAt: new Date(),
             });
 
-            console.log('[createMovement] Transaction - Solde Firestore après:', firestoreBalance + amountDelta);
+            console.log('[createMovement] Transaction - Solde source après:', firestoreBalance + amountDelta);
+
+            // Pour un transfert : créditer la caisse destination
+            if (movement.type === 'transfer' && targetCashRegisterRef) {
+              transaction.update(targetCashRegisterRef, {
+                currentBalance: targetFirestoreBalance + movement.amount,
+                updatedAt: new Date(),
+              });
+
+              console.log('[createMovement] Transaction - Solde destination après:', targetFirestoreBalance + movement.amount);
+            }
           });
 
           console.log('[createMovement] ✅ Transaction réussie', { movementId: movementRef.id });
@@ -382,7 +410,7 @@ export const useCashRegistersStore = create<CashStore>()(
       },
 
       /**
-       * Supprimer un mouvement
+       * Supprimer un mouvement et inverser son effet sur le solde
        */
       deleteMovement: async (id: string) => {
         const companyId = get().currentCompanyId;
@@ -394,16 +422,50 @@ export const useCashRegistersStore = create<CashStore>()(
         set({ loading: true, error: null });
 
         try {
-          // Supprimer le mouvement
+          // D'abord lire le mouvement pour connaître son type et montant
           const movementRef = doc(db, COLLECTIONS.companyCashMovements(companyId), id);
-          await deleteDoc(movementRef);
+          const movementSnap = await getDoc(movementRef);
 
-          console.log('[deleteMovement] Mouvement supprimé, recalcul des soldes');
+          if (!movementSnap.exists()) {
+            throw new Error('Mouvement non trouvé');
+          }
 
-          // Recalculer le solde de toutes les caisses
-          await get().refreshBalances(true);
-          await get().fetchCashRegisters(companyId);
-          await get().fetchMovements(get().selectedCashRegisterId || undefined, true);
+          const movementData = movementSnap.data();
+
+          // Calculer le delta inverse
+          let reverseDelta = 0;
+          if (movementData.type === 'in') {
+            reverseDelta = -movementData.amount;
+          } else if (movementData.type === 'out') {
+            reverseDelta = movementData.amount;
+          } else if (movementData.type === 'transfer') {
+            reverseDelta = movementData.amount; // annuler le débit de la caisse source
+          }
+
+          // Inverser le solde et supprimer le mouvement dans une transaction
+          const cashRegisterRef = doc(db, COLLECTIONS.companyCashRegisters(companyId), movementData.cashRegisterId);
+
+          await runTransaction(db, async (transaction) => {
+            // Pour un transfert, annuler aussi le crédit sur la caisse destination
+            if (movementData.type === 'transfer' && movementData.targetCashRegisterId) {
+              const targetRef = doc(db, COLLECTIONS.companyCashRegisters(companyId), movementData.targetCashRegisterId);
+              transaction.update(targetRef, {
+                currentBalance: increment(-movementData.amount),
+                updatedAt: new Date(),
+              });
+            }
+
+            // Inverser le solde de la caisse source
+            transaction.update(cashRegisterRef, {
+              currentBalance: increment(reverseDelta),
+              updatedAt: new Date(),
+            });
+
+            // Supprimer le mouvement
+            transaction.delete(movementRef);
+          });
+
+          console.log('[deleteMovement] Mouvement supprimé et solde mis à jour');
         } catch (error) {
           console.error('[deleteMovement] Erreur:', error);
           set({ error: (error as Error).message });

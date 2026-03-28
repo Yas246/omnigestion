@@ -1,21 +1,20 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Building2, Check } from "lucide-react";
+import { Loader2, Building2, ArrowRight } from "lucide-react";
 
 export default function SelectCompanyPage() {
   const router = useRouter();
   const { user, companies, currentCompany, loading, switchCompany } = useAuth();
+  const [selectedId, setSelectedId] = useState<string | null>(currentCompany?.id || null);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     // Si l'utilisateur n'est pas connecté, rediriger vers login
@@ -37,12 +36,15 @@ export default function SelectCompanyPage() {
     }
   }, [loading, user, companies, currentCompany, router]);
 
-  const handleSelectCompany = async (companyId: string) => {
+  const handleContinue = async () => {
+    if (!selectedId) return;
+    setSwitching(true);
     try {
-      await switchCompany(companyId);
+      await switchCompany(selectedId);
       router.push("/dashboard");
     } catch (error) {
       console.error("Erreur lors de la sélection de l'entreprise:", error);
+      setSwitching(false);
     }
   };
 
@@ -77,45 +79,27 @@ export default function SelectCompanyPage() {
             <Card
               key={company.id}
               className={`cursor-pointer transition-all hover:shadow-lg ${
-                currentCompany?.id === company.id ? "ring-2 ring-primary" : ""
+                selectedId === company.id ? "ring-2 ring-primary" : ""
               }`}
+              onClick={() => setSelectedId(company.id)}
             >
               <CardContent className="p-6">
-                <div
-                  className="flex items-center justify-between"
-                  onClick={() => handleSelectCompany(company.id)}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                      <Building2 className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">{company.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {company.businessSector === "commerce"
-                          ? "Commerce"
-                          : "Commerce et services"}
-                      </p>
-                    </div>
+                <div className="flex items-center gap-4">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${
+                    selectedId === company.id ? "bg-primary/15" : "bg-primary/10"
+                  }`}>
+                    <Building2 className={`h-6 w-6 ${
+                      selectedId === company.id ? "text-primary" : "text-muted-foreground"
+                    }`} />
                   </div>
-                  <Button
-                    variant={
-                      currentCompany?.id === company.id ? "default" : "outline"
-                    }
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelectCompany(company.id);
-                    }}
-                  >
-                    {currentCompany?.id === company.id ? (
-                      <>
-                        <Check className="h-4 w-4 mr-2" />
-                        Actuelle
-                      </>
-                    ) : (
-                      "Sélectionner"
-                    )}
-                  </Button>
+                  <div>
+                    <h3 className="font-semibold text-lg">{company.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {company.businessSector === "commerce"
+                        ? "Commerce"
+                        : "Commerce et services"}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -144,6 +128,21 @@ export default function SelectCompanyPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        <div className="flex justify-center mt-6">
+          <Button
+            size="lg"
+            disabled={!selectedId || switching}
+            onClick={handleContinue}
+          >
+            {switching ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <ArrowRight className="h-4 w-4 mr-2" />
+            )}
+            Continuer
+          </Button>
         </div>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
