@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { initializeFCM, permissionStatus } = useFCM();
+  const { initializeFCM, permissionStatus, token } = useFCM();
 
   console.log('[DashboardLayout] user:', user, 'loading:', loading); // DEBUG
 
@@ -27,13 +27,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
   }, [user, loading, router]);
 
-  // ✅ Auto-initialiser FCM pour les admins au montage
+  // ✅ Auto-initialiser FCM pour les admins (une seule fois par session)
   useEffect(() => {
-    if (user && user.role === 'admin' && permissionStatus === 'granted') {
-      console.log('[DashboardLayout] Admin avec permission accordée - Initialisation FCM auto');
+    if (user && user.role === 'admin' && permissionStatus === 'granted' && !token) {
+      console.log('[DashboardLayout] Admin - Initialisation FCM auto');
       initializeFCM();
     }
-  }, [user, permissionStatus, initializeFCM]);
+  }, [user, permissionStatus, token, initializeFCM]);
 
   // ✅ Exposer resetFCM() dans la console pour le debug
   useEffect(() => {

@@ -25,15 +25,38 @@ export function useFCM() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ CORRECTION: Synchroniser l'état avec le navigateur et persister dans localStorage
+  // Synchroniser l'état avec le navigateur et charger le token existant depuis Firestore
+  // Ne tourne qu'une seule fois par session (guard localStorage)
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      // Mettre à jour l'état si la permission change (ex: via les settings du navigateur)
       setPermissionStatus(Notification.permission);
 
-      // Persister l'état pour éviter de redemander inutilement
       if (Notification.permission === 'granted') {
         localStorage.setItem('fcm-permission-granted', 'true');
+      }
+
+      // Charger le token FCM existant depuis Firestore — une seule fois par session
+      const sessionKey = 'fcm-token-loaded-' + (auth.currentUser?.uid || '');
+      if (!sessionStorage.getItem(sessionKey)) {
+        const loadExistingToken = async () => {
+          if (!auth.currentUser) return;
+          try {
+            const { getDoc, doc: docFn } = await import('firebase/firestore');
+            const userDoc = await getDoc(docFn(db, 'users', auth.currentUser.uid));
+            const existingTokens: FCMToken[] = userDoc.data()?.fcmTokens || [];
+            const currentUserAgent = navigator.userAgent;
+            const existing = existingTokens.find(
+              (t) => t.deviceInfo?.userAgent === currentUserAgent && t.deviceInfo?.platform === 'web'
+            );
+            if (existing) {
+              setToken(existing.token);
+            }
+            sessionStorage.setItem(sessionKey, 'true');
+          } catch {
+            // Silencieux — le token sera chargé au prochain initializeFCM()
+          }
+        };
+        loadExistingToken();
       }
     }
   }, []);
@@ -128,6 +151,12 @@ export function useFCM() {
   const initializeFCM = async (): Promise<(() => void) | undefined> => {
     if (typeof window === 'undefined') {
       setError('FCM non disponible côté serveur');
+      return;
+    }
+
+    // Éviter les appels multiples — si on a déjà un token, ne pas relancer
+    if (token) {
+      console.log('[useFCM] Token déjà en mémoire, initialisation ignorée');
       return;
     }
 
@@ -296,6 +325,7 @@ export function useFCM() {
       setError('Erreur lors de l\'initialisation des notifications');
     } finally {
       setLoading(false);
+      setHasInitialized(true);
     }
   };
 
@@ -341,11 +371,15 @@ export function useFCM() {
     }
   };
 
+  // Flag pour éviter les initialisations multiples
+  const [hasInitialized, setHasInitialized] = useState(false);
+
   return {
     token,
     permissionStatus,
     loading,
     error,
+    hasInitialized,
     requestPermission,
     initializeFCM,
     disableNotifications,
