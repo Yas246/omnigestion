@@ -170,6 +170,7 @@ export interface Product {
   unit?: string; // ex: 'pièce', 'kg', 'litre'
 
   isActive: boolean;
+  deletedAt?: Date | any | null;
 
   // Champs calculés (non stockés dans Firestore)
   warehouseQuantities?: Array<{

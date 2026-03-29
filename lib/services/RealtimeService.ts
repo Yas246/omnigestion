@@ -123,19 +123,21 @@ class RealtimeService {
       next: (snapshot) => {
         const changes = snapshot.docChanges();
 
-        // Snapshot initial - charger tous les produits
+        // Snapshot initial - charger tous les produits (filtrer les soft-deleted)
         if (changes.length === 0) {
-          const products = snapshot.docs.map(doc => {
-            const data = doc.data();
-            const product: any = {
-              ...data,
-              id: doc.id,
-              createdAt: data.createdAt?.toDate() || new Date(),
-              updatedAt: data.updatedAt?.toDate() || new Date(),
-            };
-            // Enrichir avec les warehouseQuantities du cache (si disponible)
-            return this.enrichProductWithWarehouses(product as Product);
-          });
+          const products = snapshot.docs
+            .map(doc => {
+              const data = doc.data();
+              const product: any = {
+                ...data,
+                id: doc.id,
+                createdAt: data.createdAt?.toDate() || new Date(),
+                updatedAt: data.updatedAt?.toDate() || new Date(),
+              };
+              // Enrichir avec les warehouseQuantities du cache (si disponible)
+              return this.enrichProductWithWarehouses(product as Product);
+            })
+            .filter(p => !p.deletedAt);
 
           // Trier par nom alphabétique
           products.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
@@ -171,15 +173,22 @@ class RealtimeService {
 
           switch (change.type) {
             case 'added':
-              if (!updatedProducts.find(p => p.id === enrichedProduct.id)) {
+              // Ignorer les produits soft-deleted
+              if (!enrichedProduct.deletedAt && !updatedProducts.find(p => p.id === enrichedProduct.id)) {
                 updatedProducts.push(enrichedProduct);
               }
               break;
 
             case 'modified':
-              updatedProducts = updatedProducts.map(p =>
-                p.id === enrichedProduct.id ? enrichedProduct : p
-              );
+              // Si deletedAt est défini, retirer le produit (soft-delete)
+              if (enrichedProduct.deletedAt) {
+                updatedProducts = updatedProducts.filter(p => p.id !== enrichedProduct.id);
+                this.state.warehouseQuantitiesCache.delete(enrichedProduct.id);
+              } else {
+                updatedProducts = updatedProducts.map(p =>
+                  p.id === enrichedProduct.id ? enrichedProduct : p
+                );
+              }
               break;
 
             case 'removed':

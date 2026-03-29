@@ -641,7 +641,8 @@ export function useInvoices() {
         let status: 'draft' | 'validated' | 'paid' | 'cancelled';
         if (remainingAmount <= 0) {
           status = 'paid';
-        } else if (data.paidAmount > 0) {
+        } else if (data.paidAmount > 0 || data.clientId) {
+          // Validé si paiement partiel OU vente à crédit (avec client)
           status = 'validated';
         } else {
           status = 'draft';
@@ -780,33 +781,34 @@ export function useInvoices() {
               updatedAt: new Date(),
             });
           }
+        }
 
-          // Créer un crédit client automatiquement si reste à payer
-          if (remainingAmount > 0 && data.clientId) {
-            const creditsRef = collection(db, COLLECTIONS.companyClientCredits(user.currentCompanyId));
-            const creditRef = doc(creditsRef);
+        // Créer un crédit client automatiquement si reste à payer
+        // (indépendant du mouvement de caisse — fonctionne pour crédit ET paiement partiel)
+        if (remainingAmount > 0 && data.clientId) {
+          const creditsRef = collection(db, COLLECTIONS.companyClientCredits(user.currentCompanyId));
+          const creditRef = doc(creditsRef);
 
-            // Récupérer le nom du client
-            const clientRef = doc(db, COLLECTIONS.companyClients(user.currentCompanyId), data.clientId);
-            const clientSnap = await getDoc(clientRef);
-            const clientName = clientSnap.exists() ? clientSnap.data().name : (data.clientName || 'Client inconnu');
+          // Récupérer le nom du client
+          const clientRef = doc(db, COLLECTIONS.companyClients(user.currentCompanyId), data.clientId);
+          const clientSnap = await getDoc(clientRef);
+          const clientName = clientSnap.exists() ? clientSnap.data().name : (data.clientName || 'Client inconnu');
 
-            transaction.set(creditRef, {
-              companyId: user.currentCompanyId,
-              clientId: data.clientId,
-              clientName,
-              invoiceId: invoiceRef.id,
-              invoiceNumber,
-              amount: total,
-              amountPaid: data.paidAmount,
-              remainingAmount,
-              status: remainingAmount < total ? 'partial' : 'active',
-              date: new Date(),
-              notes: `Facture ${invoiceNumber}`,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
-          }
+          transaction.set(creditRef, {
+            companyId: user.currentCompanyId,
+            clientId: data.clientId,
+            clientName,
+            invoiceId: invoiceRef.id,
+            invoiceNumber,
+            amount: total,
+            amountPaid: data.paidAmount,
+            remainingAmount,
+            status: remainingAmount < total ? 'partial' : 'active',
+            date: new Date(),
+            notes: `Facture ${invoiceNumber}`,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
         }
 
         return {

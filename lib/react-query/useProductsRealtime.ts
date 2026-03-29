@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { realtimeService } from '@/lib/services/RealtimeService';
@@ -16,12 +16,20 @@ export function useProductsRealtime() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: products = [], isLoading, error } = useQuery<Product[]>({
+  const { data: rawProducts = [], isLoading, error } = useQuery<Product[]>({
     queryKey: ['companies', user?.currentCompanyId, 'products'],
     queryFn: async () => [],
     enabled: !!user?.currentCompanyId,
     staleTime: Infinity,
   });
+
+  // Filtrer les produits soft-deleted (deletedAt défini)
+  // Ce filtre est la sécurité finale : il fonctionne même si le listener
+  // RealtimeService est une ancienne version sans filtre deletedAt
+  const products = useMemo(
+    () => rawProducts.filter(p => !p.deletedAt),
+    [rawProducts]
+  );
 
   // Démarrer l'écoute globale (une seule fois pour toute l'application)
   useEffect(() => {
@@ -33,11 +41,6 @@ export function useProductsRealtime() {
     // NOTE: PAS de cleanup du cache ici! Le cache doit persister entre les navigations.
     // Le cache sera vidé uniquement lors d'un changement de compagnie (géré par RealtimeService)
   }, [user?.currentCompanyId, queryClient]);
-
-  // NOTE: Plus besoin de charger les warehouse quantities depuis stock_locations
-  // Les données viennent maintenant du listener warehouse_quantities (temps réel)
-  // La fonction loadWarehouseQuantities() a été supprimée car elle lisait depuis
-  // l'ancien système stock_locations qui est maintenant obsolète
 
   return {
     products,

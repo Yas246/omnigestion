@@ -37,6 +37,10 @@ export interface CreateProductData {
     warehouseName: string;
     quantity: number;
   }>;
+  stockAllocations?: Array<{
+    warehouseId: string;
+    quantity: number;
+  }>;
 }
 
 export interface UpdateProductData {
@@ -84,8 +88,9 @@ export async function createProduct(
   data: CreateProductData
 ): Promise<Product> {
   const productsRef = collection(db, `companies/${companyId}/products`);
+  const { stockAllocations, warehouseQuantities, ...productData } = data;
   const docRef = await addDoc(productsRef, {
-    ...data,
+    ...productData,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     deletedAt: null,
@@ -93,30 +98,74 @@ export async function createProduct(
 
   const productId = docRef.id;
 
-  // 🔄 Créer les warehouse_quantities si fournis
-  if (data.warehouseQuantities && data.warehouseQuantities.length > 0) {
+  // Déterminer les quantités par dépôt
+  let quantitiesToSave: Array<{ warehouseId: string; warehouseName: string; quantity: number }> = [];
+
+  if (stockAllocations && stockAllocations.length > 0) {
+    // Mode avancé : stockAllocations fournis par le dialogue
+    // Récupérer les noms des dépôts
+    for (const alloc of stockAllocations) {
+      let warehouseName = alloc.warehouseId;
+      try {
+        const warehouseDoc = await getDoc(doc(db, `companies/${companyId}/warehouses`, alloc.warehouseId));
+        if (warehouseDoc.exists()) {
+          warehouseName = warehouseDoc.data().name;
+        }
+      } catch {}
+      quantitiesToSave.push({
+        warehouseId: alloc.warehouseId,
+        warehouseName,
+        quantity: alloc.quantity,
+      });
+    }
+  } else if (warehouseQuantities && warehouseQuantities.length > 0) {
+    // Déjà au bon format
+    quantitiesToSave = warehouseQuantities.map(wq => ({
+      warehouseId: wq.warehouseId,
+      warehouseName: wq.warehouseName,
+      quantity: wq.quantity,
+    }));
+  } else if ((productData.currentStock || 0) > 0) {
+    // Mode simple : pas d'allocations mais du stock → tout mettre dans le dépôt par défaut
+    try {
+      const settingsDoc = await getDoc(doc(db, `companies/${companyId}`));
+      const defaultWarehouseId = settingsDoc.data()?.stock?.defaultWarehouseId;
+      if (defaultWarehouseId) {
+        let warehouseName = defaultWarehouseId;
+        try {
+          const warehouseDoc = await getDoc(doc(db, `companies/${companyId}/warehouses`, defaultWarehouseId));
+          if (warehouseDoc.exists()) {
+            warehouseName = warehouseDoc.data().name;
+          }
+        } catch {}
+        quantitiesToSave = [{
+          warehouseId: defaultWarehouseId,
+          warehouseName,
+          quantity: productData.currentStock || 0,
+        }];
+      }
+    } catch (err) {
+      console.warn('[createProduct] Impossible de récupérer le dépôt par défaut:', err);
+    }
+  }
+
+  // Créer le document warehouse_quantities
+  if (quantitiesToSave.length > 0) {
     await runTransaction(db, async (transaction) => {
-      // Créer le document warehouse_quantities (collection centralisée)
       const warehouseQuantitiesRef = doc(
         db,
         `companies/${companyId}/warehouse_quantities`,
         productId
       );
 
-      const quantities = data.warehouseQuantities || [];
-
       transaction.set(warehouseQuantitiesRef, {
         productId: productId,
-        quantities: quantities.map(wq => ({
-          warehouseId: wq.warehouseId,
-          warehouseName: wq.warehouseName,
-          quantity: wq.quantity,
-        })),
+        quantities: quantitiesToSave,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
-      console.log(`[createProduct] ✅ Créé warehouse_quantities pour ${productId} avec ${quantities.length} dépôts`);
+      console.log(`[createProduct] ✅ Créé warehouse_quantities pour ${productId} avec ${quantitiesToSave.length} dépôts`);
     });
   }
 

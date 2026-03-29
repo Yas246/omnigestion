@@ -110,65 +110,27 @@ export default function StockPage() {
   const [isFiltering, setIsFiltering] = useState(false);
   const [showMovementsHistory, setShowMovementsHistory] = useState(false);
 
-  // Statistiques globales (tous les produits)
-  const [globalStats, setGlobalStats] = useState({
-    total: 0,
-    active: 0,
-    inStock: 0,
-    lowStock: 0,
-    outOfStock: 0,
-  });
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  // Statistiques globales dérivées des produits temps réel (useProductsRealtime)
+  // Les produits sont déjà enrichis avec warehouse_quantities par enrichProductWithWarehouses
+  const globalStats = useMemo(() => {
+    const activeProducts = rawProducts.filter(p => p.isActive);
+    const lowStock = activeProducts.filter(p => p.currentStock > 0 && p.currentStock <= p.alertThreshold).length;
+    const outOfStock = activeProducts.filter(p => p.currentStock === 0).length;
+    const inStock = activeProducts.length - lowStock - outOfStock;
+
+    return {
+      total: rawProducts.length,
+      active: activeProducts.length,
+      inStock,
+      lowStock,
+      outOfStock,
+    };
+  }, [rawProducts]);
 
   // Mettre à jour le filtre d'entrepôt dans le store Zustand
   useEffect(() => {
     useProductsStore.getState().setWarehouseFilter(selectedWarehouse);
   }, [selectedWarehouse]);
-
-  // NOTE: Plus besoin de charger les produits - onSnapshot gère ça automatiquement
-  // NOTE: Plus besoin de loadAllRemainingProducts - onSnapshot synchronise tout automatiquement
-
-  // Charger les statistiques globales depuis Firestore
-  const fetchGlobalStats = async () => {
-    if (!user?.currentCompanyId) return;
-
-    setIsLoadingStats(true);
-    try {
-      const { getDocs, collection, query, where } = await import('firebase/firestore');
-      const { db, COLLECTIONS } = await import('@/lib/firebase');
-
-      const q = query(
-        collection(db, COLLECTIONS.companyProducts(user.currentCompanyId)),
-        where('companyId', '==', user.currentCompanyId)
-      );
-
-      const snapshot = await getDocs(q);
-      const allProducts = snapshot.docs.map(doc => doc.data() as Product);
-
-      // Calculer les statistiques
-      const activeProducts = allProducts.filter(p => p.isActive);
-      const lowStock = activeProducts.filter(p => p.currentStock > 0 && p.currentStock <= p.alertThreshold).length;
-      const outOfStock = activeProducts.filter(p => p.currentStock === 0).length;
-      const inStock = activeProducts.length - lowStock - outOfStock;
-
-      setGlobalStats({
-        total: allProducts.length,
-        active: activeProducts.length,
-        inStock,
-        lowStock,
-        outOfStock,
-      });
-    } catch (error) {
-      console.error('Erreur lors du chargement des statistiques:', error);
-    } finally {
-      setIsLoadingStats(false);
-    }
-  };
-
-  // Charger les stats au montage et après import
-  useEffect(() => {
-    fetchGlobalStats();
-  }, [user?.currentCompanyId]);
 
   const handleCreate = async (data: any) => {
     setIsSubmitting(true);
@@ -186,7 +148,7 @@ export default function StockPage() {
       // Optimistic update dans le store
       useProductsStore.getState().optimisticCreateProduct(newProduct);
 
-      fetchGlobalStats();
+      // Les KPI se mettront à jour automatiquement via onSnapshot
     } finally {
       setIsSubmitting(false);
     }
@@ -388,8 +350,8 @@ export default function StockPage() {
             iconVariant="info"
           />
           <KpiCardValue
-            value={isLoadingStats ? '...' : globalStats.total}
-            label={`${isLoadingStats ? '...' : globalStats.active} actifs`}
+            value={isLoading ? '...' : globalStats.total}
+            label={`${isLoading ? '...' : globalStats.active} actifs`}
             variant="info"
           />
         </KpiCard>
@@ -401,7 +363,7 @@ export default function StockPage() {
             iconVariant="success"
           />
           <KpiCardValue
-            value={isLoadingStats ? '...' : globalStats.inStock}
+            value={isLoading ? '...' : globalStats.inStock}
             label="Stock normal"
             variant="success"
           />
@@ -414,7 +376,7 @@ export default function StockPage() {
             iconVariant="warning"
           />
           <KpiCardValue
-            value={isLoadingStats ? '...' : globalStats.lowStock}
+            value={isLoading ? '...' : globalStats.lowStock}
             label="Sous le seuil d'alerte"
             variant="warning"
           />
@@ -427,7 +389,7 @@ export default function StockPage() {
             iconVariant="danger"
           />
           <KpiCardValue
-            value={isLoadingStats ? '...' : globalStats.outOfStock}
+            value={isLoading ? '...' : globalStats.outOfStock}
             label="Épuisé"
             variant="danger"
           />
@@ -561,8 +523,7 @@ export default function StockPage() {
         open={isImportModalOpen}
         onOpenChange={setIsImportModalOpen}
         onImportComplete={() => {
-          // ⚠️ Plus besoin de recharger - onSnapshot captura les nouveaux produits automatiquement
-          fetchGlobalStats();
+          // Les KPI se mettront à jour automatiquement via onSnapshot
         }}
       />
     </div>
