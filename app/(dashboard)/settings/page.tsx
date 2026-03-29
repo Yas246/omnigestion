@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSettingsRealtime } from "@/lib/react-query/useSettingsRealtime";
 import { useWarehousesRealtime } from "@/lib/react-query/useWarehousesRealtime"; // Pour les entrepôts
-import { useSettings } from "@/lib/hooks/useSettings"; // Garder pour les fonctions CRUD si nécessaires
+
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,12 +25,8 @@ export default function SettingsPage() {
   // NOUVEAU hook React Query + onSnapshot pour temps réel
   const { settings, isLoading, error } = useSettingsRealtime();
 
-  // NOTE: Les warehouses viennent déjà du listener warehouses dans RealtimeService
-  // On peut les récupérer depuis le cache React Query
-  // Pour l'instant, on garde l'ancien système pour les warehouses
-
-  // Garder l'ancien hook pour les fonctions CRUD (refresh, etc.)
-  const { refresh: legacyRefresh } = useSettings();
+  // Récupérer les dépôts via le listener temps réel
+  const { warehouses } = useWarehousesRealtime();
 
   const [activeTab, setActiveTab] = useState("company");
 
@@ -164,7 +160,7 @@ export default function SettingsPage() {
           >
             <StockTab
               settings={(settings as any)?.stockSettings || (settings as any)?.stock || undefined}
-              warehouses={(settings as any)?.warehouses || []}
+              warehouses={warehouses || []}
               onSaved={refresh}
             />
           </PermissionGate>
