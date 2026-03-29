@@ -44,22 +44,25 @@ import {
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 
-// Enregistrer les composants Chart.js
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-);
-
 export default function DashboardPage() {
   const router = useRouter();
+
+  // Enregistrer les composants Chart.js côté client uniquement
+  useEffect(() => {
+    ChartJS.register(
+      CategoryScale,
+      LinearScale,
+      PointElement,
+      LineElement,
+      BarElement,
+      ArcElement,
+      Title,
+      Tooltip,
+      Legend,
+      Filler,
+    );
+  }, []);
+
   const { hasPermission, getFirstAccessiblePage } = usePermissions();
 
   // React Query + onSnapshot hooks

@@ -66,7 +66,7 @@ export default function SuppliersPage() {
   }, [canAccessModule, getFirstAccessiblePage, router]);
 
   const [activeTab, setActiveTab] = useState<TabType>('suppliers');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [purchaseStatusFilter, setPurchaseStatusFilter] = useState<PurchaseStatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCredit, setSelectedCredit] = useState<any>(null);
@@ -126,12 +126,14 @@ export default function SuppliersPage() {
     });
   }, [credits, statusFilter, debouncedSearchQuery]);
 
-  // Statistiques optimisées avec useMemo
-  const { totalCredits, totalPaid, totalRemaining } = useMemo(() => {
+  // Statistiques optimisées avec useMemo (seulement les crédits actifs)
+  const { totalCredits, totalPaid, totalRemaining, activeCreditsCount } = useMemo(() => {
+    const activeCredits = credits.filter((c) => c.status !== 'paid' && c.status !== 'cancelled');
     return {
-      totalCredits: credits.reduce((sum, c) => sum + (c.amount || 0), 0),
-      totalPaid: credits.reduce((sum, c) => sum + (c.amountPaid || 0), 0),
-      totalRemaining: credits.reduce((sum, c) => sum + (c.remainingAmount || 0), 0),
+      totalCredits: activeCredits.reduce((sum, c) => sum + (c.amount || 0), 0),
+      totalPaid: activeCredits.reduce((sum, c) => sum + (c.amountPaid || 0), 0),
+      totalRemaining: activeCredits.reduce((sum, c) => sum + (c.remainingAmount || 0), 0),
+      activeCreditsCount: activeCredits.length,
     };
   }, [credits]);
 
@@ -262,7 +264,7 @@ export default function SuppliersPage() {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          Crédits ({credits.length})
+          Crédits ({activeCreditsCount})
         </button>
         <button
           onClick={() => setActiveTab('purchases')}
@@ -365,7 +367,7 @@ export default function SuppliersPage() {
               />
               <KpiCardValue
                 value={`${formatPrice(totalCredits)} FCFA`}
-                label={`${credits.length} crédit(s)`}
+                label={`${activeCreditsCount} crédit(s)`}
                 variant="danger"
               />
             </KpiCard>

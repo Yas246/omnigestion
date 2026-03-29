@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Moon, Sun, Monitor, Download, Upload, Building2, Plus } from 'lucide-react';
+import { Loader2, Moon, Sun, Monitor, Download, Upload, Building2, Plus, Bell, BellOff } from 'lucide-react';
+import { useFCM } from '@/lib/hooks/useFCM';
 import { CreateCompanyDialog } from '@/components/settings/CreateCompanyDialog';
 
 interface SystemTabProps {
@@ -25,8 +26,10 @@ export function SystemTab({ settings, onSaved }: SystemTabProps) {
   const { updateSystemSettings } = useSettings();
   const { setTheme } = useThemeWithSettings();
   const { user, companies, switchCompany } = useAuth();
+  const { permissionStatus, token, loading: fcmLoading, initializeFCM, disableNotifications } = useFCM();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateCompanyDialogOpen, setIsCreateCompanyDialogOpen] = useState(false);
+  const [isTogglingNotifications, setIsTogglingNotifications] = useState(false);
 
   const form = useForm<SystemSettingsFormData>({
     resolver: zodResolver(systemSettingsSchema),
@@ -170,6 +173,71 @@ export function SystemTab({ settings, onSaved }: SystemTabProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Notifications */}
+      {user?.role === 'admin' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {token ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+              Notifications
+            </CardTitle>
+            <CardDescription>
+              Gérez les notifications push de l&apos;application
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  {token
+                    ? 'Notifications activées'
+                    : permissionStatus === 'denied'
+                      ? 'Notifications bloquées'
+                      : 'Notifications non configurées'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {token
+                    ? 'Vous recevez les alertes de ventes et de stock'
+                    : permissionStatus === 'denied'
+                      ? 'Autorisez les notifications dans les paramètres de votre navigateur'
+                      : 'Activez les notifications pour recevoir les alertes en temps réel'}
+                </p>
+              </div>
+              <Button
+                variant={token ? 'outline' : 'default'}
+                size="sm"
+                disabled={isTogglingNotifications || fcmLoading}
+                onClick={async () => {
+                  setIsTogglingNotifications(true);
+                  try {
+                    if (token) {
+                      await disableNotifications();
+                      toast.success('Notifications désactivées');
+                    } else {
+                      await initializeFCM();
+                      toast.success('Notifications activées');
+                    }
+                  } catch {
+                    toast.error('Erreur lors de la modification');
+                  } finally {
+                    setIsTogglingNotifications(false);
+                  }
+                }}
+              >
+                {isTogglingNotifications || fcmLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : token ? (
+                  <BellOff className="mr-2 h-4 w-4" />
+                ) : (
+                  <Bell className="mr-2 h-4 w-4" />
+                )}
+                {token ? 'Désactiver' : 'Activer'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Informations système */}
       <Card>

@@ -299,6 +299,48 @@ export function useFCM() {
     }
   };
 
+  /**
+   * Désactiver les notifications : supprime le token du device et de Firestore
+   */
+  const disableNotifications = async (): Promise<void> => {
+    try {
+      // Supprimer le token FCM du device
+      const { messaging } = await import('@/lib/firebase');
+      if (messaging) {
+        const { deleteToken } = await import('firebase/messaging');
+        await deleteToken(messaging);
+      }
+
+      // Retirer les tokens de cet appareil de Firestore
+      if (auth.currentUser) {
+        const { getDoc, doc: docFn, updateDoc } = await import('firebase/firestore');
+        const userRef = docFn(db, 'users', auth.currentUser.uid);
+        const userDoc = await getDoc(userRef);
+        const existingTokens: FCMToken[] = userDoc.data()?.fcmTokens || [];
+
+        const currentUserAgent = navigator.userAgent;
+        const remainingTokens = existingTokens.filter(
+          (t) => !(t.deviceInfo?.userAgent === currentUserAgent && t.deviceInfo?.platform === 'web')
+        );
+
+        await updateDoc(userRef, {
+          fcmTokens: remainingTokens,
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // Nettoyer le state et localStorage
+      setToken(null);
+      localStorage.removeItem('fcm-permission-granted');
+      localStorage.removeItem('notification-permission-dismissed');
+
+      console.log('[useFCM] Notifications désactivées avec succès');
+    } catch (err) {
+      console.error('[useFCM] Erreur désactivation notifications:', err);
+      setError('Erreur lors de la désactivation des notifications');
+    }
+  };
+
   return {
     token,
     permissionStatus,
@@ -306,5 +348,6 @@ export function useFCM() {
     error,
     requestPermission,
     initializeFCM,
+    disableNotifications,
   };
 }

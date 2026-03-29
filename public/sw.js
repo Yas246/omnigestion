@@ -2,8 +2,8 @@
 // Cache des assets statiques uniquement - PAS de cache Firestore/API
 // v8: Support PWA offline avec persistance localStorage des stores Zustand
 
-const CACHE_NAME = "omnigestion-v13";
-const STATIC_CACHE = "omnigestion-static-v13";
+const CACHE_NAME = "omnigestion-v15";
+const STATIC_CACHE = "omnigestion-static-v15";
 
 // Assets à mettre en cache statique (pages, JS, CSS, images)
 const STATIC_ASSETS = [
@@ -98,53 +98,31 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Pour les pages HTML : Cache First (permet navigation hors ligne)
+  // Pour les pages HTML : Network First (évite les problèmes de redirection)
   if (request.mode === "navigate") {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        // Servir depuis le cache si disponible (rapide et fonctionne offline)
-        if (cached) {
-          // Mettre à jour en arrière-plan (stale-while-revalidate)
-          fetch(request)
-            .then((response) => {
-              if (response.status === 200) {
-                const responseClone = response.clone();
-                caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(request, responseClone);
-                });
-              }
-            })
-            .catch(() => {
-              // Ignorer les erreurs de fetch en arrière-plan
+      fetch(request, { redirect: "follow" })
+        .then((response) => {
+          // Mettre en cache les réponses valides (pas les redirects)
+          if (response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
             });
-          return cached;
-        }
-
-        // Pas dans le cache : aller sur le réseau
-        return fetch(request)
-          .then((response) => {
-            // Mettre en cache pour la prochaine fois
-            if (response.status === 200) {
-              const responseClone = response.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(request, responseClone);
-              });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Hors ligne : servir depuis le cache
+          return caches.match(request).then((cached) => {
+            if (cached) {
+              return cached;
             }
-            return response;
-          })
-          .catch(() => {
-            // Hors ligne et page non visitée auparavant
-            // Retourner le dashboard depuis le cache comme fallback (page principale pour les utilisateurs connectés)
+            // Fallback : dashboard, puis home, puis offline
             return caches.match("/dashboard").then((dashboardPage) => {
-              if (dashboardPage) {
-                return dashboardPage;
-              }
-              // Fallback vers la racine si dashboard pas dispo
+              if (dashboardPage) return dashboardPage;
               return caches.match("/").then((homePage) => {
-                if (homePage) {
-                  return homePage;
-                }
-                // Dernier recours : page offline
+                if (homePage) return homePage;
                 return caches.match("/offline").then((offlinePage) => {
                   return (
                     offlinePage ||
@@ -157,7 +135,7 @@ self.addEventListener("fetch", (event) => {
               });
             });
           });
-      }),
+        }),
     );
     return;
   }

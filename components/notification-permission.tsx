@@ -12,6 +12,7 @@ import { useFCM } from '@/lib/hooks/useFCM';
 export function NotificationPermission() {
   const { permissionStatus, requestPermission, initializeFCM, loading } = useFCM();
   const [dismissed, setDismissed] = useState(false);
+  const [wasGrantedPreviously, setWasGrantedPreviously] = useState(false);
 
   useEffect(() => {
     // Charger l'état de rejet depuis localStorage
@@ -20,16 +21,15 @@ export function NotificationPermission() {
       setDismissed(true);
     }
 
-    // ✅ CORRECTION: Vérifier si la permission a déjà été accordée précédemment
+    // Vérifier si la permission a déjà été accordée précédemment
     const permissionGranted = localStorage.getItem('fcm-permission-granted');
     if (permissionGranted === 'true') {
       console.log('[NotificationPermission] Permission déjà accordée (localStorage)');
-      // Ne pas réinitialiser, useFCM lit déjà Notification.permission correctement
+      setWasGrantedPreviously(true);
     }
   }, []);
 
-  // ✅ CORRECTION: Masquer si déjà accordée (y compris via localStorage)
-  const wasGrantedPreviously = localStorage.getItem('fcm-permission-granted') === 'true';
+  // Masquer si déjà accordée (y compris via localStorage)
   if (dismissed || permissionStatus === 'granted' || permissionStatus === 'denied' || wasGrantedPreviously) {
     return null;
   }
