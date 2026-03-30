@@ -9,64 +9,18 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { NotificationPermission } from "@/components/notification-permission";
-import { useFCM } from "@/lib/hooks/useFCM";
+import { useFCM, FCMProvider } from "@/lib/hooks/useFCM";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  console.log('[DashboardLayout] Composant monté !'); // DEBUG
-
   const { user, loading } = useAuth();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { initializeFCM, permissionStatus, token } = useFCM();
-
-  console.log('[DashboardLayout] user:', user, 'loading:', loading); // DEBUG
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
     }
   }, [user, loading, router]);
-
-  // ✅ Auto-initialiser FCM pour les admins (une seule fois par session)
-  useEffect(() => {
-    if (user && user.role === 'admin' && permissionStatus === 'granted' && !token) {
-      console.log('[DashboardLayout] Admin - Initialisation FCM auto');
-      initializeFCM();
-    }
-  }, [user, permissionStatus, token, initializeFCM]);
-
-  // ✅ Exposer resetFCM() dans la console pour le debug
-  useEffect(() => {
-    const resetFCM = () => {
-      console.log('[resetFCM] Réinitialisation complète de FCM...');
-
-      // 1. Supprimer les flags localStorage
-      localStorage.removeItem('fcm-permission-granted');
-      localStorage.removeItem('notification-permission-dismissed');
-
-      console.log('[resetFCM] ✓ localStorage nettoyé');
-
-      // 2. Unregister le service worker
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          registrations.forEach((registration) => {
-            console.log('[resetFCM] Suppression du Service Worker:', registration.scope);
-            registration.unregister();
-          });
-        });
-      }
-
-      // 3. Recharger la page pour tout réinitialiser
-      console.log('[resetFCM] Rechargement de la page dans 1 seconde...');
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    };
-
-    // Exposer globalement
-    (window as any).resetFCM = resetFCM;
-    console.log('[DashboardLayout] Fonction resetFCM() disponible dans la console');
-  }, []);
 
   if (loading) {
     return (
@@ -79,6 +33,39 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   if (!user) {
     return null;
   }
+
+  return (
+    <FCMProvider>
+      <DashboardContent
+        mobileMenuOpen={mobileMenuOpen}
+        setMobileMenuOpen={setMobileMenuOpen}
+        user={user}
+      >
+        {children}
+      </DashboardContent>
+    </FCMProvider>
+  );
+}
+
+function DashboardContent({
+  mobileMenuOpen,
+  setMobileMenuOpen,
+  user,
+  children,
+}: {
+  mobileMenuOpen: boolean;
+  setMobileMenuOpen: (open: boolean) => void;
+  user: any;
+  children: ReactNode;
+}) {
+  const { initializeFCM, permissionStatus, token } = useFCM();
+
+  // Auto-initialiser FCM pour les admins
+  useEffect(() => {
+    if (user?.role === 'admin' && permissionStatus === 'granted' && !token) {
+      initializeFCM();
+    }
+  }, [user, permissionStatus, token, initializeFCM]);
 
   return (
     <div className="flex h-screen bg-background">

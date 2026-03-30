@@ -77,6 +77,7 @@ export interface FCMToken {
   deviceInfo?: {
     userAgent?: string;
     platform?: string;
+    deviceKey?: string;
     lastSeen?: Date;
   };
   createdAt: Date;
