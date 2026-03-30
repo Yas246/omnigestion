@@ -2,17 +2,24 @@
  * Context FCM - etat partage entre tous les composants
  * Permet de demander la permission, generer et sauvegarder le token FCM
  * SINGLETON : un seul etat pour toute l'app
+ *
+ * Regles importantes :
+ * - Chaque navigateur genere SON PROPRE token (getToken())
+ * - On ne recharge JAMAIS un token depuis Firestore dans le state
+ * - Firestore sert uniquement a sauvegarder/nettoyer les tokens
+ * - Un flag localStorage empeche le re-activation automatique apres desactivation
  */
 
 'use client';
 
 import { createContext, useContext, useEffect, useState, useRef, useCallback, type ReactNode } from 'react';
 import { getToken, onMessage, deleteToken } from 'firebase/messaging';
-import { doc, updateDoc, arrayUnion, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { FCMToken } from '@/types';
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+const DISABLED_FLAG = 'fcm-intentionally-disabled';
 
 // ===== Types =====
 interface FCMContextType {
@@ -41,34 +48,12 @@ export function FCMProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const initializingRef = useRef(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
-  const tokenLoadedRef = useRef(false);
 
-  // Charger le token existant depuis Firestore au montage (une seule fois)
+  // Synchroniser la permission du navigateur
   useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-
-    setPermissionStatus(Notification.permission);
-
-    if (Notification.permission === 'granted') {
-      localStorage.setItem('fcm-permission-granted', 'true');
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setPermissionStatus(Notification.permission);
     }
-
-    const loadExistingToken = async () => {
-      if (!auth.currentUser) return;
-      try {
-        const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-        const existingTokens: FCMToken[] = userDoc.data()?.fcmTokens || [];
-        // Trouver un token pour cet appareil (matching souple)
-        const existing = findTokenForDevice(existingTokens);
-        if (existing) {
-          setToken(existing.token);
-          tokenLoadedRef.current = true;
-        }
-      } catch {
-        // Silencieux
-      }
-    };
-    loadExistingToken();
   }, []);
 
   /**
@@ -94,14 +79,8 @@ export function FCMProvider({ children }: { children: ReactNode }) {
     try {
       const permission = await Notification.requestPermission();
       setPermissionStatus(permission);
-
-      if (permission === 'granted') {
-        return true;
-      } else {
-        setError('Permission de notification refusee');
-        return false;
-      }
-    } catch (err) {
+      return permission === 'granted';
+    } catch {
       setError('Erreur lors de la demande de permission');
       return false;
     }
@@ -109,13 +88,10 @@ export function FCMProvider({ children }: { children: ReactNode }) {
 
   /**
    * Sauvegarder le token FCM dans Firestore
-   * Remplace le token existant pour cet appareil au lieu d'ajouter un doublon
+   * Remplace le token existant pour cet appareil (pas de doublon)
    */
   const saveToken = useCallback(async (fcmToken: string): Promise<void> => {
-    if (!auth.currentUser) {
-      setError('Utilisateur non connecte');
-      return;
-    }
+    if (!auth.currentUser) return;
 
     try {
       const userRef = doc(db, 'users', auth.currentUser.uid);
@@ -124,33 +100,34 @@ export function FCMProvider({ children }: { children: ReactNode }) {
 
       const deviceKey = getDeviceKey();
 
-      // Remplacer le token existant pour cet appareil ou ajouter le nouveau
-      const deviceId = getDeviceId(existingTokens);
-      let updatedTokens: FCMToken[];
+      // Chercher un token existant pour cet appareil (par deviceKey ou userAgent exact)
+      const existingIndex = existingTokens.findIndex(t =>
+        t.deviceInfo?.platform === 'web' && (
+          t.deviceInfo?.deviceKey === deviceKey ||
+          t.deviceInfo?.userAgent === navigator.userAgent
+        )
+      );
 
-      if (deviceId !== null) {
-        // Mettre a jour le token existant pour cet appareil
-        updatedTokens = existingTokens.map((t, i) =>
-          i === deviceId
-            ? { ...t, token: fcmToken, updatedAt: new Date(), deviceInfo: { ...t.deviceInfo, lastSeen: new Date() } }
-            : t
-        );
+      const tokenData: FCMToken = {
+        token: fcmToken,
+        deviceInfo: {
+          userAgent: navigator.userAgent,
+          platform: 'web',
+          deviceKey,
+          lastSeen: new Date(),
+        },
+        createdAt: existingIndex !== -1 ? (existingTokens[existingIndex].createdAt || new Date()) : new Date(),
+        updatedAt: new Date(),
+      };
+
+      let updatedTokens: FCMToken[];
+      if (existingIndex !== -1) {
+        // Remplacer le token existant pour cet appareil
+        updatedTokens = [...existingTokens];
+        updatedTokens[existingIndex] = tokenData;
       } else {
-        // Nouvel appareil : ajouter
-        updatedTokens = [
-          ...existingTokens,
-          {
-            token: fcmToken,
-            deviceInfo: {
-              userAgent: navigator.userAgent,
-              platform: 'web',
-              deviceKey,
-              lastSeen: new Date(),
-            },
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ];
+        // Nouvel appareil
+        updatedTokens = [...existingTokens, tokenData];
       }
 
       await updateDoc(userRef, {
@@ -161,8 +138,7 @@ export function FCMProvider({ children }: { children: ReactNode }) {
       setToken(fcmToken);
     } catch (err: any) {
       if (err.code !== 'aborted') {
-        console.error('[useFCM] Erreur sauvegarde token:', err);
-        setError('Erreur lors de la sauvegarde du token');
+        console.error('[FCM] Erreur sauvegarde token:', err);
       }
     }
   }, []);
@@ -171,7 +147,6 @@ export function FCMProvider({ children }: { children: ReactNode }) {
    * Ecouter les messages en premier plan
    */
   const listenForMessages = useCallback(async () => {
-    // Nettoyer l'ancien listener
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
@@ -197,7 +172,8 @@ export function FCMProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Initialiser FCM et generer le token
+   * Initialiser FCM : generer un token pour CE navigateur
+   * Toujours appeler getToken() - le SDK Firebase gere le cache interne
    */
   const initializeFCM = useCallback(async (): Promise<void> => {
     if (typeof window === 'undefined') return;
@@ -213,12 +189,6 @@ export function FCMProvider({ children }: { children: ReactNode }) {
 
     if (!auth.currentUser) {
       setError('Utilisateur non connecte');
-      return;
-    }
-
-    // Si deja charge depuis Firestore, juste ecouter les messages
-    if (tokenLoadedRef.current) {
-      await listenForMessages();
       return;
     }
 
@@ -249,11 +219,12 @@ export function FCMProvider({ children }: { children: ReactNode }) {
         if (!swRegistration) {
           swRegistration = await navigator.serviceWorker.register('/sw.js');
         }
-      } catch (swError) {
+      } catch {
         throw new Error('Impossible d\'enregistrer le service worker');
       }
 
-      // Generer le token FCM
+      // TOUJOURS appeler getToken() - le SDK retourne le meme token si valide
+      // ou en genere un nouveau si la subscription a change
       const fcmToken = await getToken(messaging, {
         vapidKey: VAPID_KEY,
         serviceWorkerRegistration: swRegistration,
@@ -264,14 +235,16 @@ export function FCMProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Sauvegarder (remplace ou ajoute, pas de doublon)
+      // Sauvegarder dans Firestore (remplace ou ajoute)
       await saveToken(fcmToken);
+
+      // Retirer le flag "intentionally disabled" car l'utilisateur a active
+      localStorage.removeItem(DISABLED_FLAG);
 
       // Ecouter les messages en premier plan
       await listenForMessages();
     } catch (err: any) {
-      console.error('[useFCM] Erreur initialisation:', err);
-
+      console.error('[FCM] Erreur initialisation:', err);
       if (err.code === 'messaging/permission-blocked') {
         setError('Notifications bloquees');
         setPermissionStatus('denied');
@@ -285,7 +258,7 @@ export function FCMProvider({ children }: { children: ReactNode }) {
   }, [token, requestPermission, saveToken, listenForMessages]);
 
   /**
-   * Desactiver les notifications : supprime le token du device et de Firestore
+   * Desactiver les notifications
    */
   const disableNotifications = useCallback(async (): Promise<void> => {
     try {
@@ -294,16 +267,19 @@ export function FCMProvider({ children }: { children: ReactNode }) {
         await deleteToken(messaging);
       }
 
+      // Retirer le token de cet appareil dans Firestore
       if (auth.currentUser) {
         const userRef = doc(db, 'users', auth.currentUser.uid);
         const userDoc = await getDoc(userRef);
         const existingTokens: FCMToken[] = userDoc.data()?.fcmTokens || [];
+        const deviceKey = getDeviceKey();
 
-        // Retirer le token de cet appareil
-        const deviceId = getDeviceId(existingTokens);
-        const remainingTokens = deviceId !== null
-          ? existingTokens.filter((_, i) => i !== deviceId)
-          : existingTokens;
+        const remainingTokens = existingTokens.filter(t =>
+          !(t.deviceInfo?.platform === 'web' && (
+            t.deviceInfo?.deviceKey === deviceKey ||
+            t.deviceInfo?.userAgent === navigator.userAgent
+          ))
+        );
 
         await updateDoc(userRef, {
           fcmTokens: remainingTokens,
@@ -312,22 +288,19 @@ export function FCMProvider({ children }: { children: ReactNode }) {
       }
 
       setToken(null);
-      tokenLoadedRef.current = false;
-      localStorage.removeItem('fcm-permission-granted');
-      localStorage.removeItem('notification-permission-dismissed');
+      localStorage.setItem(DISABLED_FLAG, 'true');
 
-      // Nettoyer le listener
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }
     } catch (err) {
-      console.error('[useFCM] Erreur desactivation notifications:', err);
-      setError('Erreur lors de la desactivation des notifications');
+      console.error('[FCM] Erreur desactivation:', err);
+      setError('Erreur lors de la desactivation');
     }
   }, []);
 
-  // Cleanup on unmount
+  // Cleanup
   useEffect(() => {
     return () => {
       if (unsubscribeRef.current) {
@@ -360,25 +333,19 @@ export function useFCM(): FCMContextType {
   return context;
 }
 
-// ===== Helper functions (hors React) =====
+// ===== Helpers =====
 
-/**
- * Genere une cle unique pour l'appareil basee sur le platform + navigateur
- * Plus stable que le userAgent complet (resiste aux mises a jour de version)
- */
 function getDeviceKey(): string {
   if (typeof window === 'undefined') return 'unknown';
   const ua = navigator.userAgent;
   const platform = navigator.platform || 'unknown';
 
-  // Extraire le navigateur principal
   let browser = 'unknown';
   if (ua.includes('Firefox')) browser = 'firefox';
   else if (ua.includes('Edg')) browser = 'edge';
   else if (ua.includes('Chrome')) browser = 'chrome';
   else if (ua.includes('Safari')) browser = 'safari';
 
-  // Extraire l'OS
   let os = 'unknown';
   if (ua.includes('Windows')) os = 'windows';
   else if (ua.includes('Mac OS')) os = 'mac';
@@ -387,88 +354,4 @@ function getDeviceKey(): string {
   else if (ua.includes('Linux')) os = 'linux';
 
   return `${platform}:${os}:${browser}`;
-}
-
-/**
- * Trouve un token existant pour cet appareil dans la liste
- * Utilise un matching souple (deviceKey ou userAgent partiel)
- */
-function findTokenForDevice(tokens: FCMToken[]): FCMToken | null {
-  const currentDeviceKey = getDeviceKey();
-  const currentUa = navigator.userAgent;
-
-  // 1. Matching par deviceKey (si presente)
-  const byDeviceKey = tokens.find(t =>
-    t.deviceInfo?.platform === 'web' && t.deviceInfo?.deviceKey === currentDeviceKey
-  );
-  if (byDeviceKey) return byDeviceKey;
-
-  // 2. Fallback : matching par userAgent exact (anciens tokens sans deviceKey)
-  const byExactUa = tokens.find(t =>
-    t.deviceInfo?.platform === 'web' && t.deviceInfo?.userAgent === currentUa
-  );
-  if (byExactUa) return byExactUa;
-
-  // 3. Fallback : matching souple par navigateur + OS (extraits de l'UA)
-  const currentBrowser = extractBrowser(currentUa);
-  const currentOs = extractOs(currentUa);
-
-  const byPartial = tokens.find(t => {
-    if (t.deviceInfo?.platform !== 'web') return false;
-    const tBrowser = extractBrowser(t.deviceInfo?.userAgent || '');
-    const tOs = extractOs(t.deviceInfo?.userAgent || '');
-    return tBrowser === currentBrowser && tOs === currentOs;
-  });
-
-  return byPartial || null;
-}
-
-/**
- * Trouve l'index du token pour cet appareil
- */
-function getDeviceId(tokens: FCMToken[]): number | null {
-  const currentDeviceKey = getDeviceKey();
-  const currentUa = navigator.userAgent;
-
-  // 1. Par deviceKey
-  const idxByKey = tokens.findIndex(t =>
-    t.deviceInfo?.platform === 'web' && t.deviceInfo?.deviceKey === currentDeviceKey
-  );
-  if (idxByKey !== -1) return idxByKey;
-
-  // 2. Par userAgent exact
-  const idxByUa = tokens.findIndex(t =>
-    t.deviceInfo?.platform === 'web' && t.deviceInfo?.userAgent === currentUa
-  );
-  if (idxByUa !== -1) return idxByUa;
-
-  // 3. Par navigateur + OS
-  const currentBrowser = extractBrowser(currentUa);
-  const currentOs = extractOs(currentUa);
-
-  const idxByPartial = tokens.findIndex(t => {
-    if (t.deviceInfo?.platform !== 'web') return false;
-    const tBrowser = extractBrowser(t.deviceInfo?.userAgent || '');
-    const tOs = extractOs(t.deviceInfo?.userAgent || '');
-    return tBrowser === currentBrowser && tOs === currentOs;
-  });
-
-  return idxByPartial !== -1 ? idxByPartial : null;
-}
-
-function extractBrowser(ua: string): string {
-  if (ua.includes('Firefox')) return 'firefox';
-  if (ua.includes('Edg')) return 'edge';
-  if (ua.includes('Chrome')) return 'chrome';
-  if (ua.includes('Safari')) return 'safari';
-  return 'unknown';
-}
-
-function extractOs(ua: string): string {
-  if (ua.includes('Windows')) return 'windows';
-  if (ua.includes('Mac OS')) return 'mac';
-  if (ua.includes('Android')) return 'android';
-  if (ua.includes('iPhone') || ua.includes('iPad')) return 'ios';
-  if (ua.includes('Linux')) return 'linux';
-  return 'unknown';
 }

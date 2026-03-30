@@ -60,9 +60,10 @@ function DashboardContent({
 }) {
   const { initializeFCM, permissionStatus, token } = useFCM();
 
-  // Auto-initialiser FCM pour les admins
+  // Auto-initialiser FCM pour les admins (sauf si intentionnellement desactive)
   useEffect(() => {
-    if (user?.role === 'admin' && permissionStatus === 'granted' && !token) {
+    const intentionallyDisabled = localStorage.getItem('fcm-intentionally-disabled') === 'true';
+    if (user?.role === 'admin' && permissionStatus === 'granted' && !token && !intentionallyDisabled) {
       initializeFCM();
     }
   }, [user, permissionStatus, token, initializeFCM]);
