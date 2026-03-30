@@ -100,12 +100,13 @@ export function FCMProvider({ children }: { children: ReactNode }) {
 
       const deviceKey = getOrCreateDeviceId();
 
-      // Chercher un token existant pour cet appareil (par deviceKey ou userAgent exact)
+      // Chercher un token existant UNIQUEMENT par la valeur du token FCM.
+      // Firebase garantit que chaque appareil genere un token unique.
+      // On n'utilise PAS deviceKey comme fallback car Chrome 146 Android peut
+      // partager le meme localStorage entre appareils (meme comptes differents).
+      // Le deviceKey est garde a titre informatif uniquement.
       const existingIndex = existingTokens.findIndex(t =>
-        t.deviceInfo?.platform === 'web' && (
-          t.deviceInfo?.deviceKey === deviceKey ||
-          t.deviceInfo?.userAgent === navigator.userAgent
-        )
+        t.deviceInfo?.platform === 'web' && t.token === fcmToken
       );
 
       const tokenData: FCMToken = {
@@ -272,13 +273,11 @@ export function FCMProvider({ children }: { children: ReactNode }) {
         const userRef = doc(db, 'users', auth.currentUser.uid);
         const userDoc = await getDoc(userRef);
         const existingTokens: FCMToken[] = userDoc.data()?.fcmTokens || [];
-        const deviceKey = getOrCreateDeviceId();
 
+        // Supprimer par token FCM (unique par appareil) et non par deviceKey
+        // car deviceKey peut etre partage entre appareils en Chrome 146 Android
         const remainingTokens = existingTokens.filter(t =>
-          !(t.deviceInfo?.platform === 'web' && (
-            t.deviceInfo?.deviceKey === deviceKey ||
-            t.deviceInfo?.userAgent === navigator.userAgent
-          ))
+          !(t.deviceInfo?.platform === 'web' && t.token === token)
         );
 
         await updateDoc(userRef, {
