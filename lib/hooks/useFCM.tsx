@@ -98,7 +98,7 @@ export function FCMProvider({ children }: { children: ReactNode }) {
       const userDoc = await getDoc(userRef);
       const existingTokens: FCMToken[] = userDoc.data()?.fcmTokens || [];
 
-      const deviceKey = getDeviceKey();
+      const deviceKey = getOrCreateDeviceId();
 
       // Chercher un token existant pour cet appareil (par deviceKey ou userAgent exact)
       const existingIndex = existingTokens.findIndex(t =>
@@ -272,7 +272,7 @@ export function FCMProvider({ children }: { children: ReactNode }) {
         const userRef = doc(db, 'users', auth.currentUser.uid);
         const userDoc = await getDoc(userRef);
         const existingTokens: FCMToken[] = userDoc.data()?.fcmTokens || [];
-        const deviceKey = getDeviceKey();
+        const deviceKey = getOrCreateDeviceId();
 
         const remainingTokens = existingTokens.filter(t =>
           !(t.deviceInfo?.platform === 'web' && (
@@ -335,23 +335,26 @@ export function useFCM(): FCMContextType {
 
 // ===== Helpers =====
 
-function getDeviceKey(): string {
-  if (typeof window === 'undefined') return 'unknown';
-  const ua = navigator.userAgent;
-  const platform = navigator.platform || 'unknown';
+const DEVICE_ID_KEY = 'fcm-device-id';
 
-  let browser = 'unknown';
-  if (ua.includes('Firefox')) browser = 'firefox';
-  else if (ua.includes('Edg')) browser = 'edge';
-  else if (ua.includes('Chrome')) browser = 'chrome';
-  else if (ua.includes('Safari')) browser = 'safari';
+/**
+ * Genere un UUID v4 unique par instance de navigateur.
+ * Stocke en localStorage pour persister entre les sessions.
+ * Chaque telephone, chaque PC aura son propre ID.
+ */
+function getOrCreateDeviceId(): string {
+  if (typeof window === 'undefined') return 'ssr';
 
-  let os = 'unknown';
-  if (ua.includes('Windows')) os = 'windows';
-  else if (ua.includes('Mac OS')) os = 'mac';
-  else if (ua.includes('Android')) os = 'android';
-  else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'ios';
-  else if (ua.includes('Linux')) os = 'linux';
+  const existing = localStorage.getItem(DEVICE_ID_KEY);
+  if (existing) return existing;
 
-  return `${platform}:${os}:${browser}`;
+  // Generer un UUID v4
+  const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+
+  localStorage.setItem(DEVICE_ID_KEY, uuid);
+  return uuid;
 }

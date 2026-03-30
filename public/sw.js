@@ -2,8 +2,8 @@
 // Cache des assets statiques uniquement - PAS de cache Firestore/API
 // v8: Support PWA offline avec persistance localStorage des stores Zustand
 
-const CACHE_NAME = "omnigestion-v17";
-const STATIC_CACHE = "omnigestion-static-v17";
+const CACHE_NAME = "omnigestion-v18";
+const STATIC_CACHE = "omnigestion-static-v18";
 
 // Assets à mettre en cache statique (pages, JS, CSS, images)
 const STATIC_ASSETS = [
