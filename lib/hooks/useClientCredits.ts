@@ -27,6 +27,7 @@ export interface ClientCreditInput {
   invoiceId?: string;
   invoiceNumber?: string;
   amount: number;
+  date?: Date;
   dueDate?: Date;
   notes?: string;
 }
@@ -106,17 +107,40 @@ export function useClientCredits() {
 
     try {
       const remainingAmount = data.amount;
+      const creditDate = data.date || new Date();
 
-      const docRef = await addDoc(collection(db, COLLECTIONS.companyClientCredits(user.currentCompanyId)), {
-        ...data,
+      // Construire l'objet du crédit en filtrant les champs undefined
+      const creditData: Record<string, any> = {
+        clientId: data.clientId,
+        clientName: data.clientName,
+        amount: data.amount,
+        date: creditDate,
         amountPaid: 0,
         remainingAmount,
         status: 'active',
         companyId: user.currentCompanyId,
-        date: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      };
+      if (data.invoiceId) creditData.invoiceId = data.invoiceId;
+      if (data.invoiceNumber) creditData.invoiceNumber = data.invoiceNumber;
+      if (data.dueDate) creditData.dueDate = data.dueDate;
+      if (data.notes) creditData.notes = data.notes;
+
+      const docRef = await addDoc(collection(db, COLLECTIONS.companyClientCredits(user.currentCompanyId)), creditData);
+
+      // Mettre à jour le currentCredit du client
+      if (data.clientId) {
+        const clientRef = doc(db, COLLECTIONS.companyClients(user.currentCompanyId), data.clientId);
+        const clientSnap = await getDoc(clientRef);
+        if (clientSnap.exists()) {
+          const clientData = clientSnap.data();
+          await updateDoc(clientRef, {
+            currentCredit: (clientData.currentCredit || 0) + remainingAmount,
+            updatedAt: new Date(),
+          });
+        }
+      }
 
       await fetchCredits();
       return { success: true, id: docRef.id };

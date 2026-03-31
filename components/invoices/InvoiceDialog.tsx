@@ -10,7 +10,7 @@ import { useSettings } from '@/lib/hooks/useSettings';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { invoiceSchema, type InvoiceFormData } from '@/lib/validations/invoice';
 import { useInvoices, type InvoiceItemInput } from '@/lib/hooks/useInvoices';
-import type { Client, Product } from '@/types';
+import type { Client, Product, Invoice } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
@@ -66,13 +66,28 @@ interface InvoiceDialogProps {
     saleDate?: Date;
     dueDate?: Date;
     notes?: string;
-    // Mobile Money
     mobileNumber?: string;
-    // Paiement bancaire
     bankName?: string;
     accountNumber?: string;
     transactionNumber?: string;
   }) => Promise<any>;
+  onUpdateInvoice?: (invoiceId: string, data: {
+    clientId?: string;
+    clientName?: string;
+    items: InvoiceItemInput[];
+    taxRate: number;
+    discount: number;
+    paymentMethod?: 'cash' | 'bank' | 'mobile' | 'credit';
+    paidAmount: number;
+    saleDate?: Date;
+    dueDate?: Date;
+    notes?: string;
+    mobileNumber?: string;
+    bankName?: string;
+    accountNumber?: string;
+    transactionNumber?: string;
+  }) => Promise<any>;
+  editInvoice?: Invoice | null;
   isSubmitting?: boolean;
 }
 
@@ -80,6 +95,8 @@ export function InvoiceDialog({
   open,
   onOpenChange,
   onCreateInvoice,
+  onUpdateInvoice,
+  editInvoice,
   isSubmitting = false,
 }: InvoiceDialogProps) {
   const { products } = useProductsRealtime();
@@ -297,6 +314,53 @@ export function InvoiceDialog({
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
 
+  // Mode édition
+  const isEditMode = !!editInvoice;
+
+  // Pré-remplir le formulaire quand editInvoice change
+  useEffect(() => {
+    if (editInvoice && open) {
+      // Remplir les champs du formulaire
+      form.reset({
+        clientId: editInvoice.clientId || undefined,
+        taxRate: editInvoice.taxRate || 0,
+        discount: editInvoice.discount || 0,
+        paymentMethod: editInvoice.paymentMethod || 'cash',
+        paidAmount: editInvoice.paidAmount || 0,
+        saleDate: editInvoice.date ? new Date(editInvoice.date) : new Date(),
+        notes: editInvoice.notes || '',
+        clientSearch: '',
+        mobileNumber: (editInvoice as any).mobileNumber || '',
+        bankName: (editInvoice as any).bankName || '',
+        accountNumber: (editInvoice as any).accountNumber || '',
+        transactionNumber: (editInvoice as any).transactionNumber || '',
+      });
+
+      // Remplir les items
+      const invoiceItems: InvoiceItemInput[] = (editInvoice.items || []).map((item: any) => ({
+        productId: item.productId,
+        productName: item.productName,
+        productCode: item.productCode,
+        quantity: item.quantity,
+        unit: item.unit || 'pièce',
+        unitPrice: item.unitPrice,
+        purchasePrice: item.purchasePrice,
+        isWholesale: item.isWholesale || false,
+      }));
+      setItems(invoiceItems);
+
+      // Remplir la recherche client
+      if (editInvoice.clientName) {
+        setClientSearch(editInvoice.clientName);
+      }
+    } else if (!open) {
+      // Réinitialiser à la fermeture
+      setItems([]);
+      setClientSearch('');
+      setProductSearch('');
+    }
+  }, [editInvoice, open, form]);
+
   const handleSubmit = async (data: InvoiceFormData) => {
     if (items.length === 0) {
       toast.error('Ajoutez au moins un produit à la facture');
@@ -307,30 +371,36 @@ export function InvoiceDialog({
       return;
     }
 
+    const invoiceData = {
+      clientId: data.clientId,
+      clientName: editInvoice?.clientName || clients.find(c => c.id === data.clientId)?.name,
+      items,
+      taxRate: data.taxRate,
+      discount: data.discount,
+      paymentMethod: data.paymentMethod,
+      paidAmount: data.paymentMethod === 'credit' ? 0 : data.paidAmount,
+      saleDate: data.saleDate,
+      notes: data.notes,
+      mobileNumber: data.paymentMethod === 'mobile' ? data.mobileNumber : undefined,
+      bankName: data.paymentMethod === 'bank' ? data.bankName : undefined,
+      accountNumber: data.paymentMethod === 'bank' ? data.accountNumber : undefined,
+      transactionNumber: data.paymentMethod === 'bank' ? data.transactionNumber : undefined,
+    };
+
     try {
-      await onCreateInvoice({
-        clientId: data.clientId,
-        items,
-        taxRate: data.taxRate,
-        discount: data.discount,
-        paymentMethod: data.paymentMethod,
-        paidAmount: data.paymentMethod === 'credit' ? 0 : data.paidAmount,
-        saleDate: data.saleDate, // Date de la vente
-        notes: data.notes,
-        // Mobile Money
-        mobileNumber: data.paymentMethod === 'mobile' ? data.mobileNumber : undefined,
-        // Paiement bancaire
-        bankName: data.paymentMethod === 'bank' ? data.bankName : undefined,
-        accountNumber: data.paymentMethod === 'bank' ? data.accountNumber : undefined,
-        transactionNumber: data.paymentMethod === 'bank' ? data.transactionNumber : undefined,
-      });
+      if (isEditMode && editInvoice && onUpdateInvoice) {
+        await onUpdateInvoice(editInvoice.id, invoiceData);
+        toast.success('Facture modifiée avec succès');
+      } else {
+        await onCreateInvoice(invoiceData);
+        toast.success('Facture créée avec succès');
+      }
 
       onOpenChange(false);
       form.reset();
       setItems([]);
-      toast.success('Facture créée avec succès');
     } catch (error: any) {
-      toast.error(error.message || 'Erreur lors de la création de la facture');
+      toast.error(error.message || `Erreur lors de ${isEditMode ? 'la modification' : 'la création'} de la facture`);
     }
   };
 
@@ -340,7 +410,7 @@ export function InvoiceDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5" />
-            Nouvelle facture
+            {isEditMode ? `Modifier la facture ${editInvoice?.invoiceNumber || ''}` : 'Nouvelle facture'}
           </DialogTitle>
           <DialogDescription>
             Créez une nouvelle facture de vente
@@ -851,12 +921,12 @@ export function InvoiceDialog({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Création...
+                    {isEditMode ? 'Modification...' : 'Création...'}
                   </>
                 ) : (
                   <>
                     <Receipt className="mr-2 h-4 w-4" />
-                    Créer la facture
+                    {isEditMode ? 'Mettre à jour' : 'Créer la facture'}
                   </>
                 )}
               </Button>

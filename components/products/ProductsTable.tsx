@@ -93,7 +93,7 @@ export function ProductsTable({
           case 'low':
             return isActive && product.status === 'low';
           case 'out':
-            return isActive && product.status === 'out';
+            return isActive && product.currentStock === 0;
           case 'inactive':
             return !isActive;
           default:

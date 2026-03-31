@@ -18,7 +18,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
-import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, CloudOff, RefreshCw, Cloud } from 'lucide-react';
+import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, CloudOff, RefreshCw, Cloud, Calendar, X } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { fr } from 'date-fns/locale';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 
 // Type pour le résultat de création de facture (avec ou sans pending)
@@ -37,8 +41,10 @@ export default function SalesPage() {
 
   // État local pour la recherche
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<'today' | 'all' | Date>('today');
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // Filtrage local pour la recherche (plus besoin du store pour ça)
+  // Filtrage local pour la recherche
   const invoices = useMemo(() => {
     if (!searchQuery || searchQuery.length < 2) {
       return rawInvoices;
@@ -55,6 +61,7 @@ export default function SalesPage() {
   const {
     createInvoiceOffline,
     deleteInvoice,
+    updateInvoice,
     isOnline,
     pendingInvoicesCount,
     isSyncing,
@@ -63,7 +70,7 @@ export default function SalesPage() {
     executeStockTransfers,
   } = useInvoicesHelpers();
 
-  const { credits } = useClientCredits();
+  const { credits, payments } = useClientCredits();
   const { user } = useAuth();
   const { company, settings } = useSettings();
   const { canCreateSale, canDeleteSale, canAccessModule, getFirstAccessiblePage } = usePermissions();
@@ -78,6 +85,7 @@ export default function SalesPage() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -229,24 +237,87 @@ export default function SalesPage() {
     window.open(`/sales/print/${invoice.id}`, '_blank');
   };
 
-  // Calculer les statistiques du jour
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+   const handleEditInvoice = (invoice: Invoice) => {
+    setEditingInvoice(invoice);
+    setIsDialogOpen(true);
+  };
 
-  const todayInvoices = invoices.filter(inv => {
-    const invDate = new Date(inv.date);
-    invDate.setHours(0, 0, 0, 0);
-    return invDate.getTime() === today.getTime();
-  });
+  const handleUpdateInvoice = async (invoiceId: string, data: any) => {
+    setIsSubmitting(true);
+    try {
+      await updateInvoice(invoiceId, data);
+      setIsDialogOpen(false);
+      setEditingInvoice(null);
+      toast.success('Facture modifiée avec succès');
+    } catch (error: any) {
+      toast.error(error.message || 'Erreur lors de la modification de la facture');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-  const todayRevenue = todayInvoices.reduce((sum, inv) => sum + inv.total, 0);
-  const todayPaid = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
-  const todayInvoicesCount = todayInvoices.length;
+  // Date cible pour le filtre
+  const targetDate = useMemo(() => {
+    if (dateFilter === 'all') return null;
+    if (dateFilter === 'today') {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    const d = new Date(dateFilter);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [dateFilter]);
 
-  // Calculer le total des crédits actifs (à partir des crédits réels, pas des factures)
+  // Factures filtrées par date et excluant les annulées (admin: selon le filtre, employé: aujourd'hui)
+  const displayedInvoices = useMemo(() => {
+    const active = invoices.filter(inv => inv.status !== 'cancelled');
+    if (!targetDate) return active;
+    return active.filter(inv => {
+      const invDate = new Date(inv.date);
+      invDate.setHours(0, 0, 0, 0);
+      return invDate.getTime() === targetDate.getTime();
+    });
+  }, [invoices, targetDate]);
+
+  // CA = encaissé uniquement
+  const allCreditPayments = Object.values(payments).flat();
+  const periodCreditPaymentsTotal = allCreditPayments
+    .filter(cp => {
+      if (!targetDate) return true;
+      const payDate = new Date(cp.createdAt);
+      payDate.setHours(0, 0, 0, 0);
+      return payDate.getTime() === targetDate.getTime();
+    })
+    .reduce((sum, cp) => sum + (cp.amount || 0), 0);
+
+  const periodRevenue = displayedInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0) + periodCreditPaymentsTotal;
+  const periodInvoicesCount = displayedInvoices.length;
+
+  // Crédits actifs de la période
   const activeCredits = credits
-    .filter(c => c.status !== 'paid' && c.status !== 'cancelled')
-    .reduce((sum, c) => sum + c.remainingAmount, 0);
+    .filter(c => {
+      if (c.status === 'paid' || c.status === 'cancelled') return false;
+      if (!targetDate) return true;
+      const creditDate = new Date(c.createdAt);
+      creditDate.setHours(0, 0, 0, 0);
+      return creditDate.getTime() === targetDate.getTime();
+    })
+    .reduce((sum, c) => sum + (c.remainingAmount || 0), 0);
+
+  // Libellé de la période
+  const periodLabel = useMemo(() => {
+    if (dateFilter === 'all') return 'Toutes les factures';
+    if (dateFilter === 'today') return "Aujourd'hui";
+    return format(targetDate!, 'dd/MM/yyyy');
+  }, [dateFilter, targetDate]);
+
+  // Réinitialiser le filtre date pour les employés
+  useEffect(() => {
+    if (user?.role === 'employee') {
+      setDateFilter('today');
+    }
+  }, [user?.role]);
 
   return (
     <div className="space-y-6">
@@ -301,17 +372,65 @@ export default function SalesPage() {
         </div>
       </div>
 
-      {/* Statistiques du jour */}
-      <div className="grid gap-4 md:grid-cols-4">
+
+      {/* Filtre par date (admin uniquement) */}
+      {user?.role === 'admin' && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant={dateFilter === 'today' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setDateFilter('today')}
+          >
+            Aujourd'hui
+          </Button>
+
+          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant={dateFilter instanceof Date ? 'default' : 'outline'}
+                size="sm"
+                className="gap-1"
+              >
+                <Calendar className="h-4 w-4" />
+                {dateFilter instanceof Date ? format(dateFilter, 'dd/MM/yyyy') : 'Date précise'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={dateFilter instanceof Date ? dateFilter : undefined}
+                onSelect={(date) => {
+                  if (date) {
+                    setDateFilter(date);
+                    setIsCalendarOpen(false);
+                  }
+                }}
+                locale={fr}
+              />
+            </PopoverContent>
+          </Popover>
+
+          <Button
+            variant={dateFilter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setDateFilter('all')}
+          >
+            Toutes
+          </Button>
+        </div>
+      )}
+
+      {/* Statistiques */}
+      <div className="grid gap-4 md:grid-cols-3">
         <KpiCard variant="info">
           <KpiCardHeader
-            title="Factures du jour"
+            title="Factures"
             icon={<FileText className="h-5 w-5" />}
             iconVariant="info"
           />
           <KpiCardValue
-            value={todayInvoicesCount}
-            label="Aujourd'hui"
+            value={periodInvoicesCount}
+            label={periodLabel}
             variant="info"
           />
         </KpiCard>
@@ -323,22 +442,9 @@ export default function SalesPage() {
             iconVariant="primary"
           />
           <KpiCardValue
-            value={`${todayRevenue.toLocaleString()} FCFA`}
-            label="Total facturé aujourd'hui"
+            value={`${periodRevenue.toLocaleString()} FCFA`}
+            label={`Encaissé — ${periodLabel}`}
             variant="primary"
-          />
-        </KpiCard>
-
-        <KpiCard variant="success">
-          <KpiCardHeader
-            title="Encaissé"
-            icon={<DollarSign className="h-5 w-5" />}
-            iconVariant="success"
-          />
-          <KpiCardValue
-            value={`${todayPaid.toLocaleString()} FCFA`}
-            label="Montant payé aujourd'hui"
-            variant="success"
           />
         </KpiCard>
 
@@ -350,7 +456,7 @@ export default function SalesPage() {
           />
           <KpiCardValue
             value={`${activeCredits.toLocaleString()} FCFA`}
-            label="Reste à payer total"
+            label={`Crédits — ${periodLabel}`}
             variant="warning"
           />
         </KpiCard>
@@ -366,11 +472,12 @@ export default function SalesPage() {
         </CardHeader>
         <CardContent>
           <InvoiceTable
-            invoices={invoices}
+            invoices={displayedInvoices}
             loading={isLoading}
             onSearch={setSearchQuery}
             searchQuery={searchQuery}
             onView={handleViewInvoice}
+            onEdit={handleEditInvoice}
             onDelete={handleDeleteInvoice}
           />
         </CardContent>
@@ -379,8 +486,13 @@ export default function SalesPage() {
       {/* Dialog création facture */}
       <InvoiceDialog
         open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) setEditingInvoice(null);
+        }}
         onCreateInvoice={handleCreateInvoice}
+        onUpdateInvoice={handleUpdateInvoice}
+        editInvoice={editingInvoice}
         isSubmitting={isSubmitting}
       />
 

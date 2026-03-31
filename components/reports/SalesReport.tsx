@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { useInvoices } from '@/lib/hooks/useInvoices';
+import { useClientCredits } from '@/lib/hooks/useClientCredits';
 import { DollarSign, ShoppingCart, TrendingUp, FileText } from 'lucide-react';
 import { Bar, Line, Pie } from 'react-chartjs-2';
 import {
@@ -44,7 +45,9 @@ interface SalesReportProps {
 
 export function SalesReport({ period }: SalesReportProps) {
   const { invoices } = useInvoices();
+  const { payments: creditPaymentsMap } = useClientCredits();
   const [filteredInvoices, setFilteredInvoices] = useState(invoices);
+  const [filteredCreditPayments, setFilteredCreditPayments] = useState<any[]>([]);
 
   useEffect(() => {
     const now = new Date();
@@ -74,30 +77,46 @@ export function SalesReport({ period }: SalesReportProps) {
     }
 
     const filtered = invoices.filter(inv => {
+      if (inv.status === 'cancelled') return false;
       const invDate = new Date(inv.date);
       return invDate >= startDate && invDate <= now;
     });
 
+    // Filtrer les paiements de crédits pour la même période
+    const allCreditPayments = Object.values(creditPaymentsMap).flat();
+    const filteredCP = allCreditPayments.filter(cp => {
+      const payDate = new Date(cp.createdAt);
+      return payDate >= startDate && payDate <= now;
+    });
+
     setFilteredInvoices(filtered);
-  }, [period, invoices]);
+    setFilteredCreditPayments(filteredCP);
+  }, [period, invoices, creditPaymentsMap]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price);
   };
 
-  // Calculer les KPIs
-  const totalRevenue = filteredInvoices.reduce((sum, inv) => sum + inv.total, 0);
+  // Calculer les KPIs (CA = encaissé uniquement)
+  const creditPaymentsTotal = filteredCreditPayments.reduce((sum, cp) => sum + (cp.amount || 0), 0);
+  const totalRevenue = filteredInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0) + creditPaymentsTotal;
   const totalInvoices = filteredInvoices.length;
   const avgBasket = totalInvoices > 0 ? totalRevenue / totalInvoices : 0;
   const paidAmount = filteredInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
 
   // Préparer les données pour les graphiques
-  // Ventes par jour
+  // Ventes par jour (CA encaissé)
   const salesByDay = filteredInvoices.reduce((acc, inv) => {
     const day = format(new Date(inv.date), 'dd/MM');
-    acc[day] = (acc[day] || 0) + inv.total;
+    acc[day] = (acc[day] || 0) + inv.paidAmount;
     return acc;
   }, {} as Record<string, number>);
+
+  // Ajouter les paiements de crédits au graphique par jour
+  filteredCreditPayments.forEach(cp => {
+    const day = format(new Date(cp.createdAt), 'dd/MM');
+    salesByDay[day] = (salesByDay[day] || 0) + (cp.amount || 0);
+  });
 
   const salesChartData = {
     labels: Object.keys(salesByDay),
@@ -113,12 +132,18 @@ export function SalesReport({ period }: SalesReportProps) {
     ],
   };
 
-  // Répartition par mode de paiement
+  // Répartition par mode de paiement (CA encaissé)
   const paymentDistribution = filteredInvoices.reduce((acc, inv) => {
     const method = inv.paymentMethod || 'non_défini';
-    acc[method] = (acc[method] || 0) + inv.total;
+    acc[method] = (acc[method] || 0) + inv.paidAmount;
     return acc;
   }, {} as Record<string, number>);
+
+  // Ajouter les paiements de crédits à la distribution
+  filteredCreditPayments.forEach(cp => {
+    const mode = cp.paymentMode || 'non_défini';
+    paymentDistribution[mode] = (paymentDistribution[mode] || 0) + (cp.amount || 0);
+  });
 
   const paymentLabels: Record<string, string> = {
     cash: 'Espèces',
@@ -168,10 +193,10 @@ export function SalesReport({ period }: SalesReportProps) {
     ],
   };
 
-  // Top 10 clients
+  // Top 10 clients (CA encaissé)
   const clientSales = filteredInvoices.reduce((acc, inv) => {
     const client = inv.clientName || 'Client de passage';
-    acc[client] = (acc[client] || 0) + inv.total;
+    acc[client] = (acc[client] || 0) + inv.paidAmount;
     return acc;
   }, {} as Record<string, number>);
 
@@ -223,7 +248,7 @@ export function SalesReport({ period }: SalesReportProps) {
   return (
     <div className="space-y-6">
       {/* KPIs */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <KpiCard variant="primary">
           <KpiCardHeader
             title="Chiffre d'affaires"
@@ -232,7 +257,7 @@ export function SalesReport({ period }: SalesReportProps) {
           />
           <KpiCardValue
             value={`${formatPrice(totalRevenue)} FCFA`}
-            label="Total de la période"
+            label="Total encaissé de la période"
             variant="primary"
           />
         </KpiCard>
@@ -260,19 +285,6 @@ export function SalesReport({ period }: SalesReportProps) {
             value={`${formatPrice(Math.round(avgBasket))} FCFA`}
             label="Moyenne par vente"
             variant="warning"
-          />
-        </KpiCard>
-
-        <KpiCard variant="success">
-          <KpiCardHeader
-            title="Encaissé"
-            icon={<TrendingUp className="h-4 w-4" />}
-            iconVariant="success"
-          />
-          <KpiCardValue
-            value={`${formatPrice(paidAmount)} FCFA`}
-            label="Montant payé"
-            variant="success"
           />
         </KpiCard>
       </div>

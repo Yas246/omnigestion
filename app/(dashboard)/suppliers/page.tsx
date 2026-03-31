@@ -17,6 +17,7 @@ import { useSupplierCredits } from '@/lib/hooks/useSupplierCredits'; // Garder p
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { SupplierCreditPaymentDialog } from '@/components/suppliers/SupplierCreditPaymentDialog';
+import { ManualSupplierCreditDialog } from '@/components/suppliers/ManualSupplierCreditDialog';
 import { SupplierDialog } from '@/components/suppliers/SupplierDialog';
 import { SupplierEditDialog } from '@/components/suppliers/SupplierEditDialog';
 import { PurchaseDialog } from '@/components/suppliers/PurchaseDialog';
@@ -78,6 +79,7 @@ export default function SuppliersPage() {
   const [showSupplierDialog, setShowSupplierDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
+  const [showManualCreditDialog, setShowManualCreditDialog] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -403,6 +405,14 @@ export default function SuppliersPage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>Crédits fournisseurs</CardTitle>
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowManualCreditDialog(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Nouveau crédit
+                  </Button>
                   <Input
                     placeholder="Rechercher fournisseur, facture... (min. 3 caractères)"
                     value={searchQuery}
@@ -612,6 +622,11 @@ export default function SuppliersPage() {
         }}
         credit={selectedCredit}
         onSubmit={handlePayment}
+      />
+
+      <ManualSupplierCreditDialog
+        open={showManualCreditDialog}
+        onOpenChange={setShowManualCreditDialog}
       />
     </div>
   );

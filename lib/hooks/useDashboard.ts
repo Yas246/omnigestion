@@ -104,8 +104,11 @@ export function useDashboard() {
         paidAt: doc.data().paidAt?.toDate(),
       } as Invoice));
 
-      // 2. Filtrer les factures du jour
-      const todayInvoices = allInvoices.filter(inv => {
+      // 2. Exclure les factures annulées
+      const activeInvoices = allInvoices.filter(inv => inv.status !== 'cancelled');
+
+      // 3. Filtrer les factures du jour
+      const todayInvoices = activeInvoices.filter(inv => {
         const invDate = new Date(inv.date);
         return invDate >= startOfToday && invDate <= endOfToday;
       });
@@ -126,20 +129,51 @@ export function useDashboard() {
       // 4.5. Récupérer les crédits clients pour les statistiques
       const creditsRef = collection(db, COLLECTIONS.companyClientCredits(user.currentCompanyId));
       const creditsSnap = await getDocs(creditsRef);
-      const credits = creditsSnap.docs.map(doc => ({
+      const credits = creditsSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: data.date?.toDate() || new Date(),
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        } as ClientCredit;
+      });
+
+      // 4.6. Récupérer les paiements de crédits pour le CA encaissé
+      const creditPaymentsRef = collection(db, COLLECTIONS.companyClientCreditPayments(user.currentCompanyId));
+      const creditPaymentsSnap = await getDocs(creditPaymentsRef);
+      const allCreditPayments = creditPaymentsSnap.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-      } as ClientCredit));
+        amount: doc.data().amount || 0,
+        paymentMode: doc.data().paymentMode || 'cash',
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+      }));
+
+      // Paiements de crédits reçus aujourd'hui
+      const todayCreditPaymentsTotal = allCreditPayments
+        .filter(cp => cp.createdAt >= startOfToday && cp.createdAt <= endOfToday)
+        .reduce((sum, cp) => sum + cp.amount, 0);
+
+      // Total de tous les paiements de crédits
+      const allCreditPaymentsTotal = allCreditPayments
+        .reduce((sum, cp) => sum + cp.amount, 0);
 
       // 5. Calculer les statistiques du jour
-      const todayRevenue = todayInvoices.reduce((sum, inv) => sum + inv.total, 0);
+      // CA = encaissé uniquement (paidAmount des factures + paiements de crédits reçus)
+      const todayRevenue = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0) + todayCreditPaymentsTotal;
       const todayPaidAmount = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
       const todayInvoicesCount = todayInvoices.length;
 
-      // Calculer les crédits actifs à partir des crédits réels (pas des factures)
+      // Calculer les crédits actifs du jour (crédits créés aujourd'hui uniquement)
       const activeCredits = credits
-        .filter(c => c.status !== 'paid' && c.status !== 'cancelled')
-        .reduce((sum, c) => sum + c.remainingAmount, 0);
+        .filter(c => {
+          if (c.status === 'paid' || c.status === 'cancelled') return false;
+          const creditDate = c.createdAt instanceof Date ? c.createdAt : new Date(c.createdAt);
+          return creditDate >= startOfToday && creditDate <= endOfToday;
+        })
+        .reduce((sum, c) => sum + (c.remainingAmount || 0), 0);
 
       // Calculer le bénéfice du jour
       let todayProfit = 0;
@@ -151,21 +185,21 @@ export function useDashboard() {
         });
       });
 
-      // 6. Statistiques globales
-      const totalRevenue = allInvoices.reduce((sum, inv) => sum + inv.total, 0);
-      const totalInvoicesCount = allInvoices.length;
+      // 6. Statistiques globales (CA = encaissé uniquement)
+      const totalRevenue = activeInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0) + allCreditPaymentsTotal;
+      const totalInvoicesCount = activeInvoices.length;
       const totalProducts = products.length;
       const lowStockProducts = products.filter(p => p.status === 'low').length;
       const outOfStockProducts = products.filter(p => p.status === 'out').length;
 
       // 7. Dernières factures (10 dernières)
-      const recentInvoices = allInvoices
+      const recentInvoices = activeInvoices
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 10);
 
       // 8. Produits populaires
       const productSales = new Map<string, { productName: string; quantity: number; revenue: number }>();
-      allInvoices.forEach(inv => {
+      activeInvoices.forEach(inv => {
         inv.items.forEach(item => {
           const existing = productSales.get(item.productId);
           if (existing) {
@@ -196,7 +230,7 @@ export function useDashboard() {
         .sort((a, b) => b.totalQuantity - a.totalQuantity)
         .slice(0, 5);
 
-      // 9. Distribution des paiements
+      // 9. Distribution des paiements (basé sur l'encaissé)
       const paymentDistribution = {
         cash: 0,
         mobile: 0,
@@ -204,14 +238,21 @@ export function useDashboard() {
         credit: 0,
       };
 
-      allInvoices.forEach(inv => {
-        if (inv.paymentMethod === 'cash') paymentDistribution.cash += inv.total;
-        else if (inv.paymentMethod === 'mobile') paymentDistribution.mobile += inv.total;
-        else if (inv.paymentMethod === 'bank') paymentDistribution.bank += inv.total;
-        else if (inv.paymentMethod === 'credit') paymentDistribution.credit += inv.total;
+      activeInvoices.forEach(inv => {
+        if (inv.paymentMethod === 'cash') paymentDistribution.cash += inv.paidAmount;
+        else if (inv.paymentMethod === 'mobile') paymentDistribution.mobile += inv.paidAmount;
+        else if (inv.paymentMethod === 'bank') paymentDistribution.bank += inv.paidAmount;
+        else if (inv.paymentMethod === 'credit') paymentDistribution.credit += inv.paidAmount;
       });
 
-      // 10. Ventes des 7 derniers jours
+      // Ajouter les paiements de crédits à la distribution
+      allCreditPayments.forEach(cp => {
+        if (cp.paymentMode === 'cash') paymentDistribution.cash += cp.amount;
+        else if (cp.paymentMode === 'mobile') paymentDistribution.mobile += cp.amount;
+        else if (cp.paymentMode === 'bank') paymentDistribution.bank += cp.amount;
+      });
+
+      // 10. Ventes des 7 derniers jours (basé sur l'encaissé)
       const salesLast7Days: Array<{ date: string; revenue: number }> = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date(today);
@@ -219,16 +260,20 @@ export function useDashboard() {
         const startOfDay_i = startOfDay(date);
         const endOfDay_i = endOfDay(date);
 
-        const dayRevenue = allInvoices
+        const dayInvoiceRevenue = activeInvoices
           .filter(inv => {
             const invDate = new Date(inv.date);
             return invDate >= startOfDay_i && invDate <= endOfDay_i;
           })
-          .reduce((sum, inv) => sum + inv.total, 0);
+          .reduce((sum, inv) => sum + inv.paidAmount, 0);
+
+        const dayCreditPayments = allCreditPayments
+          .filter(cp => cp.createdAt >= startOfDay_i && cp.createdAt <= endOfDay_i)
+          .reduce((sum, cp) => sum + cp.amount, 0);
 
         salesLast7Days.push({
           date: date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }),
-          revenue: dayRevenue,
+          revenue: dayInvoiceRevenue + dayCreditPayments,
         });
       }
 

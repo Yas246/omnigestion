@@ -181,7 +181,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Statistiques du jour */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <KpiCard variant="primary">
           <KpiCardHeader
             title="CA du jour"
@@ -195,19 +195,6 @@ export default function DashboardPage() {
           />
         </KpiCard>
 
-        <KpiCard variant="success">
-          <KpiCardHeader
-            title="Encaissé aujourd'hui"
-            icon={<DollarSign className="h-5 w-5" />}
-            iconVariant="success"
-          />
-          <KpiCardValue
-            value={`${formatPrice(stats.todayPaidAmount)} ${currency}`}
-            label="Paiements reçus"
-            variant="success"
-          />
-        </KpiCard>
-
         <KpiCard variant="warning">
           <KpiCardHeader
             title="Crédits actifs"
@@ -216,7 +203,7 @@ export default function DashboardPage() {
           />
           <KpiCardValue
             value={`${formatPrice(stats.activeCredits)} ${currency}`}
-            label="Reste à payer"
+            label="Crédits créés aujourd'hui"
             variant="warning"
           />
         </KpiCard>

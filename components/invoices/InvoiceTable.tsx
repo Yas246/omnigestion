@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, Eye, Trash2, FileText, Receipt, DollarSign } from 'lucide-react';
+import { Search, Eye, Trash2, FileText, Receipt, DollarSign, Pencil } from 'lucide-react';
 import { PermissionGate } from '@/components/auth';
 
 // Custom hook pour le debouncing
@@ -45,6 +45,7 @@ interface InvoiceTableProps {
   onSearch?: (searchTerm: string) => void;
   onFilterByStatus?: (status: string | null) => void;
   onView?: (invoice: Invoice) => void;
+  onEdit?: (invoice: Invoice) => void;
   onDelete?: (id: string) => void;
   totalLoaded?: number;
 }
@@ -58,6 +59,7 @@ export function InvoiceTable({
   onSearch,
   onFilterByStatus,
   onView,
+  onEdit,
   onDelete,
   totalLoaded = 0,
 }: InvoiceTableProps) {
@@ -235,7 +237,19 @@ export function InvoiceTable({
                         </Button>
                       )}
                       <PermissionGate module="sales" action="delete">
-                        {onDelete && invoice.status === 'draft' && (
+                        {onEdit && invoice.status !== 'cancelled' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEdit(invoice)}
+                            title="Modifier"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </PermissionGate>
+                      <PermissionGate module="sales" action="delete">
+                        {onDelete && invoice.status !== 'cancelled' && (
                           <Button
                             variant="ghost"
                             size="icon"

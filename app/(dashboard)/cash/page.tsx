@@ -99,9 +99,15 @@ export default function CashPage() {
       return movementDate.getTime() === today.getTime();
     });
 
-    const todayIn = todayMovements
+    const grossIn = todayMovements
       .filter(m => m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId))
       .reduce((sum, m) => sum + m.amount, 0);
+
+    const cancellationOut = todayMovements
+      .filter(m => m.type === 'out' && (m.category === 'cancellation' || m.category === 'credit_payment_reversal'))
+      .reduce((sum, m) => sum + m.amount, 0);
+
+    const todayIn = grossIn - cancellationOut;
 
     const todayOut = todayMovements
       .filter(m => m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId))
@@ -114,12 +120,19 @@ export default function CashPage() {
   const todayInCount = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return movements.filter(m => {
+    const grossInCount = movements.filter(m => {
       const movementDate = new Date(m.createdAt);
       movementDate.setHours(0, 0, 0, 0);
       return movementDate.getTime() === today.getTime() &&
         (m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId));
     }).length;
+    const cancelCount = movements.filter(m => {
+      const movementDate = new Date(m.createdAt);
+      movementDate.setHours(0, 0, 0, 0);
+      return movementDate.getTime() === today.getTime() &&
+        m.type === 'out' && (m.category === 'cancellation' || m.category === 'credit_payment_reversal');
+    }).length;
+    return grossInCount - cancelCount;
   }, [movements]);
 
   const todayOutCount = useMemo(() => {

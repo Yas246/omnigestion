@@ -892,49 +892,582 @@ export function useInvoices() {
   };
 
   /**
-   * Mettre à jour une facture
+   * Modifier une facture avec rollback complet des anciens effets et application des nouveaux
    */
-  const updateInvoice = async (id: string, data: Partial<Invoice>) => {
+  const updateInvoice = async (invoiceId: string, data: InvoiceCreateInput) => {
     if (!user?.currentCompanyId) throw new Error('Utilisateur non connecté');
+    if (data.items.length === 0) throw new Error('Ajoutez au moins un produit à la facture');
+
+    let cashRegisterId: string | null = null;
+    const stockAlerts: Array<{ productId: string; productName: string; newStock: number; threshold: number; status: 'out' | 'low' }> = [];
 
     try {
-      const invoiceRef = doc(db, COLLECTIONS.companyInvoices(user.currentCompanyId), id);
+      const result = await runTransaction(db, async (transaction) => {
+        const companyId = user.currentCompanyId!;
 
-      await updateDoc(invoiceRef, {
-        ...data,
-        updatedAt: new Date(),
+        // ===== PHASE 1: ROLLBACK ANCIENNE FACTURE =====
+
+        const invoiceRef = doc(db, COLLECTIONS.companyInvoices(companyId), invoiceId);
+        const invoiceSnap = await getDoc(invoiceRef);
+        if (!invoiceSnap.exists()) throw new Error('Facture non trouvée');
+        const oldInvoice = invoiceSnap.data() as Invoice;
+        if (oldInvoice.status === 'cancelled') throw new Error('Facture déjà annulée');
+
+        // 1A. Restaurer le stock pour chaque ancien article
+        for (const item of oldInvoice.items) {
+          const whQtyRef = doc(db, `companies/${companyId}/warehouse_quantities`, item.productId);
+          const whQtySnap = await getDoc(whQtyRef);
+
+          if (whQtySnap.exists()) {
+            const quantities = whQtySnap.data().quantities || [];
+            const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+
+            const updatedQuantities = quantities.map((entry: any) => {
+              if (entry.warehouseId === primaryWarehouseId) {
+                return { ...entry, quantity: entry.quantity + item.quantity };
+              }
+              return entry;
+            });
+
+            transaction.set(whQtyRef, { quantities: updatedQuantities, updatedAt: serverTimestamp() }, { merge: true });
+
+            const totalStock = updatedQuantities.reduce((sum: number, e: any) => sum + e.quantity, 0);
+            const productRef = doc(db, COLLECTIONS.companyProducts(companyId), item.productId);
+            const productSnap = await getDoc(productRef);
+            const alertThreshold = productSnap.exists() ? (productSnap.data().alertThreshold || 0) : 0;
+            const newStatus = totalStock === 0 ? 'out' : totalStock <= alertThreshold ? 'low' : 'ok';
+            transaction.update(productRef, { status: newStatus, updatedAt: new Date() });
+          }
+
+          // Mouvement compensatoire
+          const stockMovementsRef = collection(db, COLLECTIONS.companyStockMovements(companyId));
+          const movementRef = doc(stockMovementsRef);
+          transaction.set(movementRef, {
+            companyId, productId: item.productId,
+            warehouseId: settings?.stock?.defaultWarehouseId || 'boutique',
+            type: 'in', quantity: item.quantity,
+            reason: `Modification facture ${oldInvoice.invoiceNumber}`,
+            referenceType: 'invoice_modification', referenceId: invoiceId,
+            userId: user.id, createdAt: new Date(),
+          });
+        }
+
+        // 1B. Reverser la caisse ancienne
+        if (oldInvoice.paidAmount > 0) {
+          const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
+          const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
+          let oldCashRegId: string | null = null;
+          if (!cashRegistersSnap.empty) oldCashRegId = cashRegistersSnap.docs[0].id;
+          else {
+            const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
+            if (!allSnap.empty) oldCashRegId = allSnap.docs[0].id;
+          }
+
+          if (oldCashRegId) {
+            const cashMovementsRef = collection(db, COLLECTIONS.companyCashMovements(companyId));
+            const cmRef = doc(cashMovementsRef);
+            transaction.set(cmRef, {
+              companyId, cashRegisterId: oldCashRegId,
+              type: 'out', amount: oldInvoice.paidAmount, category: 'modification',
+              description: `Modification facture ${oldInvoice.invoiceNumber}`,
+              referenceId: invoiceId, referenceType: 'invoice_modification',
+              userId: user.id, createdAt: new Date(),
+            });
+            transaction.update(doc(db, COLLECTIONS.companyCashRegisters(companyId), oldCashRegId), {
+              currentBalance: increment(-oldInvoice.paidAmount), updatedAt: new Date(),
+            });
+          }
+        }
+
+        // 1C. Reverser l'ancien crédit et ses paiements
+        if (oldInvoice.remainingAmount > 0 && oldInvoice.clientId) {
+          const creditsRef = collection(db, COLLECTIONS.companyClientCredits(companyId));
+          const creditsSnap = await getDocs(query(creditsRef, where('invoiceId', '==', invoiceId)));
+
+          for (const creditDoc of creditsSnap.docs) {
+            const paymentsRef = collection(db, COLLECTIONS.companyClientCreditPayments(companyId));
+            const paymentsSnap = await getDocs(query(paymentsRef, where('creditId', '==', creditDoc.id)));
+
+            for (const paymentDoc of paymentsSnap.docs) {
+              const paymentData = paymentDoc.data();
+              const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
+              const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
+              let payCashRegId: string | null = null;
+              if (!cashRegistersSnap.empty) payCashRegId = cashRegistersSnap.docs[0].id;
+              else {
+                const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
+                if (!allSnap.empty) payCashRegId = allSnap.docs[0].id;
+              }
+
+              if (payCashRegId) {
+                const cashMovementsRef = collection(db, COLLECTIONS.companyCashMovements(companyId));
+                const cmRef = doc(cashMovementsRef);
+                transaction.set(cmRef, {
+                  companyId, cashRegisterId: payCashRegId,
+                  type: 'out', amount: paymentData.amount, category: 'credit_payment_reversal',
+                  description: `Modification - reversement crédit (${oldInvoice.invoiceNumber})`,
+                  referenceId: paymentDoc.id, referenceType: 'invoice_modification',
+                  userId: user.id, createdAt: new Date(),
+                });
+                transaction.update(doc(db, COLLECTIONS.companyCashRegisters(companyId), payCashRegId), {
+                  currentBalance: increment(-paymentData.amount), updatedAt: new Date(),
+                });
+              }
+              transaction.delete(doc(db, COLLECTIONS.companyClientCreditPayments(companyId), paymentDoc.id));
+            }
+            transaction.update(doc(db, COLLECTIONS.companyClientCredits(companyId), creditDoc.id), {
+              status: 'cancelled', updatedAt: new Date(),
+            });
+          }
+
+          // Reverser stats ancien client
+          const clientRef = doc(db, COLLECTIONS.companyClients(companyId), oldInvoice.clientId);
+          const clientSnap = await getDoc(clientRef);
+          if (clientSnap.exists()) {
+            const cd = clientSnap.data();
+            transaction.update(clientRef, {
+              totalPurchases: Math.max(0, (cd.totalPurchases || 0) - 1),
+              totalAmount: Math.max(0, (cd.totalAmount || 0) - oldInvoice.total),
+              currentCredit: Math.max(0, (cd.currentCredit || 0) - oldInvoice.remainingAmount),
+              updatedAt: new Date(),
+            });
+          }
+        } else if (oldInvoice.clientId && oldInvoice.paidAmount > 0) {
+          // Facture payée sans crédit — reverser stats client
+          const clientRef = doc(db, COLLECTIONS.companyClients(companyId), oldInvoice.clientId);
+          const clientSnap = await getDoc(clientRef);
+          if (clientSnap.exists()) {
+            const cd = clientSnap.data();
+            transaction.update(clientRef, {
+              totalPurchases: Math.max(0, (cd.totalPurchases || 0) - 1),
+              totalAmount: Math.max(0, (cd.totalAmount || 0) - oldInvoice.total),
+              updatedAt: new Date(),
+            });
+          }
+        }
+
+        // ===== PHASE 2: APPLIQUER NOUVEAUX EFFETS =====
+
+        // 2A. Valider les prix
+        for (const item of data.items) {
+          if (item.purchasePrice && item.unitPrice < item.purchasePrice) {
+            throw new Error(`Prix de vente invalide pour ${item.productName}: ${item.unitPrice} < ${item.purchasePrice}`);
+          }
+        }
+
+        // 2B. Déduire le stock pour les nouveaux articles
+        for (const item of data.items) {
+          if (!item.productId) throw new Error(`productId manquant pour: ${item.productName}`);
+
+          const productRef = doc(db, COLLECTIONS.companyProducts(companyId), item.productId);
+          const productSnap = await getDoc(productRef);
+          if (!productSnap.exists()) throw new Error(`Produit non trouvé: ${item.productName}`);
+          const productData = productSnap.data();
+
+          const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+          const warehouseQuantitiesRef = doc(db, `companies/${companyId}/warehouse_quantities`, item.productId);
+          const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
+
+          let quantities: any[] = [];
+          if (warehouseQuantitiesDoc.exists()) {
+            quantities = warehouseQuantitiesDoc.data().quantities || [];
+          }
+
+          if (primaryWarehouseId) {
+            const primaryEntry = quantities.find((q: any) => q.warehouseId === primaryWarehouseId);
+            const availableInPrimary = primaryEntry?.quantity || 0;
+            if (availableInPrimary < item.quantity) {
+              throw new Error(`Stock insuffisant pour ${item.productName}: ${availableInPrimary} disponibles (besoin de ${item.quantity})`);
+            }
+          }
+
+          let updatedQuantities = [...quantities];
+          if (primaryWarehouseId) {
+            const currentQty = updatedQuantities.find((q: any) => q.warehouseId === primaryWarehouseId)?.quantity || 0;
+            const newQty = currentQty - item.quantity;
+            updatedQuantities = updatedQuantities.map((q: any) =>
+              q.warehouseId === primaryWarehouseId ? { ...q, quantity: newQty } : q
+            );
+            if (!updatedQuantities.some((q: any) => q.warehouseId === primaryWarehouseId)) {
+              updatedQuantities.push({ warehouseId: primaryWarehouseId, warehouseName: primaryWarehouseId, quantity: newQty });
+            }
+
+            const newTotal = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
+            const newStatus = newTotal === 0 ? 'out' : newTotal <= (productData.alertThreshold || 0) ? 'low' : 'ok';
+
+            if (newStatus === 'out' || newStatus === 'low') {
+              stockAlerts.push({
+                productId: item.productId, productName: item.productName,
+                newStock: newTotal, threshold: productData.alertThreshold, status: newStatus,
+              });
+            }
+
+            transaction.update(productRef, { status: newStatus, updatedAt: new Date() });
+            transaction.set(warehouseQuantitiesRef, {
+              productId: item.productId, quantities: updatedQuantities, updatedAt: serverTimestamp(),
+            }, { merge: true });
+          }
+
+          // Mouvement de stock (sortie)
+          const movementsCollection = collection(db, COLLECTIONS.companyStockMovements(companyId));
+          const movementRef = doc(movementsCollection);
+          transaction.set(movementRef, {
+            companyId, productId: item.productId,
+            warehouseId: primaryWarehouseId || productData.warehouseId,
+            type: 'out', quantity: -item.quantity,
+            reason: `Modification facture ${oldInvoice.invoiceNumber}`,
+            referenceType: 'invoice_modification',
+            userId: user.id, createdAt: new Date(),
+          });
+        }
+
+        // 2C. Calculer les totaux
+        const subtotal = data.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+        const taxAmount = (subtotal * data.taxRate) / 100;
+        const total = subtotal - data.discount + taxAmount;
+        const remainingAmount = total - data.paidAmount;
+
+        // 2D. Déterminer le statut
+        let status: 'draft' | 'validated' | 'paid';
+        if (remainingAmount <= 0) status = 'paid';
+        else if (data.paidAmount > 0 || data.clientId) status = 'validated';
+        else status = 'draft';
+
+        // 2E. Préparer les items
+        const invoiceItems: InvoiceItem[] = data.items.map((item, index) => ({
+          id: `item-${index}`,
+          productId: item.productId, productName: item.productName, productCode: item.productCode,
+          quantity: item.quantity, unit: item.unit, unitPrice: item.unitPrice,
+          purchasePrice: item.purchasePrice, total: item.unitPrice * item.quantity,
+          isWholesale: item.isWholesale,
+        }));
+
+        // 2F. Client : récupérer nom + mettre à jour stats
+        let clientName: string | undefined;
+        if (data.clientId) {
+          const clientRef = doc(db, COLLECTIONS.companyClients(companyId), data.clientId);
+          const clientSnap = await getDoc(clientRef);
+          if (clientSnap.exists()) {
+            const cd = clientSnap.data();
+            clientName = cd.name;
+            transaction.update(clientRef, {
+              totalPurchases: (cd.totalPurchases || 0) + 1,
+              totalAmount: (cd.totalAmount || 0) + total,
+              currentCredit: (cd.currentCredit || 0) + remainingAmount,
+              lastPurchaseDate: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+        }
+
+        // 2G. Mouvement de caisse
+        if (data.paidAmount > 0) {
+          const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
+          const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
+          if (!cashRegistersSnap.empty) cashRegisterId = cashRegistersSnap.docs[0].id;
+          else {
+            const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
+            if (!allSnap.empty) cashRegisterId = allSnap.docs[0].id;
+          }
+
+          if (cashRegisterId) {
+            const movementsRef = collection(db, COLLECTIONS.companyCashMovements(companyId));
+            const movementRef = doc(movementsRef);
+            let category = 'sale';
+            if (data.paymentMethod === 'mobile') category = 'mobile_money';
+            else if (data.paymentMethod === 'bank') category = 'bank';
+            else if (data.paymentMethod === 'cash') category = 'cash';
+
+            transaction.set(movementRef, {
+              companyId, cashRegisterId, type: 'in', amount: data.paidAmount, category,
+              description: `Facture ${oldInvoice.invoiceNumber} (modifiée)`,
+              userId: user.id, createdAt: new Date(),
+            });
+            transaction.update(doc(db, COLLECTIONS.companyCashRegisters(companyId), cashRegisterId), {
+              currentBalance: increment(data.paidAmount), updatedAt: new Date(),
+            });
+          }
+        }
+
+        // 2H. Crédit client si reste à payer
+        if (remainingAmount > 0 && data.clientId) {
+          const creditsRef = collection(db, COLLECTIONS.companyClientCredits(companyId));
+          const creditRef = doc(creditsRef);
+          const cRef = doc(db, COLLECTIONS.companyClients(companyId), data.clientId);
+          const cSnap = await getDoc(cRef);
+          const cName = cSnap.exists() ? cSnap.data().name : (data.clientName || 'Client inconnu');
+
+          transaction.set(creditRef, {
+            companyId, clientId: data.clientId, clientName: cName,
+            invoiceId, invoiceNumber: oldInvoice.invoiceNumber,
+            amount: total, amountPaid: data.paidAmount, remainingAmount,
+            status: remainingAmount < total ? 'partial' : 'active',
+            date: new Date(), notes: `Facture ${oldInvoice.invoiceNumber} (modifiée)`,
+            createdAt: new Date(), updatedAt: new Date(),
+          });
+        }
+
+        // 2I. Mettre à jour le document facture
+        const updateData: Record<string, any> = {
+          items: invoiceItems, subtotal, taxRate: data.taxRate, taxAmount,
+          discount: data.discount, total, status,
+          paidAmount: data.paidAmount, remainingAmount, updatedAt: new Date(),
+        };
+
+        if (data.clientId) updateData.clientId = data.clientId;
+        else updateData.clientId = null;
+        if (clientName) updateData.clientName = clientName;
+        else if (!data.clientId) updateData.clientName = null;
+        if (data.paymentMethod) updateData.paymentMethod = data.paymentMethod;
+        else updateData.paymentMethod = null;
+        if (data.notes) updateData.notes = data.notes;
+        else updateData.notes = null;
+        if (data.saleDate) updateData.date = data.saleDate;
+        if (data.dueDate) updateData.dueDate = data.dueDate;
+
+        if ((status === 'validated' || status === 'paid') && !oldInvoice.validatedAt) {
+          updateData.validatedAt = new Date();
+          updateData.validatedBy = user.id;
+        }
+        if (status === 'paid') {
+          updateData.paidAt = new Date();
+          updateData.paidBy = user.id;
+        }
+
+        transaction.update(invoiceRef, updateData);
+
+        return { id: invoiceId, invoiceNumber: oldInvoice.invoiceNumber, total, status, remainingAmount };
       });
 
       await fetchInvoices();
 
-      return { success: true };
+      // Notifications d'alertes de stock
+      if (stockAlerts.length > 0) {
+        try {
+          const { notifyOutOfStock, notifyLowStock } = await import('@/lib/services/notifications');
+          for (const alert of stockAlerts) {
+            if (alert.status === 'out') await notifyOutOfStock({ productId: alert.productId, productName: alert.productName }, user.currentCompanyId!);
+            else await notifyLowStock({ productId: alert.productId, productName: alert.productName, currentStock: alert.newStock, threshold: alert.threshold }, user.currentCompanyId!);
+          }
+        } catch (e) { console.error('[updateInvoice] Erreur notifications stock:', e); }
+      }
+
+      return result;
     } catch (err) {
-      console.error('Erreur lors de la mise à jour de la facture:', err);
-      throw new Error('Erreur lors de la mise à jour de la facture');
+      console.error('Erreur lors de la modification de la facture:', err);
+      throw new Error(err instanceof Error ? err.message : 'Erreur lors de la modification de la facture');
     }
   };
 
   /**
-   * Supprimer une facture (annulation)
+   * Supprimer une facture avec rollback complet (stock, caisse, crédit, paiements)
    */
   const deleteInvoice = async (id: string) => {
     if (!user?.currentCompanyId) throw new Error('Utilisateur non connecté');
 
     try {
-      const invoiceRef = doc(db, COLLECTIONS.companyInvoices(user.currentCompanyId), id);
+      await runTransaction(db, async (transaction) => {
+        const companyId = user.currentCompanyId!;
 
-      // Au lieu de supprimer, on annule la facture
-      await updateDoc(invoiceRef, {
-        status: 'cancelled',
-        updatedAt: new Date(),
+        // 1. Lire la facture originale
+        const invoiceRef = doc(db, COLLECTIONS.companyInvoices(companyId), id);
+        const invoiceSnap = await getDoc(invoiceRef);
+        if (!invoiceSnap.exists()) throw new Error('Facture non trouvée');
+        const invoice = invoiceSnap.data() as Invoice;
+
+        if (invoice.status === 'cancelled') throw new Error('Facture déjà annulée');
+
+        // 2. Restaurer le stock pour chaque article
+        for (const item of invoice.items) {
+          // Lire les quantités en entrepôt
+          const whQtyRef = doc(db, `companies/${companyId}/warehouse_quantities`, item.productId);
+          const whQtySnap = await getDoc(whQtyRef);
+
+          if (whQtySnap.exists()) {
+            const whQtyData = whQtySnap.data();
+            const quantities = whQtyData.quantities || [];
+            const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+
+            // Ajouter la quantité retirée au warehouse principal
+            const updatedQuantities = quantities.map((entry: any) => {
+              if (entry.warehouseId === primaryWarehouseId) {
+                return { ...entry, quantity: entry.quantity + item.quantity };
+              }
+              return entry;
+            });
+
+            transaction.set(whQtyRef, {
+              quantities: updatedQuantities,
+              updatedAt: new Date(),
+            }, { merge: true });
+
+            // Recalculer le stock total et le statut du produit
+            const totalStock = updatedQuantities.reduce((sum: number, e: any) => sum + e.quantity, 0);
+            const productRef = doc(db, COLLECTIONS.companyProducts(companyId), item.productId);
+            const productSnap = await getDoc(productRef);
+            const alertThreshold = productSnap.exists() ? (productSnap.data().alertThreshold || 0) : 0;
+
+            const newStatus = totalStock === 0 ? 'out' : totalStock <= alertThreshold ? 'low' : 'ok';
+            transaction.update(productRef, { status: newStatus, updatedAt: new Date() });
+          }
+
+          // Créer un mouvement de stock compensatoire
+          const stockMovementsRef = collection(db, COLLECTIONS.companyStockMovements(companyId));
+          const movementRef = doc(stockMovementsRef);
+          transaction.set(movementRef, {
+            companyId,
+            productId: item.productId,
+            warehouseId: settings?.stock?.defaultWarehouseId || 'boutique',
+            type: 'in',
+            quantity: item.quantity,
+            reason: `Annulation facture ${invoice.invoiceNumber}`,
+            referenceType: 'invoice_cancellation',
+            referenceId: id,
+            userId: user.id,
+            createdAt: new Date(),
+          });
+        }
+
+        // 3. Reverser la caisse si un montant a été payé
+        if (invoice.paidAmount > 0) {
+          // Trouver la caisse principale
+          const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
+          const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
+          let cashRegisterId: string | null = null;
+
+          if (!cashRegistersSnap.empty) {
+            cashRegisterId = cashRegistersSnap.docs[0].id;
+          } else {
+            const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
+            if (!allSnap.empty) cashRegisterId = allSnap.docs[0].id;
+          }
+
+          if (cashRegisterId) {
+            // Créer un mouvement de caisse compensatoire (sortie)
+            const cashMovementsRef = collection(db, COLLECTIONS.companyCashMovements(companyId));
+            const cashMovementRef = doc(cashMovementsRef);
+            transaction.set(cashMovementRef, {
+              companyId,
+              cashRegisterId,
+              type: 'out',
+              amount: invoice.paidAmount,
+              category: 'cancellation',
+              description: `Annulation facture ${invoice.invoiceNumber}`,
+              referenceId: id,
+              referenceType: 'invoice_cancellation',
+              userId: user.id,
+              createdAt: new Date(),
+            });
+
+            // Décrementer le solde de la caisse
+            const cashRegisterRef = doc(db, COLLECTIONS.companyCashRegisters(companyId), cashRegisterId);
+            transaction.update(cashRegisterRef, {
+              currentBalance: increment(-invoice.paidAmount),
+              updatedAt: new Date(),
+            });
+          }
+        }
+
+        // 4. Reverser le crédit client et ses paiements
+        if (invoice.remainingAmount > 0 && invoice.clientId) {
+          // Trouver le crédit lié à cette facture
+          const creditsRef = collection(db, COLLECTIONS.companyClientCredits(companyId));
+          const creditsSnap = await getDocs(query(creditsRef, where('invoiceId', '==', id)));
+
+          for (const creditDoc of creditsSnap.docs) {
+            const creditData = creditDoc.data();
+
+            // Trouver et reverser tous les paiements du crédit
+            const paymentsRef = collection(db, COLLECTIONS.companyClientCreditPayments(companyId));
+            const paymentsSnap = await getDocs(query(paymentsRef, where('creditId', '==', creditDoc.id)));
+
+            for (const paymentDoc of paymentsSnap.docs) {
+              const paymentData = paymentDoc.data();
+
+              // Reverser le paiement dans la caisse
+              const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
+              const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
+              let payCashRegId: string | null = null;
+
+              if (!cashRegistersSnap.empty) {
+                payCashRegId = cashRegistersSnap.docs[0].id;
+              } else {
+                const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
+                if (!allSnap.empty) payCashRegId = allSnap.docs[0].id;
+              }
+
+              if (payCashRegId) {
+                const cashMovementsRef = collection(db, COLLECTIONS.companyCashMovements(companyId));
+                const cashMovementRef = doc(cashMovementsRef);
+                transaction.set(cashMovementRef, {
+                  companyId,
+                  cashRegisterId: payCashRegId,
+                  type: 'out',
+                  amount: paymentData.amount,
+                  category: 'credit_payment_reversal',
+                  description: `Annulation paiement crédit - ${invoice.clientName || 'Client'} (facture ${invoice.invoiceNumber})`,
+                  referenceId: paymentDoc.id,
+                  referenceType: 'credit_payment_reversal',
+                  userId: user.id,
+                  createdAt: new Date(),
+                });
+
+                const cashRegisterRef = doc(db, COLLECTIONS.companyCashRegisters(companyId), payCashRegId);
+                transaction.update(cashRegisterRef, {
+                  currentBalance: increment(-paymentData.amount),
+                  updatedAt: new Date(),
+                });
+              }
+
+              // Supprimer le paiement
+              transaction.delete(doc(db, COLLECTIONS.companyClientCreditPayments(companyId), paymentDoc.id));
+            }
+
+            // Annuler le crédit
+            transaction.update(doc(db, COLLECTIONS.companyClientCredits(companyId), creditDoc.id), {
+              status: 'cancelled',
+              updatedAt: new Date(),
+            });
+          }
+
+          // Mettre à jour les stats du client
+          const clientRef = doc(db, COLLECTIONS.companyClients(companyId), invoice.clientId);
+          const clientSnap = await getDoc(clientRef);
+          if (clientSnap.exists()) {
+            const clientData = clientSnap.data();
+            transaction.update(clientRef, {
+              totalPurchases: Math.max(0, (clientData.totalPurchases || 0) - 1),
+              totalAmount: Math.max(0, (clientData.totalAmount || 0) - invoice.total),
+              currentCredit: Math.max(0, (clientData.currentCredit || 0) - invoice.remainingAmount),
+              updatedAt: new Date(),
+            });
+          }
+        } else if (invoice.clientId && invoice.paidAmount > 0) {
+          // Facture payée sans crédit — juste reverser les stats client
+          const clientRef = doc(db, COLLECTIONS.companyClients(companyId), invoice.clientId);
+          const clientSnap = await getDoc(clientRef);
+          if (clientSnap.exists()) {
+            const clientData = clientSnap.data();
+            transaction.update(clientRef, {
+              totalPurchases: Math.max(0, (clientData.totalPurchases || 0) - 1),
+              totalAmount: Math.max(0, (clientData.totalAmount || 0) - invoice.total),
+              updatedAt: new Date(),
+            });
+          }
+        }
+
+        // 5. Annuler la facture
+        transaction.update(invoiceRef, {
+          status: 'cancelled',
+          updatedAt: new Date(),
+        });
       });
 
       await fetchInvoices();
-
       return { success: true };
     } catch (err) {
       console.error('Erreur lors de l\'annulation de la facture:', err);
-      throw new Error('Erreur lors de l\'annulation de la facture');
+      throw new Error(err instanceof Error ? err.message : 'Erreur lors de l\'annulation de la facture');
     }
   };
 

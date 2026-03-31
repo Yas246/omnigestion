@@ -27,6 +27,7 @@ export interface SupplierCreditInput {
   invoiceId?: string;
   invoiceNumber?: string;
   amount: number;
+  date?: Date;
   dueDate?: Date;
   notes?: string;
 }
@@ -106,17 +107,40 @@ export function useSupplierCredits() {
 
     try {
       const remainingAmount = data.amount;
+      const creditDate = data.date || new Date();
 
-      const docRef = await addDoc(collection(db, COLLECTIONS.companySupplierCredits(user.currentCompanyId)), {
-        ...data,
+      // Construire l'objet sans champs undefined
+      const creditData: Record<string, any> = {
+        supplierId: data.supplierId,
+        supplierName: data.supplierName,
+        amount: data.amount,
+        date: creditDate,
         amountPaid: 0,
         remainingAmount,
         status: 'active',
         companyId: user.currentCompanyId,
-        date: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      };
+      if (data.invoiceId) creditData.invoiceId = data.invoiceId;
+      if (data.invoiceNumber) creditData.invoiceNumber = data.invoiceNumber;
+      if (data.dueDate) creditData.dueDate = data.dueDate;
+      if (data.notes) creditData.notes = data.notes;
+
+      const docRef = await addDoc(collection(db, COLLECTIONS.companySupplierCredits(user.currentCompanyId)), creditData);
+
+      // Mettre à jour le currentDebt du fournisseur
+      if (data.supplierId) {
+        const supplierRef = doc(db, COLLECTIONS.companySuppliers(user.currentCompanyId), data.supplierId);
+        const supplierSnap = await getDoc(supplierRef);
+        if (supplierSnap.exists()) {
+          const supplierData = supplierSnap.data();
+          await updateDoc(supplierRef, {
+            currentDebt: (supplierData.currentDebt || 0) + remainingAmount,
+            updatedAt: new Date(),
+          });
+        }
+      }
 
       await fetchCredits();
       return { success: true, id: docRef.id };

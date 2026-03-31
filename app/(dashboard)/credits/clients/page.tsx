@@ -8,12 +8,13 @@ import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, DollarSign, Calendar } from 'lucide-react';
+import { Loader2, Plus, DollarSign, Calendar, CreditCard } from 'lucide-react';
 import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
 import { useClientCredits } from '@/lib/hooks/useClientCredits'; // Garder pour les fonctions CRUD
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { CreditPaymentDialog } from '@/components/credits/CreditPaymentDialog';
+import { ManualCreditDialog } from '@/components/credits/ManualCreditDialog';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -57,6 +58,7 @@ export default function CreditsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active'); // Par défaut: uniquement les actifs
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCredit, setSelectedCredit] = useState<any>(null);
+  const [isManualCreditDialogOpen, setIsManualCreditDialogOpen] = useState(false);
 
   // Debouncing de 300ms pour la recherche
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -133,6 +135,10 @@ export default function CreditsPage() {
             Suivi et gestion des créances clients
           </p>
         </div>
+        <Button onClick={() => setIsManualCreditDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nouveau crédit
+        </Button>
       </div>
 
       {/* Statistiques */}
@@ -281,6 +287,12 @@ export default function CreditsPage() {
         }}
         credit={selectedCredit}
         onSubmit={handlePayment}
+      />
+
+      {/* Dialog de crédit manuel */}
+      <ManualCreditDialog
+        open={isManualCreditDialogOpen}
+        onOpenChange={setIsManualCreditDialogOpen}
       />
     </div>
   );
