@@ -564,10 +564,11 @@ export function InvoiceDialog({
               <div className="space-y-2">
                 <FormLabel>Produits ajoutés</FormLabel>
                 <div className="rounded-lg border">
-                  <div className="grid grid-cols-12 gap-2 p-3 bg-muted text-sm font-medium">
+                  {/* Header desktop */}
+                  <div className="hidden md:grid grid-cols-12 gap-2 p-3 bg-muted text-sm font-medium">
                     <div className="col-span-4">Produit</div>
-                    <div className="col-span-2 text-center">Qté</div>
-                    <div className="col-span-2 text-right">Prix unit.</div>
+                    <div className="col-span-1 text-center">Qté</div>
+                    <div className="col-span-3 text-right">Prix unit.</div>
                     <div className="col-span-2 text-right">Total</div>
                     <div className="col-span-2"></div>
                   </div>
@@ -578,83 +579,149 @@ export function InvoiceDialog({
                     const isAutoWholesale = product && item.quantity >= product.wholesaleThreshold && product.wholesaleThreshold > 0;
 
                     return (
-                      <div key={index} className={`grid grid-cols-12 gap-2 p-3 border-t ${isLoss ? 'bg-red-50' : ''}`}>
-                        <div className="col-span-4">
-                          <div className="font-medium text-sm">{item.productName}</div>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {isLoss && (
-                              <div className="flex items-center gap-1 text-xs text-red-600">
-                                <AlertTriangle className="h-3 w-3" />
-                                Prix d'achat: {item.purchasePrice} FCFA
+                      <div key={index} className={`border-t ${isLoss ? 'bg-red-50' : ''}`}>
+                        {/* Desktop layout */}
+                        <div className="hidden md:grid grid-cols-12 gap-2 p-3">
+                          <div className="col-span-4">
+                            <div className="font-medium text-sm">{item.productName}</div>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {isLoss && (
+                                <div className="flex items-center gap-1 text-xs text-red-600">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Prix d'achat: {item.purchasePrice} FCFA
+                                </div>
+                              )}
+                              {item.isWholesale && (
+                                <Badge variant="secondary" className="text-xs">Prix gros</Badge>
+                              )}
+                              {isAutoWholesale && (
+                                <span className="text-xs text-muted-foreground">(≥ {product.wholesaleThreshold} {product.unit})</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="col-span-1">
+                            <NumberInput
+                              min={1}
+                              placeholder="1"
+                              value={item.quantity}
+                              onChange={(value) => updateItemQuantity(index, value)}
+                              className="text-center"
+                            />
+                          </div>
+                          <div className="col-span-3">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex gap-1">
+                                <NumberInput
+                                  min={0}
+                                  placeholder="0"
+                                  value={item.unitPrice}
+                                  onChange={(value) => updateItemPrice(index, value)}
+                                  className="text-right"
+                                  disabled={!item.isWholesale}
+                                />
+                                {product && product.wholesalePrice < product.retailPrice && (
+                                  <Button
+                                    type="button"
+                                    variant={item.isWholesale ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => toggleWholesale(index, product)}
+                                    title={item.isWholesale ? "Passer au prix détail" : "Passer au prix gros"}
+                                    className="px-2"
+                                  >
+                                    {item.isWholesale ? "Gros" : "Détail"}
+                                  </Button>
+                                )}
                               </div>
-                            )}
-                            {item.isWholesale && (
-                              <Badge variant="secondary" className="text-xs">Prix gros</Badge>
-                            )}
-                            {isAutoWholesale && (
-                              <span className="text-xs text-muted-foreground">(≥ {product.wholesaleThreshold} {product.unit})</span>
-                            )}
+                              {product && (
+                                <div className="text-xs text-muted-foreground">
+                                  Détail: {product.retailPrice} | Gros: {product.wholesalePrice}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="col-span-2 text-right">
+                            <div className="font-medium">{itemTotal.toLocaleString()} FCFA</div>
+                          </div>
+                          <div className="col-span-2 flex justify-end">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeItem(index)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="col-span-2">
-                          <NumberInput
-                            min={1}
-                            placeholder="1"
-                            value={item.quantity}
-                            onChange={(value) => updateItemQuantity(index, value)}
-                            className="text-center"
-                          />
-                          <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
-                            {item.unit}
-                            {product && item.quantity < product.wholesaleThreshold && (
-                              <span title="Prix gros à partir de {product.wholesaleThreshold} {product.unit}">
-                                (≥{product.wholesaleThreshold} = gros)
-                              </span>
-                            )}
+
+                        {/* Mobile layout */}
+                        <div className="md:hidden p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm truncate">{item.productName}</div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {isLoss && (
+                                  <div className="flex items-center gap-1 text-xs text-red-600">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Achat: {item.purchasePrice}
+                                  </div>
+                                )}
+                                {item.isWholesale && (
+                                  <Badge variant="secondary" className="text-xs">Prix gros</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeItem(index)}
+                              className="shrink-0 -mt-1 -mr-2"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
                           </div>
-                        </div>
-                        <div className="col-span-2">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex gap-1">
+
+                          <div className="flex gap-2">
+                            <div className="flex flex-col gap-1 flex-1">
+                              <label className="text-xs text-muted-foreground">Qté</label>
+                              <NumberInput
+                                min={1}
+                                placeholder="1"
+                                value={item.quantity}
+                                onChange={(value) => updateItemQuantity(index, value)}
+                                className="text-center"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1 flex-1">
+                              <label className="text-xs text-muted-foreground">Prix unit.</label>
                               <NumberInput
                                 min={0}
                                 placeholder="0"
                                 value={item.unitPrice}
                                 onChange={(value) => updateItemPrice(index, value)}
                                 className="text-right"
+                                disabled={!item.isWholesale}
                               />
-                              {product && product.wholesalePrice < product.retailPrice && (
-                                <Button
-                                  type="button"
-                                  variant={item.isWholesale ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => toggleWholesale(index, product)}
-                                  title={item.isWholesale ? "Passer au prix détail" : "Passer au prix gros"}
-                                  className="px-2"
-                                >
-                                  {item.isWholesale ? "Gros" : "Détail"}
-                                </Button>
-                              )}
                             </div>
-                            {product && (
-                              <div className="text-xs text-muted-foreground">
-                                Détail: {product.retailPrice} | Gros: {product.wholesalePrice}
-                              </div>
-                            )}
                           </div>
-                        </div>
-                        <div className="col-span-2 text-right">
-                          <div className="font-medium">{itemTotal.toLocaleString()} FCFA</div>
-                        </div>
-                        <div className="col-span-2 flex justify-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeItem(index)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+
+                          <div className="flex items-center justify-between gap-2">
+                            {product && product.wholesalePrice < product.retailPrice ? (
+                              <Button
+                                type="button"
+                                variant={item.isWholesale ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => toggleWholesale(index, product)}
+                                className="px-3"
+                              >
+                                {item.isWholesale ? "Gros" : "Détail"}
+                              </Button>
+                            ) : (
+                              <span></span>
+                            )}
+                            <div className="font-medium">{itemTotal.toLocaleString()} FCFA</div>
+                          </div>
                         </div>
                       </div>
                     );

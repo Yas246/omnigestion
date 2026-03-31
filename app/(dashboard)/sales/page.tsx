@@ -170,12 +170,18 @@ export default function SalesPage() {
       // 1. Exécuter les transferts
       await executeStockTransfers(transfers, settings.stock.defaultWarehouseId);
 
-      // 2. Créer la facture
-      const result = await createInvoiceOffline(pendingInvoiceData) as InvoiceCreateResult;
+      // 2. Créer ou modifier la facture
+      if (pendingInvoiceData.isUpdate && pendingInvoiceData.invoiceId) {
+        // Mode modification
+        const { invoiceId, isUpdate, ...invoiceData } = pendingInvoiceData;
+        await updateInvoice(invoiceId, invoiceData);
+        toast.success('Transferts effectués et facture modifiée avec succès');
+      } else {
+        // Mode création
+        const result = await createInvoiceOffline(pendingInvoiceData) as InvoiceCreateResult;
+        toast.success('Transferts effectués et facture créée avec succès');
+      }
 
-      toast.success('Transferts effectués et facture créée avec succès');
-
-      // NOTE: Plus besoin de rafraîchir - onSnapshot gère la mise à jour automatiquement
       console.log('[SalesPage] Transferts effectués, onSnapshot va mettre à jour automatiquement');
 
       // Fermer les modales
@@ -183,6 +189,7 @@ export default function SalesPage() {
       setIsDialogOpen(false);
       setPendingInvoiceData(null);
       setStockTransferProducts([]);
+      setEditingInvoice(null);
     } catch (error: any) {
       toast.error(error.message || 'Erreur lors des transferts ou de la création de la facture');
     } finally {
@@ -243,8 +250,29 @@ export default function SalesPage() {
   };
 
   const handleUpdateInvoice = async (invoiceId: string, data: any) => {
+    if (!user?.currentCompanyId) {
+      toast.error('Utilisateur non connecté');
+      return;
+    }
+
     setIsSubmitting(true);
+
     try {
+      // 1. Vérifier le stock avant modification — passer les anciens items pour le diff
+      const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+      const oldItems = editingInvoice?.items;
+      const stockCheck = await checkStockBeforeInvoice(data.items, primaryWarehouseId, oldItems);
+
+      // 2. Si des produits nécessitent un transfert, afficher la modale
+      if (stockCheck.productsNeedingTransfer.length > 0) {
+        setPendingInvoiceData({ ...data, invoiceId, isUpdate: true });
+        setStockTransferProducts(stockCheck.productsNeedingTransfer);
+        setIsTransferModalOpen(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 3. Pas de transfert nécessaire, modifier directement
       await updateInvoice(invoiceId, data);
       setIsDialogOpen(false);
       setEditingInvoice(null);

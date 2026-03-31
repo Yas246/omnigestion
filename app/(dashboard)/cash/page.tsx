@@ -28,6 +28,8 @@ import { CashMovementDialog } from '@/components/cash/CashMovementDialog';
 import { CashRegisterDialog } from '@/components/cash/CashRegisterDialog';
 import { useCashRegistersRealtime } from '@/lib/react-query/useCashRegistersRealtime';
 import { useCashMovementsRealtime } from '@/lib/react-query/useCashMovementsRealtime';
+import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
+import { useClientCredits } from '@/lib/hooks/useClientCredits';
 import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -45,6 +47,8 @@ export default function CashPage() {
     hasMore: movementsHasMore,
     isLoading: movementsLoading,
   } = useCashMovementsRealtime();
+  const { invoices: allInvoices } = useInvoicesRealtime();
+  const { payments: clientCreditPayments } = useClientCredits();
 
   // Garder le store pour les autres fonctions utilitaires (CRUD)
   const { deleteCashRegister } = useCashRegistersStore();
@@ -99,41 +103,55 @@ export default function CashPage() {
       return movementDate.getTime() === today.getTime();
     });
 
-    const grossIn = todayMovements
-      .filter(m => m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId))
-      .reduce((sum, m) => sum + m.amount, 0);
+    // Entrées aujourd'hui = même logique que le CA journalier
+    // (paidAmount des factures du jour + paiements de crédits du jour)
+    const todayInvoices = allInvoices.filter(inv => {
+      if (inv.status === 'cancelled') return false;
+      const invDate = new Date(inv.date);
+      invDate.setHours(0, 0, 0, 0);
+      return invDate.getTime() === today.getTime();
+    });
 
-    const cancellationOut = todayMovements
-      .filter(m => m.type === 'out' && (m.category === 'cancellation' || m.category === 'credit_payment_reversal'))
-      .reduce((sum, m) => sum + m.amount, 0);
+    const todayPaidAmount = todayInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
 
-    const todayIn = grossIn - cancellationOut;
+    const todayCreditPayments = Object.values(clientCreditPayments).flat()
+      .filter(cp => {
+        const payDate = new Date(cp.createdAt);
+        payDate.setHours(0, 0, 0, 0);
+        return payDate.getTime() === today.getTime();
+      })
+      .reduce((sum, cp) => sum + (cp.amount || 0), 0);
+
+    const todayIn = todayPaidAmount + todayCreditPayments;
 
     const todayOut = todayMovements
       .filter(m => m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId))
       .reduce((sum, m) => sum + m.amount, 0);
 
     return { todayIn, todayOut };
-  }, [movements]);
+  }, [movements, allInvoices, clientCreditPayments]);
 
   // Calculer les totaux du jour pour l'affichage
   const todayInCount = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const grossInCount = movements.filter(m => {
-      const movementDate = new Date(m.createdAt);
-      movementDate.setHours(0, 0, 0, 0);
-      return movementDate.getTime() === today.getTime() &&
-        (m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId));
-    }).length;
-    const cancelCount = movements.filter(m => {
-      const movementDate = new Date(m.createdAt);
-      movementDate.setHours(0, 0, 0, 0);
-      return movementDate.getTime() === today.getTime() &&
-        m.type === 'out' && (m.category === 'cancellation' || m.category === 'credit_payment_reversal');
-    }).length;
-    return grossInCount - cancelCount;
-  }, [movements]);
+
+    const todayInvoices = allInvoices.filter(inv => {
+      if (inv.status === 'cancelled') return false;
+      const invDate = new Date(inv.date);
+      invDate.setHours(0, 0, 0, 0);
+      return invDate.getTime() === today.getTime();
+    });
+
+    const todayCreditPaymentsCount = Object.values(clientCreditPayments).flat()
+      .filter(cp => {
+        const payDate = new Date(cp.createdAt);
+        payDate.setHours(0, 0, 0, 0);
+        return payDate.getTime() === today.getTime();
+      }).length;
+
+    return todayInvoices.length + todayCreditPaymentsCount;
+  }, [allInvoices, clientCreditPayments]);
 
   const todayOutCount = useMemo(() => {
     const today = new Date();

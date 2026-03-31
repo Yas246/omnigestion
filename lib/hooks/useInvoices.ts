@@ -188,11 +188,17 @@ export function useInvoices() {
   };
 
   /**
-   * Vérifier le stock avant création de facture et retourner les produits nécessitant un transfert
+   * Vérifier le stock avant création/modification de facture et retourner les produits nécessitant un transfert.
+   *
+   * En mode modification (oldItems fourni), ne vérifie le stock que pour le DIFF :
+   * - Produits nouveaux (pas dans oldItems) → vérifier stock complet
+   * - Produits existants avec qty augmentée → vérifier stock pour la différence
+   * - Produits inchangés ou diminués → SKIP (pas besoin de vérifier)
    */
   const checkStockBeforeInvoice = async (
     items: InvoiceItem[],
-    primaryWarehouseId: string | undefined
+    primaryWarehouseId: string | undefined,
+    oldItems?: InvoiceItem[]
   ): Promise<{
     canCreateInvoice: boolean;
     productsNeedingTransfer: Array<{
@@ -237,31 +243,42 @@ export function useInvoices() {
     console.log(`[checkStockBeforeInvoice] Dépôt principal: ${primaryWarehouseId}`);
     console.log(`[checkStockBeforeInvoice] ${warehouses.length} dépôts trouvés:`, warehouses.map(w => `${w.name} (${w.id})`).join(', '));
 
-    // Pour chaque produit de la facture
+    // Construire le map des quantités anciennes si en mode modification
+    const oldQtyMap = new Map<string, number>();
+    if (oldItems) {
+      for (const item of oldItems) {
+        oldQtyMap.set(item.productId, (oldQtyMap.get(item.productId) || 0) + item.quantity);
+      }
+      console.log(`[checkStockBeforeInvoice] MODE MODIFICATION — oldQtyMap:`, Object.fromEntries(oldQtyMap));
+    }
+
+    // Construire le map des quantités nouvelles
+    const newQtyMap = new Map<string, number>();
     for (const item of items) {
-      if (!item.productId) continue;
+      newQtyMap.set(item.productId, (newQtyMap.get(item.productId) || 0) + item.quantity);
+    }
 
-      // Récupérer le produit
-      const productRef = doc(db, COLLECTIONS.companyProducts(user.currentCompanyId), item.productId);
-      const productSnap = await getDoc(productRef);
+    // Ne vérifier que les produits dont la quantité augmente (diff > 0)
+    for (const [productId, newQty] of newQtyMap) {
+      const oldQty = oldQtyMap.get(productId) || 0;
+      const diff = newQty - oldQty;
 
-      if (!productSnap.exists()) {
-        throw new Error(`Produit non trouvé: ${item.productName}`);
+      console.log(`[checkStockBeforeInvoice] Produit ${productId}: oldQty=${oldQty}, newQty=${newQty}, diff=${diff}`);
+
+      if (diff <= 0) {
+        console.log(`[checkStockBeforeInvoice] → SKIP ${productId} (diff=${diff}, stock ${diff < 0 ? 'sera restauré' : 'inchangé'})`);
+        continue;
       }
 
-      const productData = productSnap.data();
-      console.log(`[checkStockBeforeInvoice] ✅ Produit trouvé: ${item.productName}, companyId: "${user.currentCompanyId}" (longueur: ${user.currentCompanyId.length})`);
-
-      // Calculer la quantité totale requise pour ce produit
-      const totalRequired = items
-        .filter(i => i.productId === item.productId)
-        .reduce((sum, i) => sum + i.quantity, 0);
+      // Trouver le nom du produit
+      const item = items.find(i => i.productId === productId);
+      const productName = item?.productName || productId;
 
       // Récupérer le stock depuis warehouse_quantities
       const warehouseQuantitiesRef = doc(
         db,
         `companies/${user.currentCompanyId}/warehouse_quantities`,
-        item.productId
+        productId
       );
       const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
 
@@ -273,11 +290,11 @@ export function useInvoices() {
       const primaryEntry = quantities.find((q: any) => q.warehouseId === primaryWarehouseId);
       let availableInPrimary = primaryEntry?.quantity || 0;
 
-      console.log(`[checkStockBeforeInvoice] Stock pour ${item.productName}: ${quantities.length} dépôt(s), dépôt principal (${primaryWarehouseId}): ${availableInPrimary}`);
+      console.log(`[checkStockBeforeInvoice] Stock pour ${productName}: dépôt principal (${primaryWarehouseId}): ${availableInPrimary}, besoin de ${diff}`);
 
-      // Vérifier si le stock est insuffisant dans le dépôt principal
-      if (availableInPrimary < totalRequired) {
-        const missingQuantity = totalRequired - availableInPrimary;
+      // Vérifier si le stock est insuffisant dans le dépôt principal pour le diff
+      if (availableInPrimary < diff) {
+        const missingQuantity = diff - availableInPrimary;
 
         // Chercher dans les autres dépôts
         const otherWarehousesStock: Array<{
@@ -287,7 +304,6 @@ export function useInvoices() {
         }> = [];
 
         for (const warehouse of warehouses) {
-          // Ignorer le dépôt principal
           if (warehouse.id === primaryWarehouseId) continue;
 
           const entry = quantities.find((q: any) => q.warehouseId === warehouse.id);
@@ -302,13 +318,12 @@ export function useInvoices() {
           }
         }
 
-        // Trier par quantité disponible (décroissant)
         otherWarehousesStock.sort((a, b) => b.availableQuantity - a.availableQuantity);
 
         productsNeedingTransfer.push({
-          productId: item.productId,
-          productName: item.productName,
-          requiredQuantity: totalRequired,
+          productId,
+          productName,
+          requiredQuantity: diff,
           availableInPrimary,
           missingQuantity,
           availableInOtherWarehouses: otherWarehousesStock,
@@ -913,46 +928,113 @@ export function useInvoices() {
         const oldInvoice = invoiceSnap.data() as Invoice;
         if (oldInvoice.status === 'cancelled') throw new Error('Facture déjà annulée');
 
-        // 1A. Restaurer le stock pour chaque ancien article
+        console.log(`[updateInvoice] ===== MODIFICATION FACTURE ${oldInvoice.invoiceNumber} =====`);
+        console.log(`[updateInvoice] Anciens items:`, oldInvoice.items.map((i: any) => `${i.productName} x${i.quantity} (${i.productId})`).join(', '));
+        console.log(`[updateInvoice] Nouveaux items:`, data.items.map((i: any) => `${i.productName} x${i.quantity} (${i.productId})`).join(', '));
+
+        // 1A. Calculer le diff de stock par produit
+        const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+
+        // Construire un map des quantités par produit (anciens items)
+        const oldQtyMap = new Map<string, number>();
         for (const item of oldInvoice.items) {
-          const whQtyRef = doc(db, `companies/${companyId}/warehouse_quantities`, item.productId);
+          oldQtyMap.set(item.productId, (oldQtyMap.get(item.productId) || 0) + item.quantity);
+        }
+
+        // Construire un map des quantités par produit (nouveaux items)
+        const newQtyMap = new Map<string, number>();
+        for (const item of data.items) {
+          newQtyMap.set(item.productId, (newQtyMap.get(item.productId) || 0) + item.quantity);
+        }
+
+        console.log(`[updateInvoice] oldQtyMap:`, Object.fromEntries(oldQtyMap));
+        console.log(`[updateInvoice] newQtyMap:`, Object.fromEntries(newQtyMap));
+
+        // Appliquer le diff pour chaque produit concerné
+        const allProductIds = new Set([...oldQtyMap.keys(), ...newQtyMap.keys()]);
+
+        for (const productId of allProductIds) {
+          const oldQty = oldQtyMap.get(productId) || 0;
+          const newQty = newQtyMap.get(productId) || 0;
+          const diff = newQty - oldQty; // positif = on déduit plus, négatif = on restore
+
+          console.log(`[updateInvoice] Produit ${productId}: oldQty=${oldQty}, newQty=${newQty}, diff=${diff}`);
+
+          if (diff === 0) {
+            console.log(`[updateInvoice] → SKIP (diff=0, pas de changement)`);
+            continue;
+          }
+
+          const whQtyRef = doc(db, `companies/${companyId}/warehouse_quantities`, productId);
           const whQtySnap = await getDoc(whQtyRef);
 
+          let quantities: any[] = [];
           if (whQtySnap.exists()) {
-            const quantities = whQtySnap.data().quantities || [];
-            const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+            quantities = whQtySnap.data().quantities || [];
+          }
 
-            const updatedQuantities = quantities.map((entry: any) => {
-              if (entry.warehouseId === primaryWarehouseId) {
-                return { ...entry, quantity: entry.quantity + item.quantity };
-              }
-              return entry;
-            });
+          if (primaryWarehouseId) {
+            const currentQty = quantities.find((q: any) => q.warehouseId === primaryWarehouseId)?.quantity || 0;
+            const updatedQty = currentQty - diff; // diff>0 = déduire, diff<0 = restore
+            console.log(`[updateInvoice] → Stock ${primaryWarehouseId}: ${currentQty} → ${updatedQty} (${diff > 0 ? 'DÉDUCTION' : 'RESTAURATION'} de ${Math.abs(diff)})`);
+
+            const updatedQuantities = quantities.map((q: any) =>
+              q.warehouseId === primaryWarehouseId ? { ...q, quantity: updatedQty } : q
+            );
+            if (!updatedQuantities.some((q: any) => q.warehouseId === primaryWarehouseId)) {
+              updatedQuantities.push({ warehouseId: primaryWarehouseId, warehouseName: primaryWarehouseId, quantity: updatedQty });
+            }
 
             transaction.set(whQtyRef, { quantities: updatedQuantities, updatedAt: serverTimestamp() }, { merge: true });
 
-            const totalStock = updatedQuantities.reduce((sum: number, e: any) => sum + e.quantity, 0);
-            const productRef = doc(db, COLLECTIONS.companyProducts(companyId), item.productId);
+            // Mettre à jour le statut du produit
+            const productRef = doc(db, COLLECTIONS.companyProducts(companyId), productId);
             const productSnap = await getDoc(productRef);
-            const alertThreshold = productSnap.exists() ? (productSnap.data().alertThreshold || 0) : 0;
-            const newStatus = totalStock === 0 ? 'out' : totalStock <= alertThreshold ? 'low' : 'ok';
-            transaction.update(productRef, { status: newStatus, updatedAt: new Date() });
+            const productData = productSnap.exists() ? productSnap.data() : null;
+
+            if (productData) {
+              const totalStock = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
+              const newStatus = totalStock === 0 ? 'out' : totalStock <= (productData.alertThreshold || 0) ? 'low' : 'ok';
+
+              if (newStatus === 'out' || newStatus === 'low') {
+                stockAlerts.push({
+                  productId, productName: productData.name || productId,
+                  newStock: totalStock, threshold: productData.alertThreshold, status: newStatus,
+                });
+              }
+
+              transaction.update(productRef, { status: newStatus, updatedAt: new Date() });
+            }
           }
 
-          // Mouvement compensatoire
+          // Créer le mouvement de stock correspondant
           const stockMovementsRef = collection(db, COLLECTIONS.companyStockMovements(companyId));
           const movementRef = doc(stockMovementsRef);
-          transaction.set(movementRef, {
-            companyId, productId: item.productId,
-            warehouseId: settings?.stock?.defaultWarehouseId || 'boutique',
-            type: 'in', quantity: item.quantity,
-            reason: `Modification facture ${oldInvoice.invoiceNumber}`,
-            referenceType: 'invoice_modification', referenceId: invoiceId,
-            userId: user.id, createdAt: new Date(),
-          });
+          if (diff > 0) {
+            // On déduit plus
+            transaction.set(movementRef, {
+              companyId, productId,
+              warehouseId: primaryWarehouseId || 'boutique',
+              type: 'out', quantity: -diff,
+              reason: `Modification facture ${oldInvoice.invoiceNumber} (ajout)`,
+              referenceType: 'invoice_modification', referenceId: invoiceId,
+              userId: user.id, createdAt: new Date(),
+            });
+          } else {
+            // On restore (produit supprimé ou qty réduite)
+            transaction.set(movementRef, {
+              companyId, productId,
+              warehouseId: primaryWarehouseId || 'boutique',
+              type: 'in', quantity: Math.abs(diff),
+              reason: `Modification facture ${oldInvoice.invoiceNumber} (retrait)`,
+              referenceType: 'invoice_modification', referenceId: invoiceId,
+              userId: user.id, createdAt: new Date(),
+            });
+          }
         }
 
         // 1B. Reverser la caisse ancienne
+        console.log(`[updateInvoice] 1B. Caisse: oldPaid=${oldInvoice.paidAmount}, newPaid=${data.paidAmount}`);
         if (oldInvoice.paidAmount > 0) {
           const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
           const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
@@ -1055,71 +1137,8 @@ export function useInvoices() {
           }
         }
 
-        // 2B. Déduire le stock pour les nouveaux articles
-        for (const item of data.items) {
-          if (!item.productId) throw new Error(`productId manquant pour: ${item.productName}`);
-
-          const productRef = doc(db, COLLECTIONS.companyProducts(companyId), item.productId);
-          const productSnap = await getDoc(productRef);
-          if (!productSnap.exists()) throw new Error(`Produit non trouvé: ${item.productName}`);
-          const productData = productSnap.data();
-
-          const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
-          const warehouseQuantitiesRef = doc(db, `companies/${companyId}/warehouse_quantities`, item.productId);
-          const warehouseQuantitiesDoc = await getDoc(warehouseQuantitiesRef);
-
-          let quantities: any[] = [];
-          if (warehouseQuantitiesDoc.exists()) {
-            quantities = warehouseQuantitiesDoc.data().quantities || [];
-          }
-
-          if (primaryWarehouseId) {
-            const primaryEntry = quantities.find((q: any) => q.warehouseId === primaryWarehouseId);
-            const availableInPrimary = primaryEntry?.quantity || 0;
-            if (availableInPrimary < item.quantity) {
-              throw new Error(`Stock insuffisant pour ${item.productName}: ${availableInPrimary} disponibles (besoin de ${item.quantity})`);
-            }
-          }
-
-          let updatedQuantities = [...quantities];
-          if (primaryWarehouseId) {
-            const currentQty = updatedQuantities.find((q: any) => q.warehouseId === primaryWarehouseId)?.quantity || 0;
-            const newQty = currentQty - item.quantity;
-            updatedQuantities = updatedQuantities.map((q: any) =>
-              q.warehouseId === primaryWarehouseId ? { ...q, quantity: newQty } : q
-            );
-            if (!updatedQuantities.some((q: any) => q.warehouseId === primaryWarehouseId)) {
-              updatedQuantities.push({ warehouseId: primaryWarehouseId, warehouseName: primaryWarehouseId, quantity: newQty });
-            }
-
-            const newTotal = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
-            const newStatus = newTotal === 0 ? 'out' : newTotal <= (productData.alertThreshold || 0) ? 'low' : 'ok';
-
-            if (newStatus === 'out' || newStatus === 'low') {
-              stockAlerts.push({
-                productId: item.productId, productName: item.productName,
-                newStock: newTotal, threshold: productData.alertThreshold, status: newStatus,
-              });
-            }
-
-            transaction.update(productRef, { status: newStatus, updatedAt: new Date() });
-            transaction.set(warehouseQuantitiesRef, {
-              productId: item.productId, quantities: updatedQuantities, updatedAt: serverTimestamp(),
-            }, { merge: true });
-          }
-
-          // Mouvement de stock (sortie)
-          const movementsCollection = collection(db, COLLECTIONS.companyStockMovements(companyId));
-          const movementRef = doc(movementsCollection);
-          transaction.set(movementRef, {
-            companyId, productId: item.productId,
-            warehouseId: primaryWarehouseId || productData.warehouseId,
-            type: 'out', quantity: -item.quantity,
-            reason: `Modification facture ${oldInvoice.invoiceNumber}`,
-            referenceType: 'invoice_modification',
-            userId: user.id, createdAt: new Date(),
-          });
-        }
+        // NOTE: La gestion du stock est déjà faite en Phase 1A (basée sur le diff).
+        // Plus besoin de Phase 2B séparée.
 
         // 2C. Calculer les totaux
         const subtotal = data.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
