@@ -619,7 +619,7 @@ export function InvoiceDialog({
                                   className="text-right"
                                   disabled={!item.isWholesale}
                                 />
-                                {product && product.wholesalePrice < product.retailPrice && (
+                                {product && (
                                   <Button
                                     type="button"
                                     variant={item.isWholesale ? "default" : "outline"}
@@ -707,7 +707,7 @@ export function InvoiceDialog({
                           </div>
 
                           <div className="flex items-center justify-between gap-2">
-                            {product && product.wholesalePrice < product.retailPrice ? (
+                            {product ? (
                               <Button
                                 type="button"
                                 variant={item.isWholesale ? "default" : "outline"}
