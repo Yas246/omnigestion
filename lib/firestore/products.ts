@@ -128,7 +128,7 @@ export async function createProduct(
   } else if ((productData.currentStock || 0) > 0) {
     // Mode simple : pas d'allocations mais du stock → tout mettre dans le dépôt par défaut
     try {
-      const settingsDoc = await getDoc(doc(db, `companies/${companyId}`));
+      const settingsDoc = await getDoc(doc(db, `companies/${companyId}/settings/config`));
       const defaultWarehouseId = settingsDoc.data()?.stock?.defaultWarehouseId;
       if (defaultWarehouseId) {
         let warehouseName = defaultWarehouseId;
