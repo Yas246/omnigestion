@@ -749,7 +749,25 @@ export function useInvoices() {
           if (data.transactionNumber) paymentData.transactionNumber = data.transactionNumber;
         }
 
-        transaction.set(invoiceRef, paymentData);
+        // Nettoyer les champs undefined (Firestore les refuse)
+        const removeUndefined = (obj: any): any => {
+          const cleaned: any = {};
+          for (const [key, value] of Object.entries(obj)) {
+            if (value === undefined) continue;
+            if (Array.isArray(value)) {
+              cleaned[key] = value.map((item: any) =>
+                item && typeof item === 'object' ? removeUndefined(item) : item
+              );
+            } else if (value && typeof value === 'object' && !(value instanceof Date)) {
+              cleaned[key] = removeUndefined(value);
+            } else {
+              cleaned[key] = value;
+            }
+          }
+          return cleaned;
+        };
+
+        transaction.set(invoiceRef, removeUndefined(paymentData));
 
         // Créer un mouvement de caisse automatiquement pour tous les paiements
         if (data.paidAmount > 0) {
