@@ -88,6 +88,9 @@ export default function CashPage() {
       deposit: 'Dépôt',
       withdrawal: 'Retrait',
       adjustment: 'Ajustement',
+      cancellation: 'Annulation facture',
+      modification: 'Modification facture',
+      credit_payment_reversal: 'Reversement crédit',
     };
     return labels[category] || category;
   };
@@ -125,7 +128,11 @@ export default function CashPage() {
     const todayIn = todayPaidAmount + todayCreditPayments;
 
     const todayOut = todayMovements
-      .filter(m => m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId))
+      .filter(m => {
+        if (m.type !== 'out' && !(m.type === 'transfer' && !m.sourceCashRegisterId)) return false;
+        if (['cancellation', 'modification', 'credit_payment_reversal'].includes(m.category)) return false;
+        return true;
+      })
       .reduce((sum, m) => sum + m.amount, 0);
 
     return { todayIn, todayOut };

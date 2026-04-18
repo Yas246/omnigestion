@@ -298,13 +298,21 @@ export default function SalesPage() {
   }, [dateFilter]);
 
   // Factures filtrées par date et excluant les annulées (admin: selon le filtre, employé: aujourd'hui)
+  // Tri: jours décroissants, mais croissant par heure au sein de chaque jour
   const displayedInvoices = useMemo(() => {
     const active = invoices.filter(inv => inv.status !== 'cancelled');
-    if (!targetDate) return active;
-    return active.filter(inv => {
+    const filtered = !targetDate ? active : active.filter(inv => {
       const invDate = new Date(inv.date);
       invDate.setHours(0, 0, 0, 0);
       return invDate.getTime() === targetDate.getTime();
+    });
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      const dayA = new Date(dateA).setHours(0, 0, 0, 0);
+      const dayB = new Date(dateB).setHours(0, 0, 0, 0);
+      if (dayB !== dayA) return dayB - dayA; // jours décroissants
+      return dateA.getTime() - dateB.getTime(); // heures croissantes au sein du jour
     });
   }, [invoices, targetDate]);
 

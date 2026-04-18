@@ -21,7 +21,7 @@ import { ExportProductsButton } from '@/components/stock/ExportProductsButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
-import { Plus, Package, AlertTriangle, Upload, RefreshCw } from 'lucide-react';
+import { Plus, Package, AlertTriangle, Upload, RefreshCw, DollarSign } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function StockPage() {
@@ -118,12 +118,19 @@ export default function StockPage() {
     const outOfStock = activeProducts.filter(p => p.currentStock === 0).length;
     const inStock = activeProducts.length - lowStock - outOfStock;
 
+    // Bénéfice estimé du stock : (prix vente - prix achat) × stock pour chaque produit
+    const estimatedProfit = activeProducts.reduce((sum, p) => {
+      const profit = ((p.retailPrice || 0) - (p.purchasePrice || 0)) * (p.currentStock || 0);
+      return sum + Math.max(0, profit);
+    }, 0);
+
     return {
       total: rawProducts.length,
       active: activeProducts.length,
       inStock,
       lowStock,
       outOfStock,
+      estimatedProfit,
     };
   }, [rawProducts]);
 
@@ -403,7 +410,7 @@ export default function StockPage() {
       </div>
 
       {/* Statistiques */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <KpiCard variant="info">
           <KpiCardHeader
             title="Total produits"
@@ -453,6 +460,19 @@ export default function StockPage() {
             value={isLoading ? '...' : globalStats.outOfStock}
             label="Épuisé"
             variant="danger"
+          />
+        </KpiCard>
+
+        <KpiCard variant="success">
+          <KpiCardHeader
+            title="Bénéfice estimé"
+            icon={<DollarSign className="h-5 w-5" />}
+            iconVariant="success"
+          />
+          <KpiCardValue
+            value={isLoading ? '...' : `${globalStats.estimatedProfit.toLocaleString()} FCFA`}
+            label="Basé sur le stock actuel"
+            variant="success"
           />
         </KpiCard>
       </div>
