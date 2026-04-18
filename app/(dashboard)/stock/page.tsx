@@ -158,18 +158,79 @@ export default function StockPage() {
     if (!editingProduct) return;
     setIsSubmitting(true);
     try {
-      // Optimistic update dans le store
-      useProductsStore.getState().optimisticUpdateProduct(editingProduct.id, data);
-
-      // Mettre à jour dans Firestore
-      const { updateProduct: updateProductAPI } = await import('@/lib/firestore/products');
       const { currentCompanyId } = user || {};
-
       if (!currentCompanyId) {
         throw new Error('No company selected');
       }
 
-      await updateProductAPI(currentCompanyId, editingProduct.id, data);
+      // Séparer les champs stock des champs produit
+      const { currentStock, stockAllocations, ...productData } = data;
+
+      // 1. Mettre à jour warehouse_quantities
+      const { doc: firestoreDoc, serverTimestamp: fsServerTimestamp, runTransaction: fsRunTransaction, getDoc: fsGetDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+
+      if (stockAllocations && stockAllocations.length > 0) {
+        // Mode multi-dépôt : écrire les valeurs absolues par dépôt
+        await fsRunTransaction(db, async (transaction: any) => {
+          const wqRef = firestoreDoc(db, `companies/${currentCompanyId}/warehouse_quantities`, editingProduct.id);
+          const wqSnap = await fsGetDoc(wqRef);
+          let existingQuantities: any[] = wqSnap.exists() ? (wqSnap.data().quantities || []) : [];
+
+          // Construire un map des nouvelles quantités
+          const newAllocMap = new Map<string, number>();
+          for (const alloc of stockAllocations) {
+            newAllocMap.set(alloc.warehouseId, alloc.quantity);
+          }
+
+          // Mettre à jour les dépôts existants et ajouter les nouveaux
+          const updatedQuantities = existingQuantities.map((q: any) => {
+            if (newAllocMap.has(q.warehouseId)) {
+              return { ...q, quantity: newAllocMap.get(q.warehouseId)! };
+            }
+            return q;
+          });
+
+          // Ajouter les dépôts pas encore dans les quantités existantes
+          for (const alloc of stockAllocations) {
+            if (!updatedQuantities.some((q: any) => q.warehouseId === alloc.warehouseId)) {
+              updatedQuantities.push({
+                warehouseId: alloc.warehouseId,
+                warehouseName: alloc.warehouseId,
+                quantity: alloc.quantity,
+              });
+            }
+          }
+
+          transaction.set(wqRef, {
+            productId: editingProduct.id,
+            quantities: updatedQuantities,
+            updatedAt: fsServerTimestamp(),
+          }, { merge: true });
+        });
+      } else {
+        // Mode simple : diff sur le dépôt par défaut
+        const oldStock = editingProduct.currentStock || 0;
+        const newStock = currentStock || 0;
+        if (newStock !== oldStock) {
+          const diff = newStock - oldStock;
+          const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+          if (primaryWarehouseId) {
+            const { updateProductStockInWarehouse } = await import('@/lib/firestore/products');
+            await updateProductStockInWarehouse(currentCompanyId, editingProduct.id, primaryWarehouseId, diff);
+          }
+        }
+      }
+
+      // 2. Mettre à jour le document produit (sans currentStock ni stockAllocations)
+      const { updateProduct: updateProductAPI } = await import('@/lib/firestore/products');
+      await updateProductAPI(currentCompanyId, editingProduct.id, productData);
+
+      // Optimistic update dans le store
+      useProductsStore.getState().optimisticUpdateProduct(editingProduct.id, data);
+    } catch (error) {
+      console.error('[handleUpdate] Erreur:', error);
+      throw error;
     } finally {
       setIsSubmitting(false);
     }

@@ -132,3 +132,7 @@ next-env.d.ts
 *.pid
 *.seed
 *.pid.lock
+.graphify_python
+.graphifyignore
+/.claude
+/graphify-out
