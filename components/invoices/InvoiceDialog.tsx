@@ -183,7 +183,7 @@ export function InvoiceDialog({
     const matchesSearch = !debouncedProductSearch ||
       p.name.toLowerCase().includes(debouncedProductSearch.toLowerCase()) ||
       p.code?.toLowerCase().includes(debouncedProductSearch.toLowerCase());
-    const isActiveAndInStock = p.isActive && p.currentStock > 0;
+    const isActiveAndInStock = p.isActive;
     return matchesSearch && isActiveAndInStock;
   });
 
