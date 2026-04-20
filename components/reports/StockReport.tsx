@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
-import { useAuth } from '@/lib/auth-context';
-import { db, COLLECTIONS } from '@/lib/firebase';
-import { Package, AlertTriangle, DollarSign, TrendingUp } from 'lucide-react';
+import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
+import { Package, AlertTriangle, DollarSign } from 'lucide-react';
 import { Bar, Pie } from 'react-chartjs-2';
 import { PaginatedTable } from '@/components/ui/PaginatedTable';
 import {
@@ -21,9 +19,7 @@ import {
   Legend,
 } from 'chart.js';
 import { formatPrice } from '@/lib/utils';
-import type { Product } from '@/types';
 
-// Enregistrer les composants Chart.js
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -35,54 +31,26 @@ ChartJS.register(
 );
 
 export function StockReport() {
-  const { user } = useAuth();
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [stockStats, setStockStats] = useState({
-    totalProducts: 0,
-    totalValue: 0,
-    outOfStock: 0,
-    lowStock: 0,
-    okStock: 0,
-  });
+  const { products: rawProducts, isLoading } = useProductsRealtime();
 
-  // Charger tous les produits depuis Firestore
-  useEffect(() => {
-    const fetchAllProducts = async () => {
-      if (!user?.currentCompanyId) return;
-
-      setIsLoading(true);
-      try {
-        const q = query(
-          collection(db, COLLECTIONS.companyProducts(user.currentCompanyId)),
-          orderBy('name')
-        );
-
-        const snapshot = await getDocs(q);
-        const products = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Product));
-        setAllProducts(products);
-      } catch (error) {
-        console.error('Erreur lors du chargement des produits:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAllProducts();
-  }, [user?.currentCompanyId]);
-
-  useEffect(() => {
-    const totalProducts = allProducts.length;
-    const totalValue = allProducts.reduce((sum, p) => {
-      const price = p.purchasePrice || 0;
-      return sum + (p.currentStock || 0) * price;
+  const { activeProducts, stockStats } = useMemo(() => {
+    const active = rawProducts.filter(p => !p.deletedAt);
+    const totalProducts = active.length;
+    const totalValue = active.reduce((sum, p) => {
+      return sum + (p.currentStock || 0) * (p.purchasePrice || 0);
     }, 0);
-    const outOfStock = allProducts.filter(p => p.status === 'out').length;
-    const lowStock = allProducts.filter(p => p.status === 'low').length;
-    const okStock = allProducts.filter(p => p.status === 'ok').length;
+    const outOfStock = active.filter(p => (p.currentStock || 0) === 0).length;
+    const lowStock = active.filter(p => {
+      const stock = p.currentStock || 0;
+      return stock > 0 && stock <= (p.alertThreshold || 0);
+    }).length;
+    const okStock = totalProducts - outOfStock - lowStock;
 
-    setStockStats({ totalProducts, totalValue, outOfStock, lowStock, okStock });
-  }, [allProducts]);
+    return {
+      activeProducts: active,
+      stockStats: { totalProducts, totalValue, outOfStock, lowStock, okStock },
+    };
+  }, [rawProducts]);
 
   // Répartition par statut
   const statusDistribution = {
@@ -100,7 +68,7 @@ export function StockReport() {
   };
 
   // Top 10 produits avec le plus grand stock
-  const topStock = [...allProducts]
+  const topStock = [...activeProducts]
     .sort((a, b) => (b.currentStock || 0) - (a.currentStock || 0))
     .slice(0, 10);
 
@@ -116,7 +84,7 @@ export function StockReport() {
   };
 
   // Top 10 produits les plus valorisés
-  const topValue = [...allProducts]
+  const topValue = [...activeProducts]
     .map(p => ({
       ...p,
       value: (p.currentStock || 0) * (p.purchasePrice || 0),
@@ -139,9 +107,7 @@ export function StockReport() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        display: false,
-      },
+      legend: { display: false },
     },
     scales: {
       x: {
@@ -152,9 +118,7 @@ export function StockReport() {
           maxTicksLimit: 10,
         },
       },
-      y: {
-        beginAtZero: true,
-      },
+      y: { beginAtZero: true },
     },
   };
 
@@ -164,10 +128,7 @@ export function StockReport() {
     plugins: {
       legend: {
         position: 'bottom' as const,
-        labels: {
-          boxWidth: 12,
-          padding: 15,
-        },
+        labels: { boxWidth: 12, padding: 15 },
       },
     },
   };
@@ -183,7 +144,7 @@ export function StockReport() {
             iconVariant="info"
           />
           <KpiCardValue
-            value={stockStats.totalProducts.toString()}
+            value={isLoading ? '...' : stockStats.totalProducts.toString()}
             label="Références"
             variant="info"
           />
@@ -196,7 +157,7 @@ export function StockReport() {
             iconVariant="primary"
           />
           <KpiCardValue
-            value={`${formatPrice(stockStats.totalValue)} FCFA`}
+            value={isLoading ? '...' : `${formatPrice(stockStats.totalValue)} FCFA`}
             label="Valorisation totale"
             variant="primary"
           />
@@ -209,7 +170,7 @@ export function StockReport() {
             iconVariant="warning"
           />
           <KpiCardValue
-            value={stockStats.lowStock.toString()}
+            value={isLoading ? '...' : stockStats.lowStock.toString()}
             label="En alerte"
             variant="warning"
           />
@@ -222,7 +183,7 @@ export function StockReport() {
             iconVariant="danger"
           />
           <KpiCardValue
-            value={stockStats.outOfStock.toString()}
+            value={isLoading ? '...' : stockStats.outOfStock.toString()}
             label="À réapprovisionner"
             variant="danger"
           />
@@ -247,7 +208,6 @@ export function StockReport() {
 
       {/* Graphiques */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Répartition par statut */}
         <Card>
           <CardHeader>
             <CardTitle>État du stock</CardTitle>
@@ -266,7 +226,6 @@ export function StockReport() {
           </CardContent>
         </Card>
 
-        {/* Top 10 plus gros stocks */}
         <Card>
           <CardHeader>
             <CardTitle>Top 10 plus gros stocks</CardTitle>
@@ -285,7 +244,6 @@ export function StockReport() {
           </CardContent>
         </Card>
 
-        {/* Top 10 valeur stock */}
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Top 10 valeur de stock</CardTitle>
@@ -313,7 +271,7 @@ export function StockReport() {
         </CardHeader>
         <CardContent>
           <PaginatedTable
-            data={allProducts}
+            data={activeProducts}
             columns={[
               {
                 key: 'name',
@@ -360,19 +318,24 @@ export function StockReport() {
                 key: 'status',
                 header: 'Statut',
                 className: 'text-center',
-                render: (product) => (
-                  <Badge
-                    variant={
-                      product.status === 'out' ? 'destructive' :
-                      product.status === 'low' ? 'default' :
-                      'outline'
-                    }
-                  >
-                    {product.status === 'out' ? 'Rupture' :
-                     product.status === 'low' ? 'Bas' :
-                     'OK'}
-                  </Badge>
-                ),
+                render: (product) => {
+                  const stock = product.currentStock || 0;
+                  const threshold = product.alertThreshold || 0;
+                  const status = stock === 0 ? 'out' : stock <= threshold ? 'low' : 'ok';
+                  return (
+                    <Badge
+                      variant={
+                        status === 'out' ? 'destructive' :
+                        status === 'low' ? 'default' :
+                        'outline'
+                      }
+                    >
+                      {status === 'out' ? 'Rupture' :
+                       status === 'low' ? 'Bas' :
+                       'OK'}
+                    </Badge>
+                  );
+                },
               },
             ]}
             initialPageSize={50}

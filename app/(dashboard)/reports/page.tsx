@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { BarChart3, TrendingUp, Package, DollarSign } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -34,6 +35,7 @@ export default function ReportsPage() {
 
   const [period, setPeriod] = useState<PeriodType>('month');
   const [activeTab, setActiveTab] = useState<ReportTab>('sales');
+  const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date } | undefined>();
 
   // Vérifier les permissions - rediriger si pas d'accès
   useEffect(() => {
@@ -92,6 +94,20 @@ export default function ReportsPage() {
         startDate = startOfYear(now);
         startDate.setHours(0, 0, 0, 0);
         break;
+      case 'custom':
+        if (customRange?.from) {
+          startDate = new Date(customRange.from);
+          startDate.setHours(0, 0, 0, 0);
+          const endDate = customRange.to ? new Date(customRange.to) : startDate;
+          endDate.setHours(23, 59, 59, 999);
+          return invoices.filter(inv => {
+            const invDate = new Date(inv.date);
+            return invDate >= startDate && invDate <= endDate;
+          });
+        }
+        startDate = startOfMonth(now);
+        startDate.setHours(0, 0, 0, 0);
+        break;
       default:
         startDate = startOfMonth(now);
         startDate.setHours(0, 0, 0, 0);
@@ -123,6 +139,20 @@ export default function ReportsPage() {
         break;
       case 'year':
         startDate = startOfYear(now);
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'custom':
+        if (customRange?.from) {
+          startDate = new Date(customRange.from);
+          startDate.setHours(0, 0, 0, 0);
+          const endDate = customRange.to ? new Date(customRange.to) : startDate;
+          endDate.setHours(23, 59, 59, 999);
+          return movements.filter(mov => {
+            const movDate = new Date(mov.createdAt);
+            return movDate >= startDate && movDate <= endDate;
+          });
+        }
+        startDate = startOfMonth(now);
         startDate.setHours(0, 0, 0, 0);
         break;
       default:
@@ -320,6 +350,31 @@ export default function ReportsPage() {
                 <SelectItem value="custom">Personnalisé</SelectItem>
               </SelectContent>
             </Select>
+
+            {period === 'custom' && (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="date"
+                  value={customRange?.from ? format(customRange.from, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => {
+                    const from = e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined;
+                    setCustomRange(prev => ({ from, to: prev?.to }));
+                  }}
+                  className="w-36"
+                />
+                <span className="text-muted-foreground">→</span>
+                <Input
+                  type="date"
+                  value={customRange?.to ? format(customRange.to, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => {
+                    const to = e.target.value ? new Date(e.target.value + 'T23:59:59') : undefined;
+                    setCustomRange(prev => ({ from: prev?.from, to }));
+                  }}
+                  className="w-36"
+                />
+              </div>
+            )}
+
             <ExportButton onExport={handleExport} />
           </div>
         </div>
@@ -346,11 +401,11 @@ export default function ReportsPage() {
           </TabsList>
 
           <TabsContent value="sales" className="space-y-6">
-            <SalesReport period={period} />
+            <SalesReport period={period} customRange={customRange} />
           </TabsContent>
 
           <TabsContent value="profits" className="space-y-6">
-            <ProfitsReport period={period} />
+            <ProfitsReport period={period} customRange={customRange} />
           </TabsContent>
 
           <TabsContent value="stock" className="space-y-6">
@@ -358,7 +413,7 @@ export default function ReportsPage() {
           </TabsContent>
 
           <TabsContent value="cash" className="space-y-6">
-            <CashReport period={period} />
+            <CashReport period={period} customRange={customRange} />
           </TabsContent>
         </Tabs>
       </div>

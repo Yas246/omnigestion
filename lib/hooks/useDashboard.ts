@@ -7,6 +7,7 @@ import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useAuthStore } from '@/lib/stores/useAuthStore';
 import type { Invoice, Product, DailyStats, ClientCredit } from '@/types';
+import { getRecognizedProfitForDate, buildInvoicePaymentsMap } from '@/lib/utils/profitCalculation';
 
 export interface DashboardStats {
   // Statistiques du jour
@@ -146,6 +147,7 @@ export function useDashboard() {
       const allCreditPayments = creditPaymentsSnap.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
+        creditId: doc.data().creditId || '',
         amount: doc.data().amount || 0,
         paymentMode: doc.data().paymentMode || 'cash',
         createdAt: doc.data().createdAt?.toDate() || new Date(),
@@ -175,14 +177,24 @@ export function useDashboard() {
         })
         .reduce((sum, c) => sum + (c.remainingAmount || 0), 0);
 
-      // Calculer le bénéfice du jour
+      // Calculer le bénéfice du jour (approche récupération des coûts d'abord)
+      // 1. Construire le map invoiceId → creditPayments
+      const invoicePaymentsMap = buildInvoicePaymentsMap(
+        credits,
+        allCreditPayments.map(cp => ({ creditId: cp.creditId, amount: cp.amount, createdAt: cp.createdAt }))
+      );
+
+      // 2. Calculer le bénéfice reconnu aujourd'hui pour chaque facture active
       let todayProfit = 0;
-      todayInvoices.forEach(inv => {
-        inv.items.forEach(item => {
-          const purchasePrice = item.purchasePrice || 0;
-          const profit = (item.unitPrice - purchasePrice) * item.quantity;
-          todayProfit += profit;
-        });
+      activeInvoices.forEach(inv => {
+        const creditPaymentsForInvoice = invoicePaymentsMap.get(inv.id) || [];
+        todayProfit += getRecognizedProfitForDate(
+          inv.items,
+          inv.paidAmount,
+          inv.date,
+          creditPaymentsForInvoice,
+          today
+        );
       });
 
       // 6. Statistiques globales (CA = encaissé uniquement)

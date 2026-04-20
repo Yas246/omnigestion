@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
-import { useInvoices } from '@/lib/hooks/useInvoices';
+import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
+import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { getRecognizedProfits, buildInvoicePaymentsMap } from '@/lib/utils/profitCalculation';
 import { DollarSign, TrendingUp } from 'lucide-react';
 import { Bar, Line } from 'react-chartjs-2';
 import {
@@ -39,16 +41,19 @@ type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 
 interface ProfitsReportProps {
   period: PeriodType;
+  customRange?: { from?: Date; to?: Date };
 }
 
-export function ProfitsReport({ period }: ProfitsReportProps) {
-  const { invoices } = useInvoices();
+export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
+  const { invoices } = useInvoicesRealtime();
+  const { credits, payments: clientCreditPayments } = useClientCredits();
   const [filteredInvoices, setFilteredInvoices] = useState(invoices);
 
   useEffect(() => {
     const now = new Date();
     now.setHours(23, 59, 59, 999); // Fin de la journée
     let startDate: Date;
+    let endDate: Date = now;
 
     switch (period) {
       case 'today':
@@ -67,6 +72,17 @@ export function ProfitsReport({ period }: ProfitsReportProps) {
         startDate = startOfYear(now);
         startDate.setHours(0, 0, 0, 0);
         break;
+      case 'custom':
+        if (customRange?.from) {
+          startDate = new Date(customRange.from);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = customRange.to ? new Date(customRange.to) : startDate;
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        }
+        startDate = startOfMonth(now);
+        startDate.setHours(0, 0, 0, 0);
+        break;
       default:
         startDate = startOfMonth(now);
         startDate.setHours(0, 0, 0, 0);
@@ -74,52 +90,135 @@ export function ProfitsReport({ period }: ProfitsReportProps) {
 
     const filtered = invoices.filter(inv => {
       const invDate = new Date(inv.date);
-      return invDate >= startDate && invDate <= now;
+      return invDate >= startDate && invDate <= endDate;
     });
 
     setFilteredInvoices(filtered);
-  }, [period, invoices]);
+  }, [period, customRange, invoices]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price);
   };
 
+  // Construire le map invoiceId → creditPayments
+  const allCreditPaymentsFlat = Object.values(clientCreditPayments).flat();
+  const invoicePaymentsMap = buildInvoicePaymentsMap(
+    credits,
+    allCreditPaymentsFlat.map(cp => ({ creditId: cp.creditId, amount: cp.amount, createdAt: cp.createdAt }))
+  );
+
+  // Calculer la période (même logique que SalesReport pour être cohérent)
+  const { periodStart, periodEnd } = useMemo(() => {
+    const now = new Date();
+    now.setHours(23, 59, 59, 999);
+    let s: Date;
+    let e: Date = now;
+
+    switch (period) {
+      case 'today':
+        s = new Date(); s.setHours(0, 0, 0, 0); break;
+      case 'week':
+        s = startOfWeek(now, { weekStartsOn: 1 }); s.setHours(0, 0, 0, 0); break;
+      case 'month':
+        s = startOfMonth(now); s.setHours(0, 0, 0, 0); break;
+      case 'year':
+        s = startOfYear(now); s.setHours(0, 0, 0, 0); break;
+      case 'custom':
+        if (customRange?.from) {
+          s = new Date(customRange.from); s.setHours(0, 0, 0, 0);
+          e = customRange.to ? new Date(customRange.to) : s; e.setHours(23, 59, 59, 999);
+          break;
+        }
+        s = startOfMonth(now); s.setHours(0, 0, 0, 0); break;
+      default:
+        s = startOfMonth(now); s.setHours(0, 0, 0, 0);
+    }
+    return { periodStart: s, periodEnd: e };
+  }, [period, customRange]);
+
   // Calculer les marges
-  let totalRevenue = 0;
+  const activeFiltered = filteredInvoices.filter(inv => inv.status !== 'cancelled');
+
   let totalCost = 0;
-  let totalMargin = 0;
   const productsWithMargin: Record<string, { revenue: number; cost: number; margin: number; marginRate: number }> = {};
   const salesByDay: Record<string, { revenue: number; margin: number }> = {};
 
-  filteredInvoices.forEach(inv => {
+  // Paiements de crédits reçus dans la période (même scope que SalesReport)
+  const periodCreditPayments = allCreditPaymentsFlat.filter(cp => {
+    const payDate = new Date(cp.createdAt);
+    return payDate >= periodStart && payDate <= periodEnd;
+  });
+
+  // CA encaissé = paidAmount des factures de la période + paiements de crédits reçus dans la période
+  const creditPaymentsTotal = periodCreditPayments.reduce((sum, cp) => sum + (cp.amount || 0), 0);
+  const totalRevenue = activeFiltered.reduce((sum, inv) => sum + inv.paidAmount, 0) + creditPaymentsTotal;
+
+  // 1. Traiter les factures de la période
+  activeFiltered.forEach(inv => {
     inv.items.forEach(item => {
-      const revenue = item.unitPrice * item.quantity;
       const cost = (item.purchasePrice || 0) * item.quantity;
-      const margin = revenue - cost;
-      const marginRate = revenue > 0 ? (margin / revenue) * 100 : 0;
-
-      totalRevenue += revenue;
       totalCost += cost;
-      totalMargin += margin;
 
-      // Par produit
       if (!productsWithMargin[item.productName]) {
         productsWithMargin[item.productName] = { revenue: 0, cost: 0, margin: 0, marginRate: 0 };
       }
-      productsWithMargin[item.productName].revenue += revenue;
+      const itemRevenue = item.unitPrice * item.quantity;
+      productsWithMargin[item.productName].revenue += itemRevenue;
       productsWithMargin[item.productName].cost += cost;
-      productsWithMargin[item.productName].margin += margin;
-      productsWithMargin[item.productName].marginRate = marginRate;
+      productsWithMargin[item.productName].margin += itemRevenue - cost;
+      productsWithMargin[item.productName].marginRate = itemRevenue > 0 ? ((itemRevenue - cost) / itemRevenue) * 100 : 0;
+    });
 
-      // Par jour
-      const day = format(new Date(inv.date), 'dd/MM');
-      if (!salesByDay[day]) {
-        salesByDay[day] = { revenue: 0, margin: 0 };
-      }
-      salesByDay[day].revenue += revenue;
-      salesByDay[day].margin += margin;
+    // Bénéfice reconnu
+    const creditPaymentsForInvoice = invoicePaymentsMap.get(inv.id) || [];
+    const recognizedProfits = getRecognizedProfits(
+      inv.items, inv.paidAmount, inv.date, creditPaymentsForInvoice
+    );
+
+    const invDay = format(new Date(inv.date), 'dd/MM');
+    if (!salesByDay[invDay]) salesByDay[invDay] = { revenue: 0, margin: 0 };
+    salesByDay[invDay].revenue += inv.paidAmount;
+
+    recognizedProfits.forEach(({ amount, date }) => {
+      const day = format(new Date(date), 'dd/MM');
+      if (!salesByDay[day]) salesByDay[day] = { revenue: 0, margin: 0 };
+      salesByDay[day].margin += amount;
     });
   });
+
+  // 2. Ajouter les paiements de crédits reçus dans la période au revenue par jour
+  periodCreditPayments.forEach(cp => {
+    const day = format(new Date(cp.createdAt), 'dd/MM');
+    if (!salesByDay[day]) salesByDay[day] = { revenue: 0, margin: 0 };
+    salesByDay[day].revenue += cp.amount || 0;
+  });
+
+  // 3. Traiter les factures hors période qui ont eu des paiements de crédits dans la période
+  const additionalInvoiceIds = new Set<string>();
+  periodCreditPayments.forEach(cp => {
+    const credit = credits.find(c => c.id === cp.creditId);
+    if (credit?.invoiceId && !activeFiltered.some(inv => inv.id === credit.invoiceId)) {
+      additionalInvoiceIds.add(credit.invoiceId);
+    }
+  });
+
+  invoices.filter(inv => additionalInvoiceIds.has(inv.id) && inv.status !== 'cancelled').forEach(inv => {
+    const creditPaymentsForInvoice = invoicePaymentsMap.get(inv.id) || [];
+    const recognizedProfits = getRecognizedProfits(
+      inv.items, inv.paidAmount, inv.date, creditPaymentsForInvoice
+    );
+
+    recognizedProfits.forEach(({ amount, date }) => {
+      const profitDate = new Date(date);
+      if (profitDate >= periodStart && profitDate <= periodEnd) {
+        const day = format(profitDate, 'dd/MM');
+        if (!salesByDay[day]) salesByDay[day] = { revenue: 0, margin: 0 };
+        salesByDay[day].margin += amount;
+      }
+    });
+  });
+
+  const totalMargin = Object.values(salesByDay).reduce((sum, d) => sum + d.margin, 0);
 
   const avgMarginRate = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
 

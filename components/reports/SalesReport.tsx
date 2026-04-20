@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
-import { useInvoices } from '@/lib/hooks/useInvoices';
+import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
 import { useClientCredits } from '@/lib/hooks/useClientCredits';
 import { DollarSign, ShoppingCart, TrendingUp, FileText } from 'lucide-react';
 import { Bar, Line, Pie } from 'react-chartjs-2';
@@ -41,11 +41,12 @@ type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 
 interface SalesReportProps {
   period: PeriodType;
+  customRange?: { from?: Date; to?: Date };
 }
 
-export function SalesReport({ period }: SalesReportProps) {
-  const { invoices } = useInvoices();
-  const { payments: creditPaymentsMap } = useClientCredits();
+export function SalesReport({ period, customRange }: SalesReportProps) {
+  const { invoices } = useInvoicesRealtime();
+  const { credits, payments: creditPaymentsMap } = useClientCredits();
   const [filteredInvoices, setFilteredInvoices] = useState(invoices);
   const [filteredCreditPayments, setFilteredCreditPayments] = useState<any[]>([]);
 
@@ -53,6 +54,7 @@ export function SalesReport({ period }: SalesReportProps) {
     const now = new Date();
     now.setHours(23, 59, 59, 999); // Fin de la journée
     let startDate: Date;
+    let endDate: Date = now;
 
     switch (period) {
       case 'today':
@@ -71,6 +73,17 @@ export function SalesReport({ period }: SalesReportProps) {
         startDate = startOfYear(now);
         startDate.setHours(0, 0, 0, 0);
         break;
+      case 'custom':
+        if (customRange?.from) {
+          startDate = new Date(customRange.from);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = customRange.to ? new Date(customRange.to) : startDate;
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        }
+        startDate = startOfMonth(now);
+        startDate.setHours(0, 0, 0, 0);
+        break;
       default:
         startDate = startOfMonth(now);
         startDate.setHours(0, 0, 0, 0);
@@ -79,19 +92,19 @@ export function SalesReport({ period }: SalesReportProps) {
     const filtered = invoices.filter(inv => {
       if (inv.status === 'cancelled') return false;
       const invDate = new Date(inv.date);
-      return invDate >= startDate && invDate <= now;
+      return invDate >= startDate && invDate <= endDate;
     });
 
     // Filtrer les paiements de crédits pour la même période
     const allCreditPayments = Object.values(creditPaymentsMap).flat();
     const filteredCP = allCreditPayments.filter(cp => {
       const payDate = new Date(cp.createdAt);
-      return payDate >= startDate && payDate <= now;
+      return payDate >= startDate && payDate <= endDate;
     });
 
     setFilteredInvoices(filtered);
     setFilteredCreditPayments(filteredCP);
-  }, [period, invoices, creditPaymentsMap]);
+  }, [period, customRange, invoices, creditPaymentsMap]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price);
@@ -193,12 +206,20 @@ export function SalesReport({ period }: SalesReportProps) {
     ],
   };
 
-  // Top 10 clients (CA encaissé)
+  // Top 10 clients (CA encaissé, incluant paiements de crédits)
   const clientSales = filteredInvoices.reduce((acc, inv) => {
     const client = inv.clientName || 'Client de passage';
     acc[client] = (acc[client] || 0) + inv.paidAmount;
     return acc;
   }, {} as Record<string, number>);
+
+  // Ajouter les paiements de crédits aux clients correspondants
+  filteredCreditPayments.forEach(cp => {
+    const parentCredit = credits.find(c => c.id === cp.creditId);
+    if (parentCredit?.clientName) {
+      clientSales[parentCredit.clientName] = (clientSales[parentCredit.clientName] || 0) + (cp.amount || 0);
+    }
+  });
 
   const topClients = Object.entries(clientSales)
     .sort((a, b) => b[1] - a[1])

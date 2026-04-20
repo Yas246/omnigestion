@@ -35,9 +35,10 @@ type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 
 interface CashReportProps {
   period: PeriodType;
+  customRange?: { from?: Date; to?: Date };
 }
 
-export function CashReport({ period }: CashReportProps) {
+export function CashReport({ period, customRange }: CashReportProps) {
   const { movements, cashRegisters } = useCashRegisters();
   const [filteredMovements, setFilteredMovements] = useState(movements);
   const [selectedCashRegister, setSelectedCashRegister] = useState<string>('all');
@@ -46,6 +47,7 @@ export function CashReport({ period }: CashReportProps) {
     const now = new Date();
     now.setHours(23, 59, 59, 999); // Fin de la journée
     let startDate: Date;
+    let endDate: Date = now;
 
     switch (period) {
       case 'today':
@@ -64,6 +66,17 @@ export function CashReport({ period }: CashReportProps) {
         startDate = startOfYear(now);
         startDate.setHours(0, 0, 0, 0);
         break;
+      case 'custom':
+        if (customRange?.from) {
+          startDate = new Date(customRange.from);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = customRange.to ? new Date(customRange.to) : startDate;
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        }
+        startDate = startOfMonth(now);
+        startDate.setHours(0, 0, 0, 0);
+        break;
       default:
         startDate = startOfMonth(now);
         startDate.setHours(0, 0, 0, 0);
@@ -71,7 +84,7 @@ export function CashReport({ period }: CashReportProps) {
 
     let filtered = movements.filter(mov => {
       const movDate = new Date(mov.createdAt);
-      return movDate >= startDate && movDate <= now;
+      return movDate >= startDate && movDate <= endDate;
     });
 
     // Filtrer par caisse si sélectionnée
@@ -80,15 +93,21 @@ export function CashReport({ period }: CashReportProps) {
     }
 
     setFilteredMovements(filtered);
-  }, [period, movements, selectedCashRegister]);
+  }, [period, customRange, movements, selectedCashRegister]);
 
   // Calculer les totaux
+  const EXCLUDED_FROM_OUTFLOW = ['cancellation', 'modification', 'credit_payment_reversal'];
+
   const totalIn = filteredMovements
     .filter(m => m.type === 'in' || (m.type === 'transfer' && m.sourceCashRegisterId))
     .reduce((sum, m) => sum + m.amount, 0);
 
   const totalOut = filteredMovements
-    .filter(m => m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId))
+    .filter(m => {
+      if (m.type !== 'out' && !(m.type === 'transfer' && !m.sourceCashRegisterId)) return false;
+      if (EXCLUDED_FROM_OUTFLOW.includes(m.category)) return false;
+      return true;
+    })
     .reduce((sum, m) => sum + m.amount, 0);
 
   const netFlow = totalIn - totalOut;
@@ -111,8 +130,12 @@ export function CashReport({ period }: CashReportProps) {
     cash: 'Espèces',
     mobile_money: 'Mobile Money',
     bank: 'Banque',
+    cancellation: 'Annulation facture',
+    modification: 'Modification facture',
+    credit_payment_reversal: 'Reversement crédit',
     non_défini: 'Non défini',
   };
+
 
   // Entrées par catégorie
   const inByCategory = Object.entries(categoryDistribution)
@@ -123,9 +146,10 @@ export function CashReport({ period }: CashReportProps) {
     })
     .sort((a, b) => b[1] - a[1]);
 
-  // Sorties par catégorie
+  // Sorties par catégorie (exclure les compensations)
   const outByCategory = Object.entries(categoryDistribution)
     .filter(([cat]) => {
+      if (EXCLUDED_FROM_OUTFLOW.includes(cat)) return false;
       return filteredMovements.some(m =>
         (m.category === cat) && (m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId))
       );
