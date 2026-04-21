@@ -46,6 +46,11 @@ interface RealtimeState {
 
   currentCompanyId: string | null;
 
+  // Refs pour le restart
+  savedQueryClient: QueryClient | null;
+  savedIsEmployee: boolean;
+  hasError: boolean;
+
   // Flags pour savoir si le chargement initial est fait
   clientCreditsInitialLoadDone: boolean;
   supplierCreditsInitialLoadDone: boolean;
@@ -78,6 +83,10 @@ class RealtimeService {
     purchasesListener: null,
 
     currentCompanyId: null,
+
+    savedQueryClient: null,
+    savedIsEmployee: false,
+    hasError: false,
 
     // Flags
     clientCreditsInitialLoadDone: false,
@@ -210,11 +219,13 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute produits:', err);
+        this.state.hasError = true;
       },
     });
 
     this.state.productsListener = unsubscribe;
     this.state.currentCompanyId = companyId;
+    this.saveRestartRefs(queryClient, false);
   }
 
   /**
@@ -429,16 +440,14 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute factures:', err);
+        this.state.hasError = true;
       },
     });
 
     this.state.invoicesListener = unsubscribe;
     this.state.currentCompanyId = companyId;
+    this.saveRestartRefs(queryClient, isEmployee);
   }
-
-  /**
-   * Démarre l'écoute des clients (si pas déjà démarrée)
-   */
   startClientsListener(queryClient: QueryClient, companyId: string) {
     // Si déjà connecté à la même compagnie, rien à faire
     if (this.state.clientsListener && this.state.currentCompanyId === companyId) {
@@ -1759,6 +1768,96 @@ class RealtimeService {
     this.clearSupplierCreditPaymentsCache();
 
     this.state.currentCompanyId = null;
+  }
+
+  /**
+   * Sauvegarde les refs nécessaires pour le restart
+   */
+  private saveRestartRefs(queryClient: QueryClient, isEmployee: boolean) {
+    this.state.savedQueryClient = queryClient;
+    this.state.savedIsEmployee = isEmployee;
+  }
+
+  /**
+   * Redémarre tous les listeners après une perte de connexion
+   * Utilisé quand le token Firebase expire (veille PC) et est rafraîchi
+   */
+  restartAllListeners() {
+    const queryClient = this.state.savedQueryClient;
+    const companyId = this.state.currentCompanyId;
+
+    if (!queryClient || !companyId) {
+      console.warn('[RealtimeService] ⚠️ Impossible de redémarrer: pas de refs sauvegardées');
+      return;
+    }
+
+    console.log('[RealtimeService] 🔄 Redémarrage de tous les listeners...');
+
+    // 1. Arrêter tous les listeners existants SANS perdre les refs
+    this.stopAllListenersSilent();
+
+    // 2. Réinitialiser le flag d'erreur
+    this.state.hasError = false;
+
+    // 3. Restaurer le companyId pour que les startXxx acceptent
+    this.state.currentCompanyId = companyId;
+
+    // 4. Invalider tout le cache React Query pour forcer le re-render
+    queryClient.invalidateQueries({
+      queryKey: ['companies', companyId],
+      refetchType: 'none',
+    });
+
+    // 5. Redémarrer les listeners principaux
+    this.startProductsListener(queryClient, companyId);
+    this.startInvoicesListener(queryClient, companyId, this.state.savedIsEmployee);
+    this.startClientsListener(queryClient, companyId);
+    this.startWarehousesListener(queryClient, companyId);
+    this.startCashRegistersListener(queryClient, companyId);
+    this.startCashMovementsListener(queryClient, companyId);
+    this.startClientCreditsListener(queryClient, companyId);
+    this.startSuppliersListener(queryClient, companyId);
+    this.startSupplierCreditsListener(queryClient, companyId);
+    this.startSettingsListener(queryClient, companyId);
+    this.startStockMovementsListener(queryClient, companyId);
+    this.startWarehouseQuantitiesListener(queryClient, companyId);
+    this.startPurchasesListener(queryClient, companyId);
+
+    console.log('[RealtimeService] ✅ Tous les listeners redémarrés');
+  }
+
+  /**
+   * Arrête les listeners sans perdre les refs de restart
+   */
+  private stopAllListenersSilent() {
+    const listeners: Array<keyof RealtimeState> = [
+      'productsListener', 'invoicesListener', 'clientsListener', 'warehousesListener',
+      'cashRegistersListener', 'cashMovementsListener', 'clientCreditsListener',
+      'suppliersListener', 'supplierCreditsListener', 'settingsListener',
+      'stockMovementsListener', 'warehouseQuantitiesListener', 'purchasesListener',
+    ];
+
+    for (const key of listeners) {
+      const unsub = this.state[key] as ListenerUnsubscribe | null;
+      if (unsub) {
+        unsub();
+        (this.state as any)[key] = null;
+      }
+    }
+  }
+
+  /**
+   * Signale une erreur de connexion (appelé par useConnectionRecovery)
+   */
+  markAsError() {
+    this.state.hasError = true;
+  }
+
+  /**
+   * Vérifie si le service est en erreur
+   */
+  isInError(): boolean {
+    return this.state.hasError;
   }
 }
 
