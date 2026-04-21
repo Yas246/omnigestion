@@ -140,6 +140,17 @@ export default function StockPage() {
   }, [selectedWarehouse]);
 
   const handleCreate = async (data: any) => {
+    // Vérifier les doublons : même nom
+    const normalizedName = data.name.trim().toLowerCase();
+    const duplicate = rawProducts.find(p => {
+      if (p.deletedAt) return false;
+      return p.name.trim().toLowerCase() === normalizedName;
+    });
+
+    if (duplicate) {
+      throw new Error(`Un produit "${duplicate.name}" existe déjà.`);
+    }
+
     setIsSubmitting(true);
     try {
       // Créer le produit avec l'API Firestore

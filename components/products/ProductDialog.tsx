@@ -190,12 +190,10 @@ export function ProductDialog({
       toast.success(
         product ? "Produit mis à jour avec succès" : "Produit créé avec succès",
       );
-    } catch (error) {
-      toast.error(
-        product
-          ? "Erreur lors de la mise à jour"
-          : "Erreur lors de la création",
-      );
+    } catch (error: any) {
+      toast.error(error?.message || (product
+        ? "Erreur lors de la mise à jour"
+        : "Erreur lors de la création"));
     }
   };
 
