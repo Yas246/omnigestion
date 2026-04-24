@@ -18,8 +18,8 @@ export function Providers({ children }: { children: ReactNode }) {
           queries: {
             // Conserver les données en cache indéfiniment (géré par onSnapshot)
             staleTime: Infinity,
-            // Garde les données en cache pendant 30 minutes
-            gcTime: 30 * 60 * 1000,
+            // Ne JAMAIS garbage collecter (les données sont gérées par onSnapshot, pas par React Query)
+            gcTime: Infinity,
             // Ne PAS recharger au mount si les données sont en cache
             refetchOnMount: false,
             // Ne PAS recharger quand le réseau revient (les données sont gérées par onSnapshot)
