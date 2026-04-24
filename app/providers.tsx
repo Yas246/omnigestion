@@ -22,6 +22,8 @@ export function Providers({ children }: { children: ReactNode }) {
             gcTime: 30 * 60 * 1000,
             // Ne PAS recharger au mount si les données sont en cache
             refetchOnMount: false,
+            // Ne PAS recharger quand le réseau revient (les données sont gérées par onSnapshot)
+            refetchOnReconnect: false,
             // Ne PAS recharger au focus de la fenêtre
             refetchOnWindowFocus: false,
             // Nombre de tentatives de retry

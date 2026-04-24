@@ -6,13 +6,14 @@ import { auth } from '@/lib/firebase';
 import { realtimeService } from '@/lib/services/RealtimeService';
 
 /**
- * Hook global qui surveille l'état de connexion Firebase Auth
+ * Hook global qui surveille l'état de connexion Firebase
  * et redémarre les listeners onSnapshot quand nécessaire.
  *
  * Cas gérés :
- * 1. Token expiré pendant la veille du PC → onAuthStateChanged détecte le re-auth → restart
- * 2. Onglet redevient visible après veille → visibilitychange + restart
- * 3. Si le restart échoue (données toujours vides après 10s) → signOut() → redirect login
+ * 1. Token expiré → onAuthStateChanged détecte le re-auth → restart
+ * 2. Onglet redevient visible → visibilitychange → restart si erreur
+ * 3. Réseau coupe puis revient → online event → restart si listeners morts
+ * 4. Si le restart échoue (données toujours vides après 10s) → signOut()
  *
  * À placer une seule fois dans le providers racine.
  */
@@ -22,10 +23,7 @@ export function useConnectionRecovery() {
   useEffect(() => {
     // 1. Écouter les changements d'état d'authentification
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        // Utilisateur déconnecté — les listeners seront nettoyés par le dashboard layout
-        return;
-      }
+      if (!user) return;
 
       if (realtimeService.isInError() && !isRecovering.current) {
         console.log('[ConnectionRecovery] 🔑 Utilisateur re-authentifié, redémarrage des listeners...');
@@ -36,17 +34,17 @@ export function useConnectionRecovery() {
     // 2. Écouter le retour de visibilité de l'onglet (sortie de veille)
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
-      if (!auth.currentUser) return; // Pas connecté
+      if (!auth.currentUser) return;
       if (isRecovering.current) return;
 
-      // Si en erreur, tenter la récupération
+      // Si en erreur, tenter la récupération immédiatement
       if (realtimeService.isInError()) {
         console.log('[ConnectionRecovery] 👁️ Onglet visible avec erreur, redémarrage...');
         attemptRecovery();
         return;
       }
 
-      // Sinon, vérifier l'état après un délai (les erreurs peuvent mettre du temps à arriver)
+      // Sinon, vérifier après un délai si des listeners sont morts
       setTimeout(() => {
         if (realtimeService.isInError() && !isRecovering.current) {
           console.log('[ConnectionRecovery] 👁️ Erreur détectée après retour onglet, redémarrage...');
@@ -55,18 +53,31 @@ export function useConnectionRecovery() {
       }, 3000);
     };
 
+    // 3. Écouter le retour du réseau (online/offline)
+    const handleOnline = () => {
+      if (!auth.currentUser) return;
+      if (isRecovering.current) return;
+
+      // Le réseau revient → toujours tenter un restart
+      // car les listeners peuvent être morts silencieusement
+      console.log('[ConnectionRecovery] 🌐 Réseau revenu, vérification des listeners...');
+      setTimeout(() => {
+        if (!isRecovering.current) {
+          attemptRecovery();
+        }
+      }, 2000);
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
 
     return () => {
       unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
     };
   }, []);
 
-  /**
-   * Tente de redémarrer les listeners.
-   * Si après 10 secondes les données ne sont pas revenues, déconnecte l'utilisateur.
-   */
   function attemptRecovery() {
     if (isRecovering.current) return;
     isRecovering.current = true;
@@ -79,7 +90,7 @@ export function useConnectionRecovery() {
       return;
     }
 
-    // Fallback : si après 10s les données ne sont pas revenues, déconnecter
+    // Si après 10s les données ne sont pas revenues, déconnecter
     setTimeout(() => {
       if (realtimeService.isInError()) {
         console.warn('[ConnectionRecovery] ⚠️ Données toujours non récupérées après 10s, déconnexion forcée');
@@ -97,7 +108,6 @@ export function useConnectionRecovery() {
       console.log('[ConnectionRecovery] 🔓 Utilisateur déconnecté, redirection vers login...');
     } catch (err) {
       console.error('[ConnectionRecovery] ❌ Erreur lors de la déconnexion:', err);
-      // Dernier recours : recharger la page
       window.location.href = '/login';
     }
   }

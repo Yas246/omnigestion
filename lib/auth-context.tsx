@@ -1,7 +1,7 @@
 'use client';
 
 // Contexte d'authentification pour Omnigestion
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import {
   User,
   signInWithEmailAndPassword,
@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const deliberateLogoutRef = useRef(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
@@ -87,9 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setError('Erreur lors du chargement des données utilisateur');
           }
         } else {
-          setUser(null);
-          setCompanies([]);
-          setCurrentCompany(null);
+          // Ne vider le user QUE si c'est un logout volontaire.
+          // Si le token expire (réseau coupé), on garde les données en mémoire
+          // pour éviter que les query keys changent et vidangent le cache React Query.
+          if (deliberateLogoutRef.current) {
+            deliberateLogoutRef.current = false;
+            setUser(null);
+            setCompanies([]);
+            setCurrentCompany(null);
+          }
         }
         setLoading(false);
       },
@@ -290,6 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOutUser = async () => {
     setError(null);
+    deliberateLogoutRef.current = true;
     try {
       // Supprimer le cookie de session
       document.cookie = 'firebase-session=; path=/; max-age=0; SameSite=Strict';

@@ -219,6 +219,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute produits:', err);
+        this.state.productsListener = null;
         this.state.hasError = true;
       },
     });
@@ -440,6 +441,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute factures:', err);
+        this.state.invoicesListener = null;
         this.state.hasError = true;
       },
     });
@@ -541,6 +543,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute clients:', err);
+        this.state.clientsListener = null;
       },
     });
 
@@ -637,6 +640,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute entrepôts:', err);
+        this.state.warehousesListener = null;
       },
     });
 
@@ -737,6 +741,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute caisses:', err);
+        this.state.cashRegistersListener = null;
       },
     });
 
@@ -847,6 +852,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute mouvements caisse:', err);
+        this.state.cashMovementsListener = null;
       },
     });
 
@@ -1009,6 +1015,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute crédits clients:', err);
+        this.state.clientCreditsListener = null;
       },
     });
 
@@ -1111,6 +1118,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute fournisseurs:', err);
+        this.state.suppliersListener = null;
       },
     });
 
@@ -1215,6 +1223,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute achats:', err);
+        this.state.purchasesListener = null;
       },
     });
 
@@ -1377,6 +1386,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute crédits fournisseurs:', err);
+        this.state.supplierCreditsListener = null;
       },
     });
 
@@ -1430,6 +1440,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute paramètres:', err);
+        this.state.settingsListener = null;
       },
     });
 
@@ -1533,6 +1544,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute mouvements stock:', err);
+        this.state.stockMovementsListener = null;
       },
     });
 
@@ -1682,6 +1694,7 @@ class RealtimeService {
 
       error: (err) => {
         console.error('[RealtimeService] ❌ Erreur écoute warehouse quantities:', err);
+        this.state.warehouseQuantitiesListener = null;
       },
     });
 
