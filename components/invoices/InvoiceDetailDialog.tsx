@@ -340,7 +340,7 @@ export function InvoiceDetailDialog({
           <div className="text-xs text-muted-foreground space-y-1">
             {company?.taxId && <p>N° Contribuable: {company.taxId}</p>}
             {company?.businessRegister && <p>Registre Commerce: {company.businessRegister}</p>}
-            <p>Généré par Omnigestion - {format(new Date(), 'PPP à HH:mm', { locale: fr })}</p>
+            <p>Généré par Omnigestion - {invoice?.createdAt ? format(new Date(invoice.createdAt), 'PPP à HH:mm', { locale: fr }) : ''}</p>
           </div>
         </div>
       </DialogContent>
