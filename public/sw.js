@@ -1,55 +1,25 @@
 // Omnigestion Service Worker
-// Cache des assets statiques uniquement - PAS de cache Firestore/API
-// v8: Support PWA offline avec persistance localStorage des stores Zustand
+// Pass-through : pas de caching, juste PWA install + push notifications
+// v33
 
-const CACHE_NAME = "omnigestion-v32";
-const STATIC_CACHE = "omnigestion-static-v32";
+const CACHE_VERSION = "omnigestion-v33";
 
-// Assets à mettre en cache statique (pages, JS, CSS, images)
-const STATIC_ASSETS = [
-  "/",
-  "/dashboard",
-  "/offline",
-  "/manifest.json",
-  // Les icônes seront ajoutées automatiquement lors de l'installation
-];
-
-// Assets à ne JAMAIS cacher (Firestore, API, IndexedDB)
-const DYNAMIC_PATTERNS = [
-  /\/_next\/data\/.*/, // Next.js data requests
-  /\/api\/.*/, // API routes (sauf si spécifié ailleurs)
-  /firebaseio\.com/, // Firebase Realtime Database
-  /firestore\.googleapis\.com/, // Firestore API
-  /googleapis\.com\/identitytoolkit/, // Firebase Auth
-];
-
-// Installation du Service Worker
-self.addEventListener("install", (event) => {
-  console.log("[SW] Installation");
-
-  event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      console.log("[SW] Mise en cache des assets statiques");
-      return cache.addAll(STATIC_ASSETS);
-    }),
-  );
-
+// Installation
+self.addEventListener("install", () => {
+  console.log("[SW] Installation", CACHE_VERSION);
   self.skipWaiting();
 });
 
-// Activation du Service Worker
+// Activation : nettoyer les anciens caches
 self.addEventListener("activate", (event) => {
-  console.log("[SW] Activation");
+  console.log("[SW] Activation", CACHE_VERSION);
 
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          // Supprimer les anciens caches
-          if (cacheName !== STATIC_CACHE && cacheName !== CACHE_NAME) {
-            console.log("[SW] Suppression de l'ancien cache:", cacheName);
-            return caches.delete(cacheName);
-          }
+          console.log("[SW] Suppression du cache:", cacheName);
+          return caches.delete(cacheName);
         }),
       );
     }),
@@ -58,140 +28,8 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Stratégie de cache pour les requêtes
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
-
-  // NE PAS intercepter les requêtes Firestore/API
-  // Ne PAS utiliser event.respondWith() - laisser le navigateur gérer directement
-  if (shouldBypassCache(url)) {
-    // Ne rien faire - laisser passer la requête normalement sans interception
-    return;
-  }
-
-  // Pour les assets statiques (_next/static/, icons, etc.) : Cache First
-  if (isStaticAsset(url)) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) {
-          return cached;
-        }
-
-        return fetch(request)
-          .then((response) => {
-            // Mettre en cache les assets statiques
-            if (response.status === 200) {
-              const responseClone = response.clone();
-              caches.open(STATIC_CACHE).then((cache) => {
-                cache.put(request, responseClone);
-              });
-            }
-            return response;
-          })
-          .catch(() => {
-            // Fallback pour les assets statiques - retourner une réponse vide ou placeholder
-            return new Response("Asset non disponible", { status: 503 });
-          });
-      }),
-    );
-    return;
-  }
-
-  // Pour les pages HTML : Network First (évite les problèmes de redirection)
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request, { redirect: "follow" })
-        .then((response) => {
-          // Mettre en cache les réponses valides (pas les redirects)
-          if (response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return response;
-        })
-        .catch(() => {
-          // Hors ligne : servir depuis le cache
-          return caches.match(request).then((cached) => {
-            if (cached) {
-              return cached;
-            }
-            // Fallback : dashboard, puis home, puis offline
-            return caches.match("/dashboard").then((dashboardPage) => {
-              if (dashboardPage) return dashboardPage;
-              return caches.match("/").then((homePage) => {
-                if (homePage) return homePage;
-                return caches.match("/offline").then((offlinePage) => {
-                  return (
-                    offlinePage ||
-                    new Response(
-                      "Application non disponible hors ligne pour le moment",
-                      { status: 503 },
-                    )
-                  );
-                });
-              });
-            });
-          });
-        }),
-    );
-    return;
-  }
-
-  // Par défaut : Network First
-  event.respondWith(
-    fetch(request)
-      .then((response) => response)
-      .catch(() => caches.match(request)),
-  );
-});
-
-// Vérifier si une URL doit contourner le cache
-function shouldBypassCache(url) {
-  return DYNAMIC_PATTERNS.some((pattern) => pattern.test(url.href));
-}
-
-// Vérifier si c'est un asset statique
-function isStaticAsset(url) {
-  // Assets Next.js statiques et dynamiques (chunks, JS, CSS)
-  if (url.pathname.startsWith("/_next/")) {
-    return true;
-  }
-
-  // Images et icônes locales
-  if (
-    url.pathname.startsWith("/icons/") ||
-    url.pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|ico)$/)
-  ) {
-    return true;
-  }
-
-  // Fichiers JavaScript et CSS
-  if (url.pathname.match(/\.(js|css)$/)) {
-    return true;
-  }
-
-  // Cloudinary images (logo uploadé dans les paramètres, etc.)
-  if (
-    url.hostname.includes("res.cloudinary.com") ||
-    url.href.includes("res.cloudinary.com")
-  ) {
-    return true;
-  }
-
-  // Manifeste
-  if (url.pathname === "/manifest.json") {
-    return true;
-  }
-
-  return false;
-}
-
 // ===== NOTIFICATIONS PUSH FCM =====
 
-// Gérer les événements push entrants (notifications reçues en arrière-plan)
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -237,11 +75,9 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  // Action par défaut ou "Voir"
   const data = event.notification.data;
   let url = "/dashboard";
 
-  // Navigation selon le type de notification
   if (data.type === "sale" && data.invoiceId) {
     url = `/sales/print/${data.invoiceId}`;
   } else if (
@@ -254,9 +90,9 @@ self.addEventListener("notificationclick", (event) => {
   }
 
   event.waitUntil(
-    clients.openWindow(url).then((window) => {
-      if (window) {
-        window.focus();
+    clients.openWindow(url).then((windowClient) => {
+      if (windowClient) {
+        windowClient.focus();
       }
     }),
   );
@@ -266,13 +102,5 @@ self.addEventListener("notificationclick", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
-  }
-
-  if (event.data && event.data.type === "CACHE_URLS") {
-    event.waitUntil(
-      caches.open(STATIC_CACHE).then((cache) => {
-        return cache.addAll(event.data.urls);
-      }),
-    );
   }
 });
