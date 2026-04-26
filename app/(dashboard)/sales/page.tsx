@@ -307,8 +307,8 @@ export default function SalesPage() {
       return invDate.getTime() === targetDate.getTime();
     });
     return filtered.sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
+      const dateA = new Date(a.createdAt);
+      const dateB = new Date(b.createdAt);
       const dayA = new Date(dateA).setHours(0, 0, 0, 0);
       const dayB = new Date(dateB).setHours(0, 0, 0, 0);
       if (dayB !== dayA) return dayB - dayA; // jours décroissants
