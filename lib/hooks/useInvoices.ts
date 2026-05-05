@@ -384,6 +384,9 @@ export function useInvoices() {
         const toEntry = quantities.find((q: any) => q.warehouseId === primaryWarehouseId);
         const newToQuantity = (toEntry?.quantity || 0) + quantity;
 
+        // Stock total (ne change pas pour un transfert)
+        const transferTotal = quantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
+
         // 4. Mettre à jour les quantités pour les deux dépôts
         const updatedQuantities = quantities.map((q: any) => {
           if (q.warehouseId === fromWarehouseId) {
@@ -431,6 +434,9 @@ export function useInvoices() {
           reason: 'Transfert automatique pour vente',
           referenceType: 'auto_transfer_for_sale',
           userId: user.id,
+          userName: user.displayName || user.email,
+          quantityBefore: transferTotal,
+          quantityAfter: transferTotal,
           createdAt: new Date(),
         });
 
@@ -445,6 +451,9 @@ export function useInvoices() {
           reason: 'Transfert automatique pour vente',
           referenceType: 'auto_transfer_for_sale',
           userId: user.id,
+          userName: user.displayName || user.email,
+          quantityBefore: transferTotal,
+          quantityAfter: transferTotal,
           createdAt: new Date(),
         });
 
@@ -481,6 +490,33 @@ export function useInvoices() {
             );
           }
         }
+
+        // 1b. Générer le numéro de facture en premier (nécessaire pour les mouvements de stock)
+        const settingsRef = doc(db, COLLECTIONS.companySettings(user.currentCompanyId), 'invoice');
+        const settingsSnap = await getDoc(settingsRef);
+
+        let nextNumber: number;
+        let prefix: string;
+
+        if (settingsSnap.exists()) {
+          const settingsData = settingsSnap.data();
+          nextNumber = settingsData.nextNumber || 1;
+          prefix = settingsData.prefix || 'FAC';
+          transaction.update(settingsRef, {
+            nextNumber: nextNumber + 1,
+            updatedAt: new Date(),
+          });
+        } else {
+          nextNumber = 1;
+          prefix = settings?.invoice?.prefix || 'FAC';
+          transaction.set(settingsRef, {
+            prefix,
+            nextNumber: 2,
+            updatedAt: new Date(),
+          });
+        }
+
+        const invoiceNumber = `${prefix}-${String(nextNumber).padStart(4, '0')}`;
 
         // 2. Vérifier et déduire le stock
         productUpdates.length = 0; // Vider le tableau avant de le remplir
@@ -537,10 +573,13 @@ export function useInvoices() {
           }
 
           // Calculer les nouvelles quantités warehouse
+          const totalStockBefore = quantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
           let updatedQuantities = [...quantities];
+          let currentPrimaryQuantity = 0;
+          let newPrimaryQuantity = 0;
           if (primaryWarehouseId) {
-            const currentPrimaryQuantity = updatedQuantities.find((q: any) => q.warehouseId === primaryWarehouseId)?.quantity || 0;
-            const newPrimaryQuantity = currentPrimaryQuantity - item.quantity;
+            currentPrimaryQuantity = updatedQuantities.find((q: any) => q.warehouseId === primaryWarehouseId)?.quantity || 0;
+            newPrimaryQuantity = currentPrimaryQuantity - item.quantity;
 
             updatedQuantities = updatedQuantities.map((q: any) =>
               q.warehouseId === primaryWarehouseId
@@ -608,43 +647,15 @@ export function useInvoices() {
             warehouseId: primaryWarehouseId || productData.warehouseId,
             type: 'out',
             quantity: -item.quantity,
-            reason: `Vente facture`,
+            reason: `Vente facture ${invoiceNumber}`,
             referenceType: 'invoice',
             userId: user.id,
+            userName: user.displayName || user.email,
+            quantityBefore: totalStockBefore,
+            quantityAfter: totalStockBefore - item.quantity,
             createdAt: new Date(),
           });
         }
-
-        // 3. Générer le numéro de facture (à l'intérieur de la transaction pour l'unicité)
-        const settingsRef = doc(db, COLLECTIONS.companySettings(user.currentCompanyId), 'invoice');
-        const settingsSnap = await getDoc(settingsRef);
-
-        let nextNumber: number;
-        let prefix: string;
-
-        if (settingsSnap.exists()) {
-          const settingsData = settingsSnap.data();
-          nextNumber = settingsData.nextNumber || 1;
-          prefix = settingsData.prefix || 'FAC';
-
-          // Incrémenter le compteur
-          transaction.update(settingsRef, {
-            nextNumber: nextNumber + 1,
-            updatedAt: new Date(),
-          });
-        } else {
-          // Créer les settings initiaux
-          nextNumber = 1;
-          prefix = settings?.invoice?.prefix || 'FAC';
-
-          transaction.set(settingsRef, {
-            prefix,
-            nextNumber: 2,
-            updatedAt: new Date(),
-          });
-        }
-
-        const invoiceNumber = `${prefix}-${String(nextNumber).padStart(4, '0')}`;
 
         // 4. Calculer les totaux
         const subtotal = data.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
@@ -993,7 +1004,8 @@ export function useInvoices() {
 
           if (primaryWarehouseId) {
             const currentQty = quantities.find((q: any) => q.warehouseId === primaryWarehouseId)?.quantity || 0;
-            const updatedQty = currentQty - diff; // diff>0 = déduire, diff<0 = restore
+            const updatedQty = currentQty - diff;
+            const totalStockBefore = quantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
             console.log(`[updateInvoice] → Stock ${primaryWarehouseId}: ${currentQty} → ${updatedQty} (${diff > 0 ? 'DÉDUCTION' : 'RESTAURATION'} de ${Math.abs(diff)})`);
 
             const updatedQuantities = quantities.map((q: any) =>
@@ -1023,31 +1035,33 @@ export function useInvoices() {
 
               transaction.update(productRef, { status: newStatus, updatedAt: new Date() });
             }
-          }
 
-          // Créer le mouvement de stock correspondant
-          const stockMovementsRef = collection(db, COLLECTIONS.companyStockMovements(companyId));
-          const movementRef = doc(stockMovementsRef);
-          if (diff > 0) {
-            // On déduit plus
-            transaction.set(movementRef, {
-              companyId, productId,
-              warehouseId: primaryWarehouseId || 'boutique',
-              type: 'out', quantity: -diff,
-              reason: `Modification facture ${oldInvoice.invoiceNumber} (ajout)`,
-              referenceType: 'invoice_modification', referenceId: invoiceId,
-              userId: user.id, createdAt: new Date(),
-            });
-          } else {
-            // On restore (produit supprimé ou qty réduite)
-            transaction.set(movementRef, {
-              companyId, productId,
-              warehouseId: primaryWarehouseId || 'boutique',
-              type: 'in', quantity: Math.abs(diff),
-              reason: `Modification facture ${oldInvoice.invoiceNumber} (retrait)`,
-              referenceType: 'invoice_modification', referenceId: invoiceId,
-              userId: user.id, createdAt: new Date(),
-            });
+            // Créer le mouvement de stock correspondant
+            const stockMovementsRef = collection(db, COLLECTIONS.companyStockMovements(companyId));
+            const movementRef = doc(stockMovementsRef);
+            if (diff > 0) {
+              transaction.set(movementRef, {
+                companyId, productId,
+                warehouseId: primaryWarehouseId || 'boutique',
+                type: 'out', quantity: -diff,
+                reason: `Modification facture ${oldInvoice.invoiceNumber} (ajout)`,
+                referenceType: 'invoice_modification', referenceId: invoiceId,
+                userId: user.id, userName: user.displayName || user.email,
+                quantityBefore: totalStockBefore, quantityAfter: totalStockBefore - diff,
+                createdAt: new Date(),
+              });
+            } else {
+              transaction.set(movementRef, {
+                companyId, productId,
+                warehouseId: primaryWarehouseId || 'boutique',
+                type: 'in', quantity: Math.abs(diff),
+                reason: `Modification facture ${oldInvoice.invoiceNumber} (retrait)`,
+                referenceType: 'invoice_modification', referenceId: invoiceId,
+                userId: user.id, userName: user.displayName || user.email,
+                quantityBefore: totalStockBefore, quantityAfter: totalStockBefore + Math.abs(diff),
+                createdAt: new Date(),
+              });
+            }
           }
         }
 
@@ -1325,12 +1339,14 @@ export function useInvoices() {
             const quantities = whQtyData.quantities || [];
             const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
 
+            const totalStockBefore = quantities.reduce((sum: number, e: any) => sum + e.quantity, 0);
+
             // Ajouter la quantité retirée au warehouse principal
-            const updatedQuantities = quantities.map((entry: any) => {
-              if (entry.warehouseId === primaryWarehouseId) {
-                return { ...entry, quantity: entry.quantity + item.quantity };
+            const updatedQuantities = quantities.map((e: any) => {
+              if (e.warehouseId === primaryWarehouseId) {
+                return { ...e, quantity: e.quantity + item.quantity };
               }
-              return entry;
+              return e;
             });
 
             transaction.set(whQtyRef, {
@@ -1346,23 +1362,26 @@ export function useInvoices() {
 
             const newStatus = totalStock === 0 ? 'out' : totalStock <= alertThreshold ? 'low' : 'ok';
             transaction.update(productRef, { status: newStatus, updatedAt: new Date() });
-          }
 
-          // Créer un mouvement de stock compensatoire
-          const stockMovementsRef = collection(db, COLLECTIONS.companyStockMovements(companyId));
-          const movementRef = doc(stockMovementsRef);
-          transaction.set(movementRef, {
-            companyId,
-            productId: item.productId,
-            warehouseId: settings?.stock?.defaultWarehouseId || 'boutique',
-            type: 'in',
-            quantity: item.quantity,
-            reason: `Annulation facture ${invoice.invoiceNumber}`,
-            referenceType: 'invoice_cancellation',
-            referenceId: id,
-            userId: user.id,
-            createdAt: new Date(),
-          });
+            // Créer un mouvement de stock compensatoire
+            const stockMovementsRef = collection(db, COLLECTIONS.companyStockMovements(companyId));
+            const movementRef = doc(stockMovementsRef);
+            transaction.set(movementRef, {
+              companyId,
+              productId: item.productId,
+              warehouseId: primaryWarehouseId || 'boutique',
+              type: 'in',
+              quantity: item.quantity,
+              reason: `Annulation facture ${invoice.invoiceNumber}`,
+              referenceType: 'invoice_cancellation',
+              referenceId: id,
+              userId: user.id,
+              userName: user.displayName || user.email,
+              quantityBefore: totalStockBefore,
+              quantityAfter: totalStockBefore + item.quantity,
+              createdAt: new Date(),
+            });
+          }
         }
 
         // 3. Reverser la caisse si un montant a été payé

@@ -134,6 +134,9 @@ export function useStockMovements() {
         const toEntry = quantities.find((q: any) => q.warehouseId === toWarehouseId);
         const newToQuantity = (toEntry?.quantity || 0) + quantity;
 
+        // Stock total (ne change pas pour un transfert)
+        const transferTotal = quantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
+
         // 4. Mettre à jour les quantités pour les deux dépôts
         const updatedQuantities = quantities.map((q: any) => {
           if (q.warehouseId === fromWarehouseId) {
@@ -200,6 +203,9 @@ export function useStockMovements() {
           reason: reason || `Transfert vers dépôt ${toWarehouseId}`,
           referenceType: 'transfer',
           userId: user.id,
+          userName: user.displayName || user.email,
+          quantityBefore: transferTotal,
+          quantityAfter: transferTotal,
           createdAt: new Date(),
         });
 
@@ -214,6 +220,9 @@ export function useStockMovements() {
           reason: reason || `Transfert depuis dépôt ${fromWarehouseId}`,
           referenceType: 'transfer',
           userId: user.id,
+          userName: user.displayName || user.email,
+          quantityBefore: transferTotal,
+          quantityAfter: transferTotal,
           createdAt: new Date(),
         });
       });
@@ -258,6 +267,7 @@ export function useStockMovements() {
 
         const existingEntry = quantities.find((q: any) => q.warehouseId === warehouseId);
         const newQuantity = (existingEntry?.quantity || 0) + quantity;
+        const totalStockBefore = quantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
 
         const updatedQuantities = quantities.map((q: any) =>
           q.warehouseId === warehouseId
@@ -309,6 +319,9 @@ export function useStockMovements() {
           type: 'in',
           quantity,
           userId: user.id,
+          userName: user.displayName || user.email,
+          quantityBefore: totalStockBefore,
+          quantityAfter: totalStockBefore + quantity,
           createdAt: new Date(),
         };
 
@@ -355,8 +368,9 @@ export function useStockMovements() {
     warehouseId: string;
     quantity: number;
     reason: string;
+    referenceType?: string;
   }) => {
-    const { productId, warehouseId, quantity, reason } = params;
+    const { productId, warehouseId, quantity, reason, referenceType } = params;
 
     if (!user?.currentCompanyId) throw new Error('Utilisateur non connecté');
 
@@ -384,6 +398,7 @@ export function useStockMovements() {
         }
 
         const newQuantity = currentQty - quantity;
+        const totalStockBefore = quantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
 
         // Mettre à jour la quantité pour ce dépôt
         const updatedQuantities = quantities.map((q: any) =>
@@ -427,7 +442,7 @@ export function useStockMovements() {
         // 3. Créer le mouvement
         const movementsCollection = collection(db, COLLECTIONS.companyStockMovements(user.currentCompanyId));
         const movementRef = doc(movementsCollection);
-        transaction.set(movementRef, {
+        const movementData: any = {
           companyId: user.currentCompanyId,
           productId,
           warehouseId,
@@ -435,8 +450,13 @@ export function useStockMovements() {
           quantity: -quantity,
           reason,
           userId: user.id,
+          userName: user.displayName || user.email,
+          quantityBefore: totalStockBefore,
+          quantityAfter: totalStockBefore - quantity,
           createdAt: new Date(),
-        });
+        };
+        if (referenceType) movementData.referenceType = referenceType;
+        transaction.set(movementRef, movementData);
       });
 
       // Mettre à jour le cache IndexedDB avec le nouveau stock

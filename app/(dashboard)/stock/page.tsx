@@ -16,6 +16,7 @@ import { TransferDialog } from '@/components/stock/TransferDialog';
 import { RestockDialog } from '@/components/stock/RestockDialog';
 import { LossDialog } from '@/components/stock/LossDialog';
 import { StockMovementsTable } from '@/components/stock/StockMovementsTable';
+import { ProductMovementHistoryDialog } from '@/components/stock/ProductMovementHistoryDialog';
 import { ImportProductsModal } from '@/components/stock/ImportProductsModal';
 import { ExportProductsButton } from '@/components/stock/ExportProductsButton';
 import { Button } from '@/components/ui/button';
@@ -109,6 +110,8 @@ export default function StockPage() {
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
   const [isFiltering, setIsFiltering] = useState(false);
   const [showMovementsHistory, setShowMovementsHistory] = useState(false);
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
 
   // Statistiques globales dérivées des produits temps réel (useProductsRealtime)
   // Les produits sont déjà enrichis avec warehouse_quantities par enrichProductWithWarehouses
@@ -323,7 +326,7 @@ export default function StockPage() {
   }) => {
     setIsRestocking(true);
     try {
-      await recordInMovement(params);
+      await recordInMovement({ ...params, referenceType: 'restock' });
       // ⚠️ Plus besoin de recharger - onSnapshot met à jour automatiquement
       await fetchMovements();
     } finally {
@@ -344,7 +347,7 @@ export default function StockPage() {
   }) => {
     setIsRecordingLoss(true);
     try {
-      await recordOutMovement(params);
+      await recordOutMovement({ ...params, referenceType: 'loss' });
       // ⚠️ Plus besoin de recharger - onSnapshot met à jour automatiquement
       await fetchMovements();
     } finally {
@@ -523,6 +526,10 @@ export default function StockPage() {
             onTransfer={handleOpenTransferDialog}
             onRestock={handleOpenRestockDialog}
             onRecordLoss={handleOpenLossDialog}
+            onViewHistory={(product) => {
+              setHistoryProduct(product);
+              setIsHistoryDialogOpen(true);
+            }}
           />
         </CardContent>
       </Card>
@@ -617,6 +624,13 @@ export default function StockPage() {
         onImportComplete={() => {
           // Les KPI se mettront à jour automatiquement via onSnapshot
         }}
+      />
+
+      {/* Dialog historique mouvements par produit */}
+      <ProductMovementHistoryDialog
+        open={isHistoryDialogOpen}
+        onOpenChange={setIsHistoryDialogOpen}
+        product={historyProduct}
       />
     </div>
   );

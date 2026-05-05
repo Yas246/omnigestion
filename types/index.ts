@@ -209,6 +209,9 @@ export interface StockMovement {
   referenceType?: string; // 'invoice', 'restock', 'adjustment', etc.
 
   userId: string;
+  userName?: string;
+  quantityBefore?: number;
+  quantityAfter?: number;
   createdAt: Date;
 }
 

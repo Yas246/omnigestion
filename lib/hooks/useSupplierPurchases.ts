@@ -95,6 +95,7 @@ export function useSupplierPurchases() {
 
               const existingQty = quantities.find((q: any) => q.warehouseId === data.warehouseId);
               const newQuantity = (existingQty?.quantity || 0) + item.quantity;
+              const totalStockBefore = quantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
 
               const updatedQuantities = quantities.map((q: any) =>
                 q.warehouseId === data.warehouseId
@@ -143,6 +144,9 @@ export function useSupplierPurchases() {
                 referenceId: purchaseRef.id,
                 referenceType: 'purchase',
                 userId: user.id,
+                userName: user.displayName || user.email,
+                quantityBefore: totalStockBefore,
+                quantityAfter: totalStockBefore + item.quantity,
                 createdAt: new Date(),
               });
             }

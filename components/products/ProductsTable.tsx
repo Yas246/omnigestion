@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Edit, Trash2, Search, Package, AlertCircle, Filter, ArrowRight, Plus, XCircle, X } from 'lucide-react';
+import { Edit, Trash2, Search, Package, AlertCircle, Filter, ArrowRight, Plus, XCircle, X, History } from 'lucide-react';
 import { PermissionGate } from '@/components/auth';
 
 // Custom hook pour le debouncing
@@ -49,6 +49,7 @@ interface ProductsTableProps {
   onRestock?: (product: Product) => void;
   onRecordLoss?: (product: Product) => void;
   onFilterByStatus?: (status: 'all' | 'ok' | 'low' | 'out' | 'inactive') => void;
+  onViewHistory?: (product: Product) => void;
   totalLoaded?: number; // Nombre total de produits chargés depuis Firestore
 }
 
@@ -65,6 +66,7 @@ export function ProductsTable({
   onRestock,
   onRecordLoss,
   onFilterByStatus,
+  onViewHistory,
   totalLoaded = 0,
 }: ProductsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -350,6 +352,16 @@ export function ProductsTable({
                           </Button>
                         )}
                       </PermissionGate>
+                      {onViewHistory && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onViewHistory(product)}
+                          title="Historique des mouvements"
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                      )}
                       <PermissionGate module="stock" action="delete">
                         {onDelete && (
                           <Button
