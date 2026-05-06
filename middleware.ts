@@ -7,6 +7,15 @@ const PUBLIC_PATHS = ['/login', '/register', '/forgot-password'];
 // Routes qui nécessitent une authentification mais sont des pages spéciales
 const AUTH_REQUIRED_SPECIAL = ['/select-company', '/dashboard'];
 
+function isJwtExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -21,7 +30,7 @@ export function middleware(request: NextRequest) {
   }
 
   const sessionCookie = request.cookies.get('firebase-session');
-  const isAuthenticated = !!sessionCookie;
+  const isAuthenticated = !!sessionCookie && !isJwtExpired(sessionCookie.value);
   const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
   const isRootPath = pathname === '/';
 

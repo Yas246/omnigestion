@@ -7,6 +7,7 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  onIdTokenChanged,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
 } from 'firebase/auth';
@@ -88,15 +89,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setError('Erreur lors du chargement des données utilisateur');
           }
         } else {
-          // Ne vider le user QUE si c'est un logout volontaire.
-          // Si le token expire (réseau coupé), on garde les données en mémoire
-          // pour éviter que les query keys changent et vidangent le cache React Query.
           if (deliberateLogoutRef.current) {
             deliberateLogoutRef.current = false;
-            setUser(null);
-            setCompanies([]);
-            setCurrentCompany(null);
           }
+          // Toujours nettoyer — gcTime: Infinity protège les données React Query
+          setUser(null);
+          setCompanies([]);
+          setCurrentCompany(null);
+          document.cookie = 'firebase-session=; path=/; max-age=0';
         }
         setLoading(false);
       },
@@ -107,7 +107,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return unsubscribe;
+    // Rafraîchir le cookie session à chaque renouvellement de token (~1h)
+    const unsubscribeToken = onIdTokenChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const idToken = await firebaseUser.getIdToken();
+        document.cookie = `firebase-session=${idToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Strict`;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeToken();
+    };
   }, []);
 
   // Charger les entreprises de l'utilisateur
