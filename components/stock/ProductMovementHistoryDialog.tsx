@@ -128,6 +128,7 @@ export function ProductMovementHistoryDialog({
                     <th className="text-left p-3 font-medium">Date</th>
                     <th className="text-center p-3 font-medium">Qté initiale</th>
                     <th className="text-center p-3 font-medium">Type</th>
+                    <th className="text-center p-3 font-medium">Mouvement</th>
                     <th className="text-center p-3 font-medium">Qté finale</th>
                     <th className="text-left p-3 font-medium">Opération</th>
                     <th className="text-left p-3 font-medium">Utilisateur</th>
@@ -147,6 +148,9 @@ export function ProductMovementHistoryDialog({
                       </td>
                       <td className="p-3 text-center">
                         {getMovementBadge(movement)}
+                      </td>
+                      <td className="p-3 text-center font-mono">
+                        {Math.abs(movement.quantity)}
                       </td>
                       <td className="p-3 text-center font-mono">
                         {movement.quantityAfter ?? '—'}
@@ -175,10 +179,14 @@ export function ProductMovementHistoryDialog({
                       )}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="grid grid-cols-3 gap-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">Qté initiale: </span>
                       <span className="font-mono">{movement.quantityBefore ?? '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Mouvement: </span>
+                      <span className="font-mono">{Math.abs(movement.quantity)}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Qté finale: </span>
