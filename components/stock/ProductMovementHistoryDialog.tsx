@@ -103,7 +103,7 @@ export function ProductMovementHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-180 max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
@@ -125,13 +125,13 @@ export function ProductMovementHistoryDialog({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="text-left p-3 font-medium">Date</th>
+                    <th className="text-left p-3 font-medium whitespace-nowrap">Date</th>
                     <th className="text-center p-3 font-medium">Qté initiale</th>
                     <th className="text-center p-3 font-medium">Type</th>
                     <th className="text-center p-3 font-medium">Mouvement</th>
                     <th className="text-center p-3 font-medium">Qté finale</th>
                     <th className="text-left p-3 font-medium">Opération</th>
-                    <th className="text-left p-3 font-medium">Utilisateur</th>
+                    <th className="text-left p-3 font-medium whitespace-nowrap">Utilisateur</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -149,7 +149,7 @@ export function ProductMovementHistoryDialog({
                       <td className="p-3 text-center">
                         {getMovementBadge(movement)}
                       </td>
-                      <td className="p-3 text-center font-mono">
+                      <td className="p-3 text-center font-mono font-semibold">
                         {Math.abs(movement.quantity)}
                       </td>
                       <td className="p-3 text-center font-mono">
@@ -158,7 +158,7 @@ export function ProductMovementHistoryDialog({
                       <td className="p-3">
                         {getOperationLabel(movement)}
                       </td>
-                      <td className="p-3 text-muted-foreground">
+                      <td className="p-3 text-muted-foreground whitespace-nowrap">
                         {movement.userName || '—'}
                       </td>
                     </tr>
