@@ -19,6 +19,7 @@ import {
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useSettings } from './useSettings';
+import { getStockStatus } from '@/lib/utils/stock';
 import type { Product } from '@/types';
 
 export function useProducts() {
@@ -125,9 +126,7 @@ export function useProducts() {
 
       const defaultWarehouseId = settings?.stock?.defaultWarehouseId || null;
 
-      const status: 'ok' | 'low' | 'out' =
-        productData.currentStock === 0 ? 'out' :
-        productData.currentStock <= productData.alertThreshold ? 'low' : 'ok';
+      const status = getStockStatus(productData.currentStock, productData.alertThreshold);
 
       const docRef = await addDoc(collection(db, COLLECTIONS.companyProducts(user.currentCompanyId)), {
         ...productData,
@@ -218,9 +217,7 @@ export function useProducts() {
         if (product) {
           const currentStock = productData.currentStock ?? product.currentStock;
           const alertThreshold = productData.alertThreshold ?? product.alertThreshold;
-          status =
-            currentStock === 0 ? 'out' :
-            currentStock <= alertThreshold ? 'low' : 'ok';
+          status = getStockStatus(currentStock, alertThreshold);
         }
       }
 

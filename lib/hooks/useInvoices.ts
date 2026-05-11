@@ -26,6 +26,7 @@ import { useSettings } from './useSettings';
 import { offlineInvoices } from '@/lib/indexeddb/offline-invoices';
 import { invoiceSync, type SyncOptions } from '@/lib/services/invoice-sync';
 import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
+import { getStockStatus, roundQty } from '@/lib/utils/stock';
 import type { Invoice, InvoiceItem, Warehouse } from '@/types';
 
 const INVOICES_PER_PAGE = 50;
@@ -610,7 +611,7 @@ export function useInvoices() {
           });
 
           // Déterminer le nouveau statut basé sur le stock total
-          const newStatus = newTotal === 0 ? 'out' : newTotal <= (productData.alertThreshold || 0) ? 'low' : 'ok';
+          const newStatus = getStockStatus(newTotal, productData.alertThreshold || 0);
 
           // Collecter les alertes de stock (si le statut change vers 'low' ou 'out')
           if (newStatus === 'out' || newStatus === 'low') {
@@ -1024,7 +1025,7 @@ export function useInvoices() {
 
             if (productData) {
               const totalStock = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
-              const newStatus = totalStock === 0 ? 'out' : totalStock <= (productData.alertThreshold || 0) ? 'low' : 'ok';
+              const newStatus = getStockStatus(totalStock, productData.alertThreshold || 0);
 
               if (newStatus === 'out' || newStatus === 'low') {
                 stockAlerts.push({
@@ -1360,7 +1361,7 @@ export function useInvoices() {
             const productSnap = await getDoc(productRef);
             const alertThreshold = productSnap.exists() ? (productSnap.data().alertThreshold || 0) : 0;
 
-            const newStatus = totalStock === 0 ? 'out' : totalStock <= alertThreshold ? 'low' : 'ok';
+            const newStatus = getStockStatus(totalStock, alertThreshold);
             transaction.update(productRef, { status: newStatus, updatedAt: new Date() });
 
             // Créer un mouvement de stock compensatoire

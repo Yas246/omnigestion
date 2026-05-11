@@ -34,7 +34,7 @@ import { Loader2, ArrowRight, Warehouse as WarehouseIcon } from 'lucide-react';
 const transferSchema = z.object({
   fromWarehouseId: z.string().min(1, 'Veuillez sélectionner le dépôt source'),
   toWarehouseId: z.string().min(1, 'Veuillez sélectionner le dépôt de destination'),
-  quantity: z.number().int().min(1, 'La quantité doit être d\'au moins 1'),
+  quantity: z.number().min(0.5, 'La quantité doit être d\'au moins 0.5'),
   reason: z.string().optional(),
 }).refine(
   (data) => data.fromWarehouseId !== data.toWarehouseId,
@@ -287,7 +287,8 @@ export function TransferDialog({
                   <FormControl>
                     <div className="flex items-center gap-2">
                       <NumberInput
-                        min={1}
+                        min={0.5}
+                        step={0.5}
                         placeholder="1"
                         value={field.value}
                         onChange={field.onChange}

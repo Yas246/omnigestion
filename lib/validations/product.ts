@@ -27,8 +27,8 @@ export const productSchema = z.object({
   retailPrice: z.number().min(0, 'Le prix de vente doit être positif'),
   wholesalePrice: z.number().min(0, 'Le prix de gros doit être positif'),
   wholesaleThreshold: z.number().int().min(1, 'Le seuil de gros doit être d\'au moins 1'),
-  currentStock: z.number().int().min(0, 'Le stock ne peut pas être négatif'),
-  alertThreshold: z.number().int().min(0, 'Le seuil d\'alerte doit être positif'),
+  currentStock: z.number().min(0, 'Le stock ne peut pas être négatif'),
+  alertThreshold: z.number().min(0, 'Le seuil d\'alerte doit être positif'),
   unit: z.enum(PRODUCT_UNITS),
   isActive: z.boolean(),
 }).refine(

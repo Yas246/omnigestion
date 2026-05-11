@@ -394,7 +394,8 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
                         </div>
                         <div className="col-span-2">
                           <NumberInput
-                            min={1}
+                            min={0.5}
+                            step={0.5}
                             placeholder="1"
                             value={item.quantity}
                             onChange={(value) => updateItemQuantity(index, value || 1)}

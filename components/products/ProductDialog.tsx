@@ -388,6 +388,7 @@ export function ProductDialog({
                     <FormControl>
                       <NumberInput
                         min={0}
+                        step={0.5}
                         placeholder="0"
                         value={field.value}
                         onChange={field.onChange}

@@ -601,7 +601,8 @@ export function InvoiceDialog({
                           </div>
                           <div className="col-span-1">
                             <NumberInput
-                              min={1}
+                              min={0.5}
+                              step={0.5}
                               placeholder="1"
                               value={item.quantity}
                               onChange={(value) => updateItemQuantity(index, value)}
@@ -686,7 +687,8 @@ export function InvoiceDialog({
                             <div className="flex flex-col gap-1 flex-1">
                               <label className="text-xs text-muted-foreground">Qté</label>
                               <NumberInput
-                                min={1}
+                                min={0.5}
+                                step={0.5}
                                 placeholder="1"
                                 value={item.quantity}
                                 onChange={(value) => updateItemQuantity(index, value)}

@@ -17,6 +17,7 @@ import {
   getDocFromCache,
 } from 'firebase/firestore';
 import type { Invoice, InvoiceItem } from '@/types';
+import { getStockStatus } from '@/lib/utils/stock';
 
 /**
  * Types pour la création et mise à jour de factures
@@ -172,7 +173,7 @@ export async function createInvoice(
         // Calculer le stock total depuis warehouse_quantities et mettre à jour le statut
         const newTotal = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
         const alertThreshold = productData.alertThreshold || 0;
-        const status = newTotal === 0 ? 'out' : newTotal <= alertThreshold ? 'low' : 'ok';
+        const status = getStockStatus(newTotal, alertThreshold);
 
         transaction.update(productRef, {
           status,

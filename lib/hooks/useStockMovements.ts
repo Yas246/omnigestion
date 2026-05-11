@@ -20,6 +20,7 @@ import {
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { productsCache } from '@/lib/indexeddb/db';
+import { getStockStatus, roundQty } from '@/lib/utils/stock';
 import type { StockMovement, Product } from '@/types';
 
 const MOVEMENTS_PER_PAGE = 50;
@@ -179,9 +180,7 @@ export function useStockMovements() {
 
           // Calculer le stock total depuis warehouse_quantities (le total ne change pas lors d'un transfert)
           const totalStock = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
-          const status: 'ok' | 'low' | 'out' =
-            totalStock === 0 ? 'out' :
-            totalStock <= alertThreshold ? 'low' : 'ok';
+          const status = getStockStatus(totalStock, alertThreshold);
 
           transaction.update(productRef, {
             status,
@@ -297,9 +296,7 @@ export function useStockMovements() {
           const alertThreshold = productData.alertThreshold || 0;
           const newTotalStock = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
 
-          const status: 'ok' | 'low' | 'out' =
-            newTotalStock === 0 ? 'out' :
-            newTotalStock <= alertThreshold ? 'low' : 'ok';
+          const status = getStockStatus(newTotalStock, alertThreshold);
 
           transaction.update(productRef, {
             status,
@@ -339,7 +336,7 @@ export function useStockMovements() {
         if (cachedProduct) {
           const newTotalStock = (cachedProduct.currentStock || 0) + quantity;
           const alertThreshold = cachedProduct.alertThreshold || 0;
-          const status: 'ok' | 'low' | 'out' = newTotalStock === 0 ? 'out' : newTotalStock <= alertThreshold ? 'low' : 'ok';
+          const status = getStockStatus(newTotalStock, alertThreshold);
           const updatedProduct = {
             ...cachedProduct,
             currentStock: newTotalStock,
@@ -429,9 +426,7 @@ export function useStockMovements() {
           const alertThreshold = productData.alertThreshold || 0;
           const newTotalStock = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
 
-          const status: 'ok' | 'low' | 'out' =
-            newTotalStock === 0 ? 'out' :
-            newTotalStock <= alertThreshold ? 'low' : 'ok';
+          const status = getStockStatus(newTotalStock, alertThreshold);
 
           transaction.update(productRef, {
             status,
@@ -466,7 +461,7 @@ export function useStockMovements() {
         if (cachedProduct) {
           const newTotalStock = (cachedProduct.currentStock || 0) - quantity;
           const alertThreshold = cachedProduct.alertThreshold || 0;
-          const status: 'ok' | 'low' | 'out' = newTotalStock === 0 ? 'out' : newTotalStock <= alertThreshold ? 'low' : 'ok';
+          const status = getStockStatus(newTotalStock, alertThreshold);
           const updatedProduct = {
             ...cachedProduct,
             currentStock: newTotalStock,

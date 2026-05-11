@@ -2,7 +2,7 @@
 // Pass-through : pas de caching, juste PWA install + push notifications
 // v33
 
-const CACHE_VERSION = "omnigestion-v35";
+const CACHE_VERSION = "omnigestion-v36";
 
 // Installation
 self.addEventListener("install", () => {

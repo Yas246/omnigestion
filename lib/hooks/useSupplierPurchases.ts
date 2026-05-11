@@ -4,6 +4,7 @@ import { runTransaction, doc, getDoc, collection, addDoc, getDocs, query, where,
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
+import { getStockStatus } from '@/lib/utils/stock';
 
 export interface PurchaseItem {
   productId: string;
@@ -124,7 +125,7 @@ export function useSupplierPurchases() {
 
               // 2. Calculer le stock total depuis warehouse_quantities et mettre à jour le statut
               const newTotalStock = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
-              const newStatus = newTotalStock === 0 ? 'out' : newTotalStock <= (productData.alertThreshold || 10) ? 'low' : 'ok';
+              const newStatus = getStockStatus(newTotalStock, productData.alertThreshold || 10);
 
               transaction.update(productRef, {
                 status: newStatus,

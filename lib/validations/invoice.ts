@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const invoiceItemSchema = z.object({
   productId: z.string().min(1, 'Le produit est requis'),
   productName: z.string().min(1, 'Le nom du produit est requis'),
-  quantity: z.number().int().min(1, 'La quantité doit être d\'au moins 1'),
+  quantity: z.number().min(0.5, 'La quantité doit être d\'au moins 0.5'),
   unit: z.string().min(1, 'L\'unité est requise'),
   unitPrice: z.number().min(0, 'Le prix unitaire doit être positif'),
   purchasePrice: z.number().optional(),
