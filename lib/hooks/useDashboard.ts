@@ -1,23 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { startOfDay, endOfDay } from 'date-fns';
-import { collection, query, where, orderBy, limit, getDocs, Query } from 'firebase/firestore';
-import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useAuthStore } from '@/lib/stores/useAuthStore';
-import type { Invoice, Product, DailyStats, ClientCredit } from '@/types';
+import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
+import { useClientsRealtime } from '@/lib/react-query/useClientsRealtime';
+import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
+import { realtimeService } from '@/lib/services/RealtimeService';
+import type { Invoice, Product, ClientCredit } from '@/types';
 import { getRecognizedProfitForDate, buildInvoicePaymentsMap } from '@/lib/utils/profitCalculation';
 
 export interface DashboardStats {
-  // Statistiques du jour
   todayRevenue: number;
   todayInvoicesCount: number;
   todayPaidAmount: number;
   activeCredits: number;
   todayProfit: number;
 
-  // Statistiques globales
   totalRevenue: number;
   totalInvoicesCount: number;
   totalProducts: number;
@@ -25,26 +26,19 @@ export interface DashboardStats {
   lowStockProducts: number;
   outOfStockProducts: number;
 
-  // Dernières factures
   recentInvoices: Invoice[];
-
-  // Produits populaires
   topProducts: Array<{
     productId: string;
     productName: string;
     totalQuantity: number;
     totalRevenue: number;
   }>;
-
-  // Ventes par mode de paiement
   paymentDistribution: {
     cash: number;
     mobile: number;
     bank: number;
     credit: number;
   };
-
-  // Ventes des 7 derniers jours
   salesLast7Days: Array<{
     date: string;
     revenue: number;
@@ -53,271 +47,189 @@ export interface DashboardStats {
 
 export function useDashboard() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
+  // Données depuis le cache React Query (temps réel via onSnapshot)
+  const { invoices, isLoading: invoicesLoading } = useInvoicesRealtime();
+  const { clients, isLoading: clientsLoading } = useClientsRealtime();
+  const { credits, isLoading: creditsLoading } = useClientCreditsRealtime();
+
+  // Produits via React Query cache (populé par RealtimeService.startProductsListener)
+  const { data: products = [], isLoading: productsLoading } = useQuery<Product[]>({
+    queryKey: ['companies', user?.currentCompanyId, 'products'],
+    queryFn: async () => [],
+    enabled: !!user?.currentCompanyId,
+    staleTime: Infinity,
+  });
+
+  // Démarrer le listener produits s'il n'est pas encore actif
+  useMemo(() => {
     if (user?.currentCompanyId) {
-      fetchDashboardStats();
+      realtimeService.startProductsListener(queryClient, user.currentCompanyId);
     }
-  }, [user]);
+  }, [user?.currentCompanyId, queryClient]);
 
-  const fetchDashboardStats = async () => {
-    if (!user?.currentCompanyId) return;
+  const loading = invoicesLoading || productsLoading || clientsLoading || creditsLoading;
 
-    setLoading(true);
-    setError(null);
+  const stats = useMemo(() => {
+    if (!user?.currentCompanyId || loading) return null;
 
-    try {
-      const today = new Date();
-      const startOfToday = startOfDay(today);
-      const endOfToday = endOfDay(today);
+    const today = new Date();
+    const startOfToday = startOfDay(today);
+    const endOfToday = endOfDay(today);
 
-      // 🔒 Récupérer le rôle utilisateur
-      const authUser = useAuthStore.getState().user;
-      const isEmployee = authUser?.role === 'employee';
+    // Factures actives (exclure annulées)
+    const activeInvoices = invoices.filter(inv => inv.status !== 'cancelled');
 
-      // 1. Récupérer les factures (filtrées pour les employés)
-      let invoicesQuery: Query<any> = collection(db, COLLECTIONS.companyInvoices(user.currentCompanyId));
+    // Factures du jour
+    const todayInvoices = activeInvoices.filter(inv => {
+      const invDate = new Date(inv.date);
+      return invDate >= startOfToday && invDate <= endOfToday;
+    });
 
-      // Si employé, limiter aux factures du jour uniquement
-      if (isEmployee) {
-        const tomorrow = new Date(startOfToday);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        invoicesQuery = query(invoicesQuery,
-          where('createdAt', '>=', startOfToday),
-          where('createdAt', '<', tomorrow)
-        );
-        console.log('[Dashboard] Mode employé: factures du jour uniquement');
-      } else {
-        console.log('[Dashboard] Mode admin: toutes les factures');
-      }
+    // Crédits et paiements (embarqués dans les crédits)
+    const allCreditPayments = credits.flatMap((c: any) => (c.payments || []));
+    const todayCreditPaymentsTotal = allCreditPayments
+      .filter((cp: any) => {
+        const cpDate = cp.createdAt instanceof Date ? cp.createdAt : new Date(cp.createdAt);
+        return cpDate >= startOfToday && cpDate <= endOfToday;
+      })
+      .reduce((sum: number, cp: any) => sum + (cp.amount || 0), 0);
+    const allCreditPaymentsTotal = allCreditPayments
+      .reduce((sum: number, cp: any) => sum + (cp.amount || 0), 0);
 
-      const allInvoicesSnap = await getDocs(invoicesQuery);
-      const allInvoices = allInvoicesSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date?.toDate() || new Date(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-        validatedAt: doc.data().validatedAt?.toDate(),
-        paidAt: doc.data().paidAt?.toDate(),
-      } as Invoice));
+    // Stats du jour
+    const todayRevenue = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0) + todayCreditPaymentsTotal;
+    const todayPaidAmount = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+    const todayInvoicesCount = todayInvoices.length;
 
-      // 2. Exclure les factures annulées
-      const activeInvoices = allInvoices.filter(inv => inv.status !== 'cancelled');
+    // Crédits actifs du jour
+    const activeCredits = credits
+      .filter((c: any) => {
+        if (c.status === 'paid' || c.status === 'cancelled') return false;
+        const creditDate = c.createdAt instanceof Date ? c.createdAt : new Date(c.createdAt);
+        return creditDate >= startOfToday && creditDate <= endOfToday;
+      })
+      .reduce((sum: number, c: any) => sum + (c.remainingAmount || 0), 0);
 
-      // 3. Filtrer les factures du jour
-      const todayInvoices = activeInvoices.filter(inv => {
-        const invDate = new Date(inv.date);
-        return invDate >= startOfToday && invDate <= endOfToday;
-      });
+    // Bénéfice du jour
+    const invoicePaymentsMap = buildInvoicePaymentsMap(
+      credits as ClientCredit[],
+      allCreditPayments.map((cp: any) => ({ creditId: cp.creditId, amount: cp.amount, createdAt: cp.createdAt }))
+    );
 
-      // 3. Récupérer les produits pour les stats de stock
-      const productsRef = collection(db, COLLECTIONS.companyProducts(user.currentCompanyId));
-      const productsSnap = await getDocs(productsRef);
-      const products = productsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      } as Product));
-
-      // 4. Récupérer les clients
-      const clientsRef = collection(db, COLLECTIONS.companyClients(user.currentCompanyId));
-      const clientsSnap = await getDocs(clientsRef);
-      const totalClients = clientsSnap.size;
-
-      // 4.5. Récupérer les crédits clients pour les statistiques
-      const creditsRef = collection(db, COLLECTIONS.companyClientCredits(user.currentCompanyId));
-      const creditsSnap = await getDocs(creditsRef);
-      const credits = creditsSnap.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          date: data.date?.toDate() || new Date(),
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-        } as ClientCredit;
-      });
-
-      // 4.6. Récupérer les paiements de crédits pour le CA encaissé
-      const creditPaymentsRef = collection(db, COLLECTIONS.companyClientCreditPayments(user.currentCompanyId));
-      const creditPaymentsSnap = await getDocs(creditPaymentsRef);
-      const allCreditPayments = creditPaymentsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        creditId: doc.data().creditId || '',
-        amount: doc.data().amount || 0,
-        paymentMode: doc.data().paymentMode || 'cash',
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-      }));
-
-      // Paiements de crédits reçus aujourd'hui
-      const todayCreditPaymentsTotal = allCreditPayments
-        .filter(cp => cp.createdAt >= startOfToday && cp.createdAt <= endOfToday)
-        .reduce((sum, cp) => sum + cp.amount, 0);
-
-      // Total de tous les paiements de crédits
-      const allCreditPaymentsTotal = allCreditPayments
-        .reduce((sum, cp) => sum + cp.amount, 0);
-
-      // 5. Calculer les statistiques du jour
-      // CA = encaissé uniquement (paidAmount des factures + paiements de crédits reçus)
-      const todayRevenue = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0) + todayCreditPaymentsTotal;
-      const todayPaidAmount = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
-      const todayInvoicesCount = todayInvoices.length;
-
-      // Calculer les crédits actifs du jour (crédits créés aujourd'hui uniquement)
-      const activeCredits = credits
-        .filter(c => {
-          if (c.status === 'paid' || c.status === 'cancelled') return false;
-          const creditDate = c.createdAt instanceof Date ? c.createdAt : new Date(c.createdAt);
-          return creditDate >= startOfToday && creditDate <= endOfToday;
-        })
-        .reduce((sum, c) => sum + (c.remainingAmount || 0), 0);
-
-      // Calculer le bénéfice du jour (approche récupération des coûts d'abord)
-      // 1. Construire le map invoiceId → creditPayments
-      const invoicePaymentsMap = buildInvoicePaymentsMap(
-        credits,
-        allCreditPayments.map(cp => ({ creditId: cp.creditId, amount: cp.amount, createdAt: cp.createdAt }))
+    let todayProfit = 0;
+    activeInvoices.forEach(inv => {
+      const creditPaymentsForInvoice = invoicePaymentsMap.get(inv.id) || [];
+      todayProfit += getRecognizedProfitForDate(
+        inv.items,
+        inv.paidAmount,
+        inv.date,
+        creditPaymentsForInvoice,
+        today
       );
+    });
 
-      // 2. Calculer le bénéfice reconnu aujourd'hui pour chaque facture active
-      let todayProfit = 0;
-      activeInvoices.forEach(inv => {
-        const creditPaymentsForInvoice = invoicePaymentsMap.get(inv.id) || [];
-        todayProfit += getRecognizedProfitForDate(
-          inv.items,
-          inv.paidAmount,
-          inv.date,
-          creditPaymentsForInvoice,
-          today
-        );
+    // Stats globales
+    const totalRevenue = activeInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0) + allCreditPaymentsTotal;
+    const totalInvoicesCount = activeInvoices.length;
+    const totalProducts = products.length;
+    const lowStockProducts = products.filter(p => p.status === 'low').length;
+    const outOfStockProducts = products.filter(p => p.status === 'out').length;
+
+    // Dernières factures
+    const recentInvoices = [...activeInvoices]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 10);
+
+    // Top produits
+    const productSales = new Map<string, { productName: string; quantity: number; revenue: number }>();
+    activeInvoices.forEach(inv => {
+      inv.items.forEach(item => {
+        const existing = productSales.get(item.productId);
+        if (existing) {
+          existing.quantity += item.quantity;
+          existing.revenue += item.total;
+        } else {
+          productSales.set(item.productId, {
+            productName: item.productName,
+            quantity: item.quantity,
+            revenue: item.total,
+          });
+        }
       });
+    });
 
-      // 6. Statistiques globales (CA = encaissé uniquement)
-      const totalRevenue = activeInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0) + allCreditPaymentsTotal;
-      const totalInvoicesCount = activeInvoices.length;
-      const totalProducts = products.length;
-      const lowStockProducts = products.filter(p => p.status === 'low').length;
-      const outOfStockProducts = products.filter(p => p.status === 'out').length;
+    const topProducts = Array.from(productSales.entries())
+      .map(([productId, data]) => ({
+        productId,
+        productName: data.productName,
+        totalQuantity: data.quantity,
+        totalRevenue: data.revenue,
+      }))
+      .sort((a, b) => b.totalQuantity - a.totalQuantity)
+      .slice(0, 5);
 
-      // 7. Dernières factures (10 dernières)
-      const recentInvoices = activeInvoices
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 10);
+    // Distribution des paiements
+    const paymentDistribution = { cash: 0, mobile: 0, bank: 0, credit: 0 };
+    activeInvoices.forEach(inv => {
+      if (inv.paymentMethod === 'cash') paymentDistribution.cash += inv.paidAmount;
+      else if (inv.paymentMethod === 'mobile') paymentDistribution.mobile += inv.paidAmount;
+      else if (inv.paymentMethod === 'bank') paymentDistribution.bank += inv.paidAmount;
+      else if (inv.paymentMethod === 'credit') paymentDistribution.credit += inv.paidAmount;
+    });
+    allCreditPayments.forEach((cp: any) => {
+      if (cp.paymentMode === 'cash') paymentDistribution.cash += cp.amount;
+      else if (cp.paymentMode === 'mobile') paymentDistribution.mobile += cp.amount;
+      else if (cp.paymentMode === 'bank') paymentDistribution.bank += cp.amount;
+    });
 
-      // 8. Produits populaires
-      const productSales = new Map<string, { productName: string; quantity: number; revenue: number }>();
-      activeInvoices.forEach(inv => {
-        inv.items.forEach(item => {
-          const existing = productSales.get(item.productId);
-          if (existing) {
-            existing.quantity += item.quantity;
-            existing.revenue += item.total;
-          } else {
-            productSales.set(item.productId, {
-              productName: item.productName,
-              quantity: item.quantity,
-              revenue: item.total,
-            });
-          }
-        });
+    // Ventes des 7 derniers jours
+    const salesLast7Days: Array<{ date: string; revenue: number }> = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const start = startOfDay(date);
+      const end = endOfDay(date);
+
+      const dayInvoiceRevenue = activeInvoices
+        .filter(inv => {
+          const invDate = new Date(inv.date);
+          return invDate >= start && invDate <= end;
+        })
+        .reduce((sum, inv) => sum + inv.paidAmount, 0);
+
+      const dayCreditPayments = allCreditPayments
+        .filter((cp: any) => {
+          const cpDate = cp.createdAt instanceof Date ? cp.createdAt : new Date(cp.createdAt);
+          return cpDate >= start && cpDate <= end;
+        })
+        .reduce((sum: number, cp: any) => sum + (cp.amount || 0), 0);
+
+      salesLast7Days.push({
+        date: date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }),
+        revenue: dayInvoiceRevenue + dayCreditPayments,
       });
-
-      const topProducts: Array<{
-        productId: string;
-        productName: string;
-        totalQuantity: number;
-        totalRevenue: number;
-      }> = Array.from(productSales.entries())
-        .map(([productId, data]) => ({
-          productId,
-          productName: data.productName,
-          totalQuantity: data.quantity,
-          totalRevenue: data.revenue,
-        }))
-        .sort((a, b) => b.totalQuantity - a.totalQuantity)
-        .slice(0, 5);
-
-      // 9. Distribution des paiements (basé sur l'encaissé)
-      const paymentDistribution = {
-        cash: 0,
-        mobile: 0,
-        bank: 0,
-        credit: 0,
-      };
-
-      activeInvoices.forEach(inv => {
-        if (inv.paymentMethod === 'cash') paymentDistribution.cash += inv.paidAmount;
-        else if (inv.paymentMethod === 'mobile') paymentDistribution.mobile += inv.paidAmount;
-        else if (inv.paymentMethod === 'bank') paymentDistribution.bank += inv.paidAmount;
-        else if (inv.paymentMethod === 'credit') paymentDistribution.credit += inv.paidAmount;
-      });
-
-      // Ajouter les paiements de crédits à la distribution
-      allCreditPayments.forEach(cp => {
-        if (cp.paymentMode === 'cash') paymentDistribution.cash += cp.amount;
-        else if (cp.paymentMode === 'mobile') paymentDistribution.mobile += cp.amount;
-        else if (cp.paymentMode === 'bank') paymentDistribution.bank += cp.amount;
-      });
-
-      // 10. Ventes des 7 derniers jours (basé sur l'encaissé)
-      const salesLast7Days: Array<{ date: string; revenue: number }> = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const startOfDay_i = startOfDay(date);
-        const endOfDay_i = endOfDay(date);
-
-        const dayInvoiceRevenue = activeInvoices
-          .filter(inv => {
-            const invDate = new Date(inv.date);
-            return invDate >= startOfDay_i && invDate <= endOfDay_i;
-          })
-          .reduce((sum, inv) => sum + inv.paidAmount, 0);
-
-        const dayCreditPayments = allCreditPayments
-          .filter(cp => cp.createdAt >= startOfDay_i && cp.createdAt <= endOfDay_i)
-          .reduce((sum, cp) => sum + cp.amount, 0);
-
-        salesLast7Days.push({
-          date: date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }),
-          revenue: dayInvoiceRevenue + dayCreditPayments,
-        });
-      }
-
-      setStats({
-        todayRevenue,
-        todayInvoicesCount,
-        todayPaidAmount,
-        activeCredits,
-        todayProfit,
-        totalRevenue,
-        totalInvoicesCount,
-        totalProducts,
-        totalClients,
-        lowStockProducts,
-        outOfStockProducts,
-        recentInvoices,
-        topProducts,
-        paymentDistribution,
-        salesLast7Days,
-      });
-    } catch (err) {
-      console.error('Erreur lors du chargement des statistiques:', err);
-      setError('Erreur lors du chargement des statistiques');
-    } finally {
-      setLoading(false);
     }
-  };
 
-  return {
-    stats,
-    loading,
-    error,
-    refetch: fetchDashboardStats,
-  };
+    return {
+      todayRevenue,
+      todayInvoicesCount,
+      todayPaidAmount,
+      activeCredits,
+      todayProfit,
+      totalRevenue,
+      totalInvoicesCount,
+      totalProducts,
+      totalClients: clients.length,
+      lowStockProducts,
+      outOfStockProducts,
+      recentInvoices,
+      topProducts,
+      paymentDistribution,
+      salesLast7Days,
+    };
+  }, [invoices, products, clients, credits, user, loading]);
+
+  return { stats, loading, error: null };
 }

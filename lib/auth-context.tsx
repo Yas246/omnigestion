@@ -342,12 +342,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
-    console.log('[AuthContext] resetPassword appelé avec email:', email);
     setError(null);
     try {
-      console.log('[AuthContext] Appel de sendPasswordResetEmail...');
       await sendPasswordResetEmail(auth, email);
-      console.log('[AuthContext] Email de réinitialisation envoyé avec succès');
     } catch (err: any) {
       console.error('[AuthContext] Erreur de réinitialisation:', err.code, err.message);
       const errorMessage = err.code === 'auth/user-not-found'

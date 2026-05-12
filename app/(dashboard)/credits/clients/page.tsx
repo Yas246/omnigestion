@@ -18,23 +18,8 @@ import { ManualCreditDialog } from '@/components/credits/ManualCreditDialog';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
-
-// Custom hook pour le debouncing
-function useDebounce(value: string, delay: number): string {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import { useDebounce } from '@/lib/hooks/useDebounce';
+import { formatPrice } from '@/lib/utils';
 
 type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
 
@@ -63,10 +48,6 @@ export default function CreditsPage() {
   // Debouncing de 300ms pour la recherche
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
-  };
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, { label: string; variant: any }> = {

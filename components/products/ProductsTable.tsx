@@ -1,13 +1,19 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo } from 'react';
-import type { Product, Warehouse } from '@/types';
-import { useProductDisplayStock } from '@/lib/react-query/useStockLocationsRealtime';
-import { useAuth } from '@/lib/auth-context';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useState, useMemo } from "react";
+import type { Product, Warehouse } from "@/types";
+import { useProductDisplayStock } from "@/lib/react-query/useProductsRealtime";
+import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -15,26 +21,22 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Edit, Trash2, Search, Package, AlertCircle, Filter, ArrowRight, Plus, XCircle, X, History } from 'lucide-react';
-import { PermissionGate } from '@/components/auth';
-
-// Custom hook pour le debouncing
-function useDebounce(value: string, delay: number): string {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+} from "@/components/ui/table";
+import {
+  Edit,
+  Trash2,
+  Search,
+  Package,
+  AlertCircle,
+  Filter,
+  ArrowRight,
+  Plus,
+  XCircle,
+  X,
+  History,
+} from "lucide-react";
+import { PermissionGate } from "@/components/auth";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 
 interface ProductsTableProps {
   products: Array<Product & { displayQuantity?: number }>;
@@ -48,7 +50,9 @@ interface ProductsTableProps {
   onTransfer?: (product: Product) => void;
   onRestock?: (product: Product) => void;
   onRecordLoss?: (product: Product) => void;
-  onFilterByStatus?: (status: 'all' | 'ok' | 'low' | 'out' | 'inactive') => void;
+  onFilterByStatus?: (
+    status: "all" | "ok" | "low" | "out" | "inactive",
+  ) => void;
   onViewHistory?: (product: Product) => void;
   totalLoaded?: number; // Nombre total de produits chargés depuis Firestore
 }
@@ -69,9 +73,13 @@ export function ProductsTable({
   onViewHistory,
   totalLoaded = 0,
 }: ProductsTableProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'ok' | 'low' | 'out' | 'inactive'>('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(
+    null,
+  );
+  const [selectedStatus, setSelectedStatus] = useState<
+    "all" | "ok" | "low" | "out" | "inactive"
+  >("all");
 
   // Auth pour avoir le companyId
   const { user } = useAuth();
@@ -85,18 +93,18 @@ export function ProductsTable({
     let filtered = products;
 
     // Filtre par statut
-    if (selectedStatus !== 'all') {
+    if (selectedStatus !== "all") {
       filtered = filtered.filter((product) => {
         const isActive = product.isActive ?? true;
 
         switch (selectedStatus) {
-          case 'ok':
-            return isActive && product.status === 'ok';
-          case 'low':
-            return isActive && product.status === 'low';
-          case 'out':
+          case "ok":
+            return isActive && product.status === "ok";
+          case "low":
+            return isActive && product.status === "low";
+          case "out":
             return isActive && product.currentStock === 0;
-          case 'inactive':
+          case "inactive":
             return !isActive;
           default:
             return true;
@@ -111,7 +119,7 @@ export function ProductsTable({
         (p) =>
           p.name.toLowerCase().includes(searchLower) ||
           (p.code && p.code.toLowerCase().includes(searchLower)) ||
-          (p.category && p.category.toLowerCase().includes(searchLower))
+          (p.category && p.category.toLowerCase().includes(searchLower)),
       );
     }
 
@@ -123,40 +131,45 @@ export function ProductsTable({
   };
 
   const handleClearSearch = () => {
-    setSearchTerm('');
+    setSearchTerm("");
   };
 
   const handleWarehouseFilter = (warehouseId: string) => {
-    const newFilter = warehouseId === 'all' ? null : warehouseId;
+    const newFilter = warehouseId === "all" ? null : warehouseId;
     setSelectedWarehouse(newFilter);
     if (onFilterByWarehouse) {
       onFilterByWarehouse(newFilter);
     }
   };
 
-  const handleStatusFilter = (status: 'all' | 'ok' | 'low' | 'out' | 'inactive') => {
+  const handleStatusFilter = (
+    status: "all" | "ok" | "low" | "out" | "inactive",
+  ) => {
     setSelectedStatus(status);
     if (onFilterByStatus) {
       onFilterByStatus(status);
     }
   };
 
-  const getStatusBadge = (status: 'ok' | 'low' | 'out', isActive: boolean) => {
+  const getStatusBadge = (status: "ok" | "low" | "out", isActive: boolean) => {
     if (!isActive) {
       return <Badge variant="secondary">Inactif</Badge>;
     }
 
     switch (status) {
-      case 'out':
+      case "out":
         return (
           <Badge variant="destructive" className="gap-1">
             <AlertCircle className="h-3 w-3" />
             Rupture
           </Badge>
         );
-      case 'low':
+      case "low":
         return (
-          <Badge variant="outline" className="gap-1 border-orange-500 text-orange-500">
+          <Badge
+            variant="outline"
+            className="gap-1 border-orange-500 text-orange-500"
+          >
             <AlertCircle className="h-3 w-3" />
             Stock faible
           </Badge>
@@ -167,9 +180,9 @@ export function ProductsTable({
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XAF',
+    return new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "XOF",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(price);
@@ -201,7 +214,10 @@ export function ProductsTable({
         {warehouses && warehouses.length > 0 && (
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select onValueChange={handleWarehouseFilter} value={selectedWarehouse || 'all'}>
+            <Select
+              onValueChange={handleWarehouseFilter}
+              value={selectedWarehouse || "all"}
+            >
               <SelectTrigger className="w-45">
                 <SelectValue placeholder="Tous les dépôts" />
               </SelectTrigger>
@@ -262,12 +278,12 @@ export function ProductsTable({
                     <Package className="h-8 w-8 text-muted-foreground/50" />
                     <p className="text-sm text-muted-foreground">
                       {searchTerm
-                        ? 'Aucun produit trouvé pour cette recherche'
-                        : selectedStatus !== 'all'
-                        ? `Aucun produit avec ce statut`
-                        : selectedWarehouse
-                        ? `Aucun produit trouvé dans ce dépôt`
-                        : 'Aucun produit. Créez votre premier produit pour commencer.'}
+                        ? "Aucun produit trouvé pour cette recherche"
+                        : selectedStatus !== "all"
+                          ? `Aucun produit avec ce statut`
+                          : selectedWarehouse
+                            ? `Aucun produit trouvé dans ce dépôt`
+                            : "Aucun produit. Créez votre premier produit pour commencer."}
                     </p>
                   </div>
                 </TableCell>
@@ -282,7 +298,9 @@ export function ProductsTable({
                     <div className="flex flex-col">
                       <span className="font-medium">{product.name}</span>
                       {product.code && (
-                        <span className="text-xs text-muted-foreground">{product.code}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {product.code}
+                        </span>
                       )}
                     </div>
                   </TableCell>
@@ -294,7 +312,11 @@ export function ProductsTable({
                   </TableCell>
                   <TableCell className="text-center">
                     <span className="font-medium">
-                      {getDisplayStock(product.id, user?.currentCompanyId || '', selectedWarehouse)}
+                      {getDisplayStock(
+                        product.id,
+                        user?.currentCompanyId || "",
+                        selectedWarehouse,
+                      )}
                       {product.unit && ` ${product.unit}`}
                     </span>
                   </TableCell>
@@ -385,12 +407,10 @@ export function ProductsTable({
       {/* Charger plus de produits depuis Firestore */}
       {hasMore && onLoadMore && (
         <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={onLoadMore}
-            disabled={loading}
-          >
-            {loading ? 'Chargement...' : `Charger plus de produits (${totalLoaded} chargés)`}
+          <Button variant="outline" onClick={onLoadMore} disabled={loading}>
+            {loading
+              ? "Chargement..."
+              : `Charger plus de produits (${totalLoaded} chargés)`}
           </Button>
         </div>
       )}

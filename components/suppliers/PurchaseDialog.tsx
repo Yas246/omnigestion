@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,23 +18,8 @@ import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
 import { useWarehousesRealtime } from '@/lib/react-query/useWarehousesRealtime';
 import { useSupplierPurchases } from '@/lib/hooks/useSupplierPurchases';
 import type { Product } from '@/types';
-
-// Hook pour le debouncing
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import { useDebounce } from '@/lib/hooks/useDebounce';
+import { formatPrice } from '@/lib/utils';
 
 const purchaseSchema = z.object({
   supplierId: z.string().min(1, 'Le fournisseur est requis'),
@@ -216,10 +201,6 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
   };
 
   return (

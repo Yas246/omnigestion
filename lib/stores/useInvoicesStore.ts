@@ -3,6 +3,7 @@ import { subscribeWithSelector, persist } from "zustand/middleware";
 import type { Invoice } from "@/types";
 import * as invoicesApi from "@/lib/firestore/invoices";
 import { useAuthStore } from "./useAuthStore";
+import { toJsDate } from "@/lib/utils";
 
 /**
  * Filtres pour les factures
@@ -459,26 +460,16 @@ export const useInvoicesStore = create<InvoicesState>()(
           filtered = filtered.filter((i) => i.status === filters.status);
         }
 
-        // Helper pour convertir createdAt en Date
-        const getDate = (invoice: Invoice): Date => {
-          const createdAt = invoice.createdAt;
-          if (createdAt instanceof Date) {
-            return createdAt;
-          }
-          // Cast pour Timestamp Firebase qui a une méthode toDate()
-          return (createdAt as any).toDate();
-        };
-
         // Filtre par plage de dates
         if (filters.startDate) {
           filtered = filtered.filter(
-            (invoice: Invoice) => getDate(invoice) >= filters.startDate!,
+            (invoice: Invoice) => toJsDate(invoice.createdAt) >= filters.startDate!,
           );
         }
 
         if (filters.endDate) {
           filtered = filtered.filter(
-            (invoice: Invoice) => getDate(invoice) <= filters.endDate!,
+            (invoice: Invoice) => toJsDate(invoice.createdAt) <= filters.endDate!,
           );
         }
 
@@ -498,16 +489,8 @@ export const useInvoicesStore = create<InvoicesState>()(
        */
       getInvoicesByDateRange: (start, end) => {
         const { invoices } = get();
-        const getDate = (invoice: Invoice): Date => {
-          const createdAt = invoice.createdAt;
-          if (createdAt instanceof Date) {
-            return createdAt;
-          }
-          // Cast pour Timestamp Firebase qui a une méthode toDate()
-          return (createdAt as any).toDate();
-        };
         return invoices.filter((invoice: Invoice) => {
-          const date = getDate(invoice);
+          const date = toJsDate(invoice.createdAt);
           return date >= start && date <= end;
         });
       },

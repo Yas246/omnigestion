@@ -22,6 +22,7 @@ import {
 } from 'chart.js';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { formatPrice } from '@/lib/utils';
 
 // Enregistrer les composants Chart.js
 ChartJS.register(
@@ -105,10 +106,6 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
     setFilteredInvoices(filtered);
     setFilteredCreditPayments(filteredCP);
   }, [period, customRange, invoices, creditPaymentsMap]);
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
-  };
 
   // Calculer les KPIs (CA = encaissé uniquement)
   const creditPaymentsTotal = filteredCreditPayments.reduce((sum, cp) => sum + (cp.amount || 0), 0);

@@ -47,35 +47,32 @@ export function NumberInput({
   className,
   ...props
 }: NumberInputProps) {
-  // Internal state for the displayed string value
   const [displayValue, setDisplayValue] = React.useState<string>(
     value !== undefined ? String(value) : ""
   )
 
-  // Update display value when prop value changes
+  // Sync display when external value changes (including reset to undefined)
+  const prevValue = React.useRef(value)
   React.useEffect(() => {
-    if (value !== undefined) {
-      setDisplayValue(String(value))
+    if (prevValue.current !== value) {
+      setDisplayValue(value !== undefined ? String(value) : "")
+      prevValue.current = value
     }
   }, [value])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
 
-    // Allow empty input (user is clearing)
     if (newValue === "") {
       setDisplayValue("")
       onChange?.(emptyValue)
       return
     }
 
-    // Allow typing (don't restrict yet, validate on blur)
     setDisplayValue(newValue)
 
-    // Convert to number and validate
     const numValue = parseFloat(newValue)
 
-    // Only call onChange if it's a valid number
     if (!isNaN(numValue)) {
       if (min !== undefined && numValue < min) return
       if (max !== undefined && numValue > max) return
@@ -84,11 +81,9 @@ export function NumberInput({
   }
 
   const handleBlur = () => {
-    // On blur, ensure we have a valid number or emptyValue
     const numValue = parseFloat(displayValue)
 
     if (isNaN(numValue) || displayValue === "") {
-      // Apply emptyValue if set, otherwise clear
       if (emptyValue !== undefined) {
         setDisplayValue(String(emptyValue))
         onChange?.(emptyValue)
@@ -97,11 +92,7 @@ export function NumberInput({
         onChange?.(undefined)
       }
     } else {
-      // Apply min/max constraints on blur
-      const constrainedValue =
-        min !== undefined && numValue < min ? min :
-        max !== undefined && numValue > max ? max :
-        numValue
+      const constrainedValue = Math.max(min ?? numValue, Math.min(max ?? numValue, numValue))
 
       setDisplayValue(String(constrainedValue))
       onChange?.(constrainedValue)

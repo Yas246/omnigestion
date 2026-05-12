@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { Invoice } from '@/types';
@@ -18,23 +18,9 @@ import {
 } from '@/components/ui/table';
 import { Search, Eye, Trash2, FileText, Receipt, DollarSign, Pencil } from 'lucide-react';
 import { PermissionGate } from '@/components/auth';
-
-// Custom hook pour le debouncing
-function useDebounce(value: string, delay: number): string {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import { getInvoiceStatusBadge } from '@/lib/utils/invoice-helpers';
+import { useDebounce } from '@/lib/hooks/useDebounce';
+import { formatPrice } from '@/lib/utils';
 
 interface InvoiceTableProps {
   invoices: Invoice[];
@@ -94,21 +80,6 @@ export function InvoiceTable({
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'draft':
-        return <Badge variant="secondary">Brouillon</Badge>;
-      case 'validated':
-        return <Badge variant="outline" className="border-orange-500 text-orange-500">Validée</Badge>;
-      case 'paid':
-        return <Badge variant="default" className="bg-green-600">Payée</Badge>;
-      case 'cancelled':
-        return <Badge variant="destructive">Annulée</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
   const getPaymentMethodBadge = (method?: string) => {
     if (!method) return <span className="text-muted-foreground">-</span>;
 
@@ -126,10 +97,6 @@ export function InvoiceTable({
       default:
         return <Badge variant="secondary">{method}</Badge>;
     }
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
   };
 
   return (
@@ -222,7 +189,7 @@ export function InvoiceTable({
                     {getPaymentMethodBadge(invoice.paymentMethod)}
                   </TableCell>
                   <TableCell>
-                    {getStatusBadge(invoice.status)}
+                    {getInvoiceStatusBadge(invoice.status)}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">

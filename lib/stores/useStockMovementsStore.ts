@@ -6,6 +6,7 @@ import {
 } from "zustand/middleware";
 import type { StockMovement } from "@/types";
 import { useAuthStore } from "./useAuthStore";
+import { toJsDate } from "@/lib/utils";
 
 /**
  * Filtres pour les mouvements de stock
@@ -286,27 +287,17 @@ export const useStockMovementsStore = create<StockMovementsState>()(
           filtered = filtered.filter((m) => m.type === filters.type);
         }
 
-        // Helper pour convertir createdAt en Date
-        const getDate = (movement: StockMovement): Date => {
-          const createdAt = movement.createdAt;
-          if (createdAt instanceof Date) {
-            return createdAt;
-          }
-          // Cast pour Timestamp Firebase qui a une méthode toDate()
-          return (createdAt as any).toDate();
-        };
-
         // Filtre par plage de dates
         if (filters.startDate) {
           filtered = filtered.filter(
             (movement: StockMovement) =>
-              getDate(movement) >= filters.startDate!,
+              toJsDate(movement.createdAt) >= filters.startDate!,
           );
         }
 
         if (filters.endDate) {
           filtered = filtered.filter(
-            (movement: StockMovement) => getDate(movement) <= filters.endDate!,
+            (movement: StockMovement) => toJsDate(movement.createdAt) <= filters.endDate!,
           );
         }
 

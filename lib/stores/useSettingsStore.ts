@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 /**
  * Types pour les paramètres de la compagnie
@@ -27,9 +27,9 @@ export interface CompanySettings {
   autoStockTransferEnabled: boolean;
 
   // Paramètres de devise
-  currency: string; // 'USD', 'EUR', 'XAF', etc.
+  currency: string; // 'USD', 'EUR', 'XOF', etc.
   currencySymbol: string;
-  currencyPosition: 'before' | 'after';
+  currencyPosition: "before" | "after";
 
   // Paramètres d'affichage
   dateFormat: string; // 'DD/MM/YYYY', 'MM/DD/YYYY', etc.
@@ -71,26 +71,26 @@ interface SettingsState {
  * Valeurs par défaut pour les paramètres
  */
 const defaultSettings: CompanySettings = {
-  companyName: '',
-  companyEmail: '',
-  companyPhone: '',
-  companyAddress: '',
-  companyCity: '',
-  companyCountry: '',
-  taxId: '',
-  invoicePrefix: 'INV',
+  companyName: "",
+  companyEmail: "",
+  companyPhone: "",
+  companyAddress: "",
+  companyCity: "",
+  companyCountry: "",
+  taxId: "",
+  invoicePrefix: "INV",
   invoiceNumberDigits: 4,
   nextInvoiceNumber: 1,
   defaultPaymentTerms: 30,
   defaultTaxRate: 19, // TVA par défaut (19% au Cameroun)
-  primaryWarehouseId: '',
+  primaryWarehouseId: "",
   lowStockAlertEnabled: true,
   autoStockTransferEnabled: true,
-  currency: 'XAF',
-  currencySymbol: 'FCFA',
-  currencyPosition: 'after',
-  dateFormat: 'DD/MM/YYYY',
-  timezone: 'Africa/Douala',
+  currency: "XOF",
+  currencySymbol: "FCFA",
+  currencyPosition: "after",
+  dateFormat: "DD/MM/YYYY",
+  timezone: "Africa/Douala",
   emailNotificationsEnabled: true,
   pushNotificationsEnabled: true,
   lowStockNotificationsEnabled: true,
@@ -115,7 +115,7 @@ export const useSettingsStore = create<SettingsState>()(
        * Définir les paramètres
        */
       setSettings: (settings) => {
-        console.log('[setSettings] Mise à jour paramètres');
+        console.log("[setSettings] Mise à jour paramètres");
         set({
           settings,
           lastLoadedAt: Date.now(),
@@ -129,11 +129,11 @@ export const useSettingsStore = create<SettingsState>()(
         const { settings } = get();
 
         if (!settings) {
-          console.error('[updateSettings] Aucun paramètre défini');
+          console.error("[updateSettings] Aucun paramètre défini");
           return;
         }
 
-        console.log('[updateSettings] Mise à jour partielle', { updates });
+        console.log("[updateSettings] Mise à jour partielle", { updates });
         set({
           settings: {
             ...settings,
@@ -160,7 +160,7 @@ export const useSettingsStore = create<SettingsState>()(
        * Vider tous les paramètres
        */
       clearSettings: () => {
-        console.log('[clearSettings] Vidage du store');
+        console.log("[clearSettings] Vidage du store");
         set({
           settings: null,
           lastLoadedAt: null,
@@ -174,13 +174,13 @@ export const useSettingsStore = create<SettingsState>()(
         const { settings } = get();
 
         if (!settings) {
-          console.error('[getInvoiceNumber] Aucun paramètre défini');
-          return 'INV-0001';
+          console.error("[getInvoiceNumber] Aucun paramètre défini");
+          return "INV-0001";
         }
 
         const number = String(settings.nextInvoiceNumber).padStart(
           settings.invoiceNumberDigits,
-          '0'
+          "0",
         );
         return `${settings.invoicePrefix}-${number}`;
       },
@@ -195,12 +195,12 @@ export const useSettingsStore = create<SettingsState>()(
           return `${amount.toFixed(2)} FCFA`;
         }
 
-        const formattedAmount = amount.toLocaleString('fr-FR', {
+        const formattedAmount = amount.toLocaleString("fr-FR", {
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
         });
 
-        if (settings.currencyPosition === 'before') {
+        if (settings.currencyPosition === "before") {
           return `${settings.currencySymbol} ${formattedAmount}`;
         } else {
           return `${formattedAmount} ${settings.currencySymbol}`;
@@ -214,23 +214,23 @@ export const useSettingsStore = create<SettingsState>()(
         const { settings } = get();
 
         if (!settings) {
-          return date.toLocaleDateString('fr-FR');
+          return date.toLocaleDateString("fr-FR");
         }
 
         // Format simple pour l'instant
         // TODO: Utiliser une librairie comme date-fns ou dayjs
-        return date.toLocaleDateString('fr-FR');
+        return date.toLocaleDateString("fr-FR");
       },
     }),
     {
-      name: 'settings-storage', // Clé localStorage
+      name: "settings-storage", // Clé localStorage
       // Persister seulement les données, pas l'état de chargement
       partialize: (state) => ({
         settings: state.settings,
         lastLoadedAt: state.lastLoadedAt,
       }),
-    }
-  )
+    },
+  ),
 );
 
 /**
@@ -238,13 +238,14 @@ export const useSettingsStore = create<SettingsState>()(
  */
 export const selectSettings = () => useSettingsStore.getState().settings;
 export const selectPrimaryWarehouseId = () =>
-  useSettingsStore.getState().settings?.primaryWarehouseId || '';
+  useSettingsStore.getState().settings?.primaryWarehouseId || "";
 
 /**
  * Hooks pour utiliser le store
  */
 export const useSettings = () => useSettingsStore((state) => state.settings);
-export const useSettingsLoading = () => useSettingsStore((state) => state.loading);
+export const useSettingsLoading = () =>
+  useSettingsStore((state) => state.loading);
 export const useSettingsActions = () =>
   useSettingsStore((state) => ({
     setSettings: state.setSettings,
@@ -258,9 +259,11 @@ export const useSettingsActions = () =>
 /**
  * Hooks utilitaires
  */
-export const useFormatCurrency = () => useSettingsStore((state) => state.formatCurrency);
-export const useFormatDate = () => useSettingsStore((state) => state.formatDate);
+export const useFormatCurrency = () =>
+  useSettingsStore((state) => state.formatCurrency);
+export const useFormatDate = () =>
+  useSettingsStore((state) => state.formatDate);
 export const usePrimaryWarehouseId = () =>
-  useSettingsStore((state) => state.settings?.primaryWarehouseId || '');
+  useSettingsStore((state) => state.settings?.primaryWarehouseId || "");
 
 export default useSettingsStore;

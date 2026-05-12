@@ -37,7 +37,7 @@ export class OfflineInvoicesService {
    * Ajouter une facture à la file d'attente
    */
   async addPendingInvoice(data: InvoiceCreateInput): Promise<string> {
-    const id = `pending-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = `pending-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
     const pendingInvoice: PendingInvoice = {
       id,

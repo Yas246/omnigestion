@@ -199,7 +199,6 @@ export const useAuthStore = create<AuthState>()(
  */
 export const selectUser = () => useAuthStore.getState().user;
 export const selectCurrentCompanyId = () => useAuthStore.getState().currentCompanyId;
-// export const selectCurrentCompany = () => useAuthStore.getState().getCurrentCompany(); // Méthode non implémentée
 export const selectIsAdmin = () => useAuthStore.getState().isAdmin();
 export const selectIsEmployee = () => useAuthStore.getState().isEmployee();
 
@@ -208,7 +207,6 @@ export const selectIsEmployee = () => useAuthStore.getState().isEmployee();
  */
 export const useAuthUser = () => useAuthStore((state) => state.user);
 export const useAuthCompanyId = () => useAuthStore((state) => state.currentCompanyId);
-// export const useAuthCompany = () => useAuthStore((state) => state.getCurrentCompany()); // Méthode non implémentée
 export const useAuthIsAdmin = () => useAuthStore((state) => state.isAdmin());
 export const useAuthIsEmployee = () => useAuthStore((state) => state.isEmployee());
 export const useAuthLoading = () => useAuthStore((state) => state.loading);

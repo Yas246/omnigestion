@@ -24,6 +24,7 @@ import {
 } from '@/lib/stores/useCashRegistersStore';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePermissions } from '@/lib/hooks/usePermissions';
+import { formatPrice } from '@/lib/utils';
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 type ReportTab = 'sales' | 'profits' | 'stock' | 'cash';
@@ -55,10 +56,6 @@ export default function ReportsPage() {
 
   // ⚠️ Plus besoin de charger les données - onSnapshot gère tout automatiquement
   // Les données sont mises en cache par React Query entre les navigations
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
-  };
 
   const getPeriodLabel = (periodType: PeriodType) => {
     const labels: Record<PeriodType, string> = {

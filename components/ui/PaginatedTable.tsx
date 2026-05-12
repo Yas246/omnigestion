@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -34,17 +34,11 @@ export function PaginatedTable({
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.ceil(data.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
+  const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
   const currentData = data.slice(startIndex, endIndex);
-
-  // Reset to page 1 when page size changes or when total pages changes
-  useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1);
-    }
-  }, [currentPage, totalPages]);
 
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
@@ -75,8 +69,8 @@ export function PaginatedTable({
           <TableBody>
             {currentData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+                <TableCell colSpan={columns.length} className="h-24 text-center text-sm text-muted-foreground">
+                  {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
@@ -94,7 +88,6 @@ export function PaginatedTable({
         </Table>
       </div>
 
-      {/* Pagination controls */}
       {data.length > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -122,20 +115,18 @@ export function PaginatedTable({
                 variant="outline"
                 size="sm"
                 onClick={handlePreviousPage}
-                disabled={currentPage === 1}
+                disabled={safePage === 1}
               >
                 Précédent
               </Button>
-              <div className="flex items-center gap-1">
-                <span className="text-sm">
-                  Page {currentPage} sur {totalPages}
-                </span>
-              </div>
+              <span className="text-sm">
+                Page {safePage} sur {totalPages}
+              </span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleNextPage}
-                disabled={currentPage === totalPages}
+                disabled={safePage === totalPages}
               >
                 Suivant
               </Button>

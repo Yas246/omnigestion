@@ -39,6 +39,7 @@ import {
   Filler,
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
+import { formatPrice } from "@/lib/utils";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -164,10 +165,6 @@ export default function DashboardPage() {
         beginAtZero: true,
       },
     },
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("fr-FR").format(price);
   };
 
   return (

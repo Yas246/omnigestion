@@ -35,6 +35,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { CashRegister } from '@/types';
+import { formatPrice } from '@/lib/utils';
 
 export default function CashPage() {
   const router = useRouter();
@@ -74,10 +75,6 @@ export default function CashPage() {
 
   // NOTE: Plus besoin d'initialiser le store manuellement - onSnapshot gère ça automatiquement
   // NOTE: Plus besoin de fetchMovements - onSnapshot synchronise tout automatiquement
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
-  };
 
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {

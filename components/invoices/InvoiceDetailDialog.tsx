@@ -25,6 +25,8 @@ import {
 } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { FileText, Printer, Share, Mail, Edit } from 'lucide-react';
+import { getInvoiceStatusBadge } from '@/lib/utils/invoice-helpers';
+import { formatPrice } from '@/lib/utils';
 
 interface InvoiceDetailDialogProps {
   open: boolean;
@@ -122,25 +124,6 @@ export function InvoiceDetailDialog({
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'draft':
-        return <Badge variant="secondary">Brouillon</Badge>;
-      case 'validated':
-        return <Badge variant="outline" className="border-orange-500 text-orange-500">Validée</Badge>;
-      case 'paid':
-        return <Badge variant="default" className="bg-green-600">Payée</Badge>;
-      case 'cancelled':
-        return <Badge variant="destructive">Annulée</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-175 max-h-[90vh] overflow-y-auto">
@@ -223,7 +206,7 @@ export function InvoiceDetailDialog({
                 {invoice.dueDate && (
                   <p><span className="text-muted-foreground">Échéance:</span> {format(new Date(invoice.dueDate), 'PPP', { locale: fr })}</p>
                 )}
-                <p><span className="text-muted-foreground">Statut:</span> {getStatusBadge(invoice.status)}</p>
+                <p><span className="text-muted-foreground">Statut:</span> {getInvoiceStatusBadge(invoice.status)}</p>
               </div>
             </div>
             <div>

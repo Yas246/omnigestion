@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ArrowUp, ArrowDown, ArrowRight, XCircle, History } from 'lucide-react';
+import { getMovementBadge } from '@/lib/utils/stock-helpers';
 
 interface ProductMovementHistoryDialogProps {
   open: boolean;
@@ -31,43 +32,6 @@ const referenceTypeLabels: Record<string, string> = {
   transfer: 'Transfert',
   auto_transfer_for_sale: 'Transfert auto (vente)',
 };
-
-function getMovementBadge(movement: StockMovement) {
-  switch (movement.type) {
-    case 'in':
-      return (
-        <Badge className="gap-1 bg-green-600 hover:bg-green-700 text-white">
-          <ArrowUp className="h-3 w-3" />
-          Entrée
-        </Badge>
-      );
-    case 'out':
-      return (
-        <Badge variant="destructive" className="gap-1">
-          <ArrowDown className="h-3 w-3" />
-          Sortie
-        </Badge>
-      );
-    case 'loss':
-      return (
-        <Badge variant="destructive" className="gap-1">
-          <XCircle className="h-3 w-3" />
-          Perte
-        </Badge>
-      );
-    case 'transfer': {
-      const isNegative = movement.quantity < 0;
-      return (
-        <Badge variant={isNegative ? "outline" : "default"} className="gap-1">
-          <ArrowRight className="h-3 w-3" />
-          {isNegative ? 'Transfert (sortie)' : 'Transfert (entrée)'}
-        </Badge>
-      );
-    }
-    default:
-      return <Badge variant="secondary">{movement.type}</Badge>;
-  }
-}
 
 function getOperationLabel(movement: StockMovement) {
   const typeLabel = referenceTypeLabels[movement.referenceType || ''] || movement.referenceType || '—';

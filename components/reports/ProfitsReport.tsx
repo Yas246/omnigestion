@@ -20,9 +20,10 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { PaginatedTable } from '@/components/ui/PaginatedTable';
+import { formatPrice } from '@/lib/utils';
 
 // Enregistrer les composants Chart.js
 ChartJS.register(
@@ -95,10 +96,6 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
 
     setFilteredInvoices(filtered);
   }, [period, customRange, invoices]);
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
-  };
 
   // Construire le map invoiceId → creditPayments
   const allCreditPaymentsFlat = Object.values(clientCreditPayments).flat();

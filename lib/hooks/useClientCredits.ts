@@ -19,6 +19,7 @@ import {
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
+import { getMainCashRegisterId } from '@/lib/utils/cash-register';
 import type { ClientCredit, ClientCreditPayment, PaymentMode } from '@/types';
 
 export interface ClientCreditInput {
@@ -195,18 +196,7 @@ export function useClientCredits() {
         });
 
         // Créer un mouvement de caisse pour le paiement
-        const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(user.currentCompanyId));
-        const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
-
-        let cashRegisterId: string | null = null;
-        if (!cashRegistersSnap.empty) {
-          cashRegisterId = cashRegistersSnap.docs[0].id;
-        } else {
-          const allCashRegistersSnap = await getDocs(query(cashRegistersRef, limit(1)));
-          if (!allCashRegistersSnap.empty) {
-            cashRegisterId = allCashRegistersSnap.docs[0].id;
-          }
-        }
+        const cashRegisterId = await getMainCashRegisterId(user.currentCompanyId);
 
         if (cashRegisterId) {
           const movementsRef = collection(db, COLLECTIONS.companyCashMovements(user.currentCompanyId));

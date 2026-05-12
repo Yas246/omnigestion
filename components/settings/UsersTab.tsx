@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, setDoc, getDocs, collection, deleteDoc, query, where } from 'firebase/firestore';
+import { doc, getDocs, collection, deleteDoc, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';

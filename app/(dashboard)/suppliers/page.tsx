@@ -24,23 +24,8 @@ import { PurchaseDialog } from '@/components/suppliers/PurchaseDialog';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
-
-// Custom hook pour le debouncing
-function useDebounce(value: string, delay: number): string {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import { useDebounce } from '@/lib/hooks/useDebounce';
+import { formatPrice } from '@/lib/utils';
 
 type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
 type PurchaseStatusFilter = 'all' | 'paid' | 'active' | 'partial';
@@ -82,10 +67,6 @@ export default function SuppliersPage() {
   const [showManualCreditDialog, setShowManualCreditDialog] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
-  };
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, { label: string; variant: any }> = {

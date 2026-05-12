@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import type { Client } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -23,23 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, Pencil, Trash2, Search, Plus } from 'lucide-react';
 import { PermissionGate } from '@/components/auth';
 import { ClientDialog } from './ClientDialog';
-
-// Custom hook pour le debouncing
-function useDebounce(value: string, delay: number): string {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import { useDebounce } from '@/lib/hooks/useDebounce';
 
 interface ClientsTableProps {
   clients: Client[];

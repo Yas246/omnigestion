@@ -9,6 +9,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { Loader2, ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatPrice } from '@/lib/utils';
 
 interface InvoiceItem {
   productName: string;
@@ -206,10 +207,6 @@ export default function PrintInvoicePage() {
       window.removeEventListener('afterprint', handleAfterPrint);
     };
   }, [isChromeMobile]);
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
-  };
 
   const formatDate = (dateValue: string | Date) => {
     try {

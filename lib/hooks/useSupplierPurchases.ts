@@ -5,6 +5,7 @@ import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import { getStockStatus } from '@/lib/utils/stock';
+import { getMainCashRegisterId } from '@/lib/utils/cash-register';
 
 export interface PurchaseItem {
   productId: string;
@@ -156,17 +157,7 @@ export function useSupplierPurchases() {
 
         // 3. Créer un mouvement de caisse (sortie) si payé
         if (data.paidAmount > 0 && data.paymentMethod !== 'credit') {
-          const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(user.currentCompanyId));
-          const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
-
-          if (!cashRegistersSnap.empty) {
-            cashRegisterId = cashRegistersSnap.docs[0].id;
-          } else {
-            const allCashRegistersSnap = await getDocs(query(cashRegistersRef, limit(1)));
-            if (!allCashRegistersSnap.empty) {
-              cashRegisterId = allCashRegistersSnap.docs[0].id;
-            }
-          }
+          cashRegisterId = await getMainCashRegisterId(user.currentCompanyId);
 
           if (cashRegisterId) {
             const movementsRef = collection(db, COLLECTIONS.companyCashMovements(user.currentCompanyId));

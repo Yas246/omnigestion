@@ -16,11 +16,7 @@ import { useAuth } from '@/lib/auth-context';
 import type { Product } from '@/types';
 import { toast } from 'sonner';
 
-interface ExportProductsButtonProps {
-  products?: Product[]; // Optionnel, pour compatibilité
-}
-
-export function ExportProductsButton({ products: displayedProducts }: ExportProductsButtonProps) {
+export function ExportProductsButton() {
   const { user } = useAuth();
   const [isExporting, setIsExporting] = useState(false);
 

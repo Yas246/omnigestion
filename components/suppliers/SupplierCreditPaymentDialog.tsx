@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
 import type { SupplierCredit, PaymentMode } from '@/types';
+import { formatPrice } from '@/lib/utils';
 
 const paymentSchema = z.object({
   amount: z.number().min(1, 'Le montant doit être positif'),
@@ -69,10 +70,6 @@ export function SupplierCreditPaymentDialog({ open, onOpenChange, credit, onSubm
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
   };
 
   return (

@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ArrowUp, ArrowDown, ArrowRight, XCircle, Filter } from 'lucide-react';
+import { getMovementBadge } from '@/lib/utils/stock-helpers';
 
 interface StockMovementsTableProps {
   movements: Array<StockMovement & { productName?: string; warehouseName?: string; toWarehouseName?: string }>;
@@ -48,42 +49,6 @@ export function StockMovementsTable({
         return <ArrowRight className="h-4 w-4 text-blue-600" />;
       default:
         return null;
-    }
-  };
-
-  const getMovementBadge = (movement: StockMovement & { warehouseName?: string; toWarehouseName?: string }) => {
-    switch (movement.type) {
-      case 'in':
-        return (
-          <Badge variant="default" className="gap-1">
-            <ArrowUp className="h-3 w-3" />
-            Entrée
-          </Badge>
-        );
-      case 'out':
-        return (
-          <Badge variant="destructive" className="gap-1">
-            <ArrowDown className="h-3 w-3" />
-            Sortie
-          </Badge>
-        );
-      case 'loss':
-        return (
-          <Badge variant="destructive" className="gap-1">
-            <XCircle className="h-3 w-3" />
-            Perte
-          </Badge>
-        );
-      case 'transfer':
-        const isNegative = movement.quantity < 0;
-        return (
-          <Badge variant={isNegative ? "outline" : "default"} className="gap-1">
-            <ArrowRight className="h-3 w-3" />
-            {isNegative ? 'Transfert (sortie)' : 'Transfert (entrée)'}
-          </Badge>
-        );
-      default:
-        return <Badge variant="secondary">{movement.type}</Badge>;
     }
   };
 

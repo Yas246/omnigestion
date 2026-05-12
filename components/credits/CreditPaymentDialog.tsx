@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { ClientCredit, PaymentMode } from '@/types';
+import { formatPrice } from '@/lib/utils';
 
 const paymentSchema = z.object({
   amount: z.number().min(1, 'Le montant doit être positif'),
@@ -71,10 +72,6 @@ export function CreditPaymentDialog({ open, onOpenChange, credit, onSubmit }: Cr
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
   };
 
   return (

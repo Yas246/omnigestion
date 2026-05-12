@@ -27,6 +27,7 @@ import { offlineInvoices } from '@/lib/indexeddb/offline-invoices';
 import { invoiceSync, type SyncOptions } from '@/lib/services/invoice-sync';
 import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import { getStockStatus, roundQty } from '@/lib/utils/stock';
+import { getMainCashRegisterId } from '@/lib/utils/cash-register';
 import type { Invoice, InvoiceItem, Warehouse } from '@/types';
 
 const INVOICES_PER_PAGE = 50;
@@ -783,19 +784,7 @@ export function useInvoices() {
 
         // Créer un mouvement de caisse automatiquement pour tous les paiements
         if (data.paidAmount > 0) {
-          // Récupérer la caisse principale ou la première caisse disponible
-          const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(user.currentCompanyId));
-          const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
-
-          if (!cashRegistersSnap.empty) {
-            cashRegisterId = cashRegistersSnap.docs[0].id;
-          } else {
-            // Si pas de caisse principale, prendre la première caisse
-            const allCashRegistersSnap = await getDocs(query(cashRegistersRef, limit(1)));
-            if (!allCashRegistersSnap.empty) {
-              cashRegisterId = allCashRegistersSnap.docs[0].id;
-            }
-          }
+          cashRegisterId = await getMainCashRegisterId(user.currentCompanyId);
 
           // Créer le mouvement si une caisse existe
           if (cashRegisterId) {
@@ -1069,14 +1058,7 @@ export function useInvoices() {
         // 1B. Reverser la caisse ancienne
         console.log(`[updateInvoice] 1B. Caisse: oldPaid=${oldInvoice.paidAmount}, newPaid=${data.paidAmount}`);
         if (oldInvoice.paidAmount > 0) {
-          const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
-          const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
-          let oldCashRegId: string | null = null;
-          if (!cashRegistersSnap.empty) oldCashRegId = cashRegistersSnap.docs[0].id;
-          else {
-            const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
-            if (!allSnap.empty) oldCashRegId = allSnap.docs[0].id;
-          }
+          const oldCashRegId = await getMainCashRegisterId(companyId);
 
           if (oldCashRegId) {
             const cashMovementsRef = collection(db, COLLECTIONS.companyCashMovements(companyId));
@@ -1105,14 +1087,7 @@ export function useInvoices() {
 
             for (const paymentDoc of paymentsSnap.docs) {
               const paymentData = paymentDoc.data();
-              const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
-              const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
-              let payCashRegId: string | null = null;
-              if (!cashRegistersSnap.empty) payCashRegId = cashRegistersSnap.docs[0].id;
-              else {
-                const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
-                if (!allSnap.empty) payCashRegId = allSnap.docs[0].id;
-              }
+              const payCashRegId = await getMainCashRegisterId(companyId);
 
               if (payCashRegId) {
                 const cashMovementsRef = collection(db, COLLECTIONS.companyCashMovements(companyId));
@@ -1214,13 +1189,7 @@ export function useInvoices() {
 
         // 2G. Mouvement de caisse
         if (data.paidAmount > 0) {
-          const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
-          const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
-          if (!cashRegistersSnap.empty) cashRegisterId = cashRegistersSnap.docs[0].id;
-          else {
-            const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
-            if (!allSnap.empty) cashRegisterId = allSnap.docs[0].id;
-          }
+          cashRegisterId = await getMainCashRegisterId(companyId);
 
           if (cashRegisterId) {
             const movementsRef = collection(db, COLLECTIONS.companyCashMovements(companyId));
@@ -1388,16 +1357,7 @@ export function useInvoices() {
         // 3. Reverser la caisse si un montant a été payé
         if (invoice.paidAmount > 0) {
           // Trouver la caisse principale
-          const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
-          const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
-          let cashRegisterId: string | null = null;
-
-          if (!cashRegistersSnap.empty) {
-            cashRegisterId = cashRegistersSnap.docs[0].id;
-          } else {
-            const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
-            if (!allSnap.empty) cashRegisterId = allSnap.docs[0].id;
-          }
+          const cashRegisterId = await getMainCashRegisterId(companyId);
 
           if (cashRegisterId) {
             // Créer un mouvement de caisse compensatoire (sortie)
@@ -1442,16 +1402,7 @@ export function useInvoices() {
               const paymentData = paymentDoc.data();
 
               // Reverser le paiement dans la caisse
-              const cashRegistersRef = collection(db, COLLECTIONS.companyCashRegisters(companyId));
-              const cashRegistersSnap = await getDocs(query(cashRegistersRef, where('isMain', '==', true)));
-              let payCashRegId: string | null = null;
-
-              if (!cashRegistersSnap.empty) {
-                payCashRegId = cashRegistersSnap.docs[0].id;
-              } else {
-                const allSnap = await getDocs(query(cashRegistersRef, limit(1)));
-                if (!allSnap.empty) payCashRegId = allSnap.docs[0].id;
-              }
+              const payCashRegId = await getMainCashRegisterId(companyId);
 
               if (payCashRegId) {
                 const cashMovementsRef = collection(db, COLLECTIONS.companyCashMovements(companyId));
