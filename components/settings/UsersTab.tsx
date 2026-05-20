@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, getDocs, collection, deleteDoc, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,6 @@ import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Loader2, Plus, UserPlus, Shield, Trash2, Pencil, X } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { db } from '@/lib/firebase';
 import type { User } from '@/types';
 
 type Permission = {
@@ -144,15 +142,28 @@ export function UsersTab() {
 
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'users'),
-        where('companyIds', 'array-contains', currentUser.currentCompanyId)
-      );
-      const snapshot = await getDocs(q);
-      const usersData = snapshot.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() } as User)
-      );
-      setUsers(usersData);
+      const auth = getAuth();
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser) return;
+
+      const idToken = await firebaseUser.getIdToken();
+
+      const response = await fetch('/api/users/list', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ companyId: currentUser.currentCompanyId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors du chargement');
+      }
+
+      setUsers(data.users as User[]);
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error);
       toast.error('Erreur lors du chargement des utilisateurs');
@@ -354,7 +365,27 @@ export function UsersTab() {
     }
 
     try {
-      await deleteDoc(doc(db, 'users', userId));
+      const auth = getAuth();
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser) return;
+
+      const idToken = await firebaseUser.getIdToken();
+
+      const response = await fetch('/api/users/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ userId, companyId: currentUser.currentCompanyId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de la suppression');
+      }
+
       toast.success('Utilisateur supprimé');
       await fetchUsers();
     } catch (error) {

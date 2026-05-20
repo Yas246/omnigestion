@@ -266,27 +266,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // Créer la nouvelle entreprise
-      const companyRef = doc(collection(db, 'companies'));
-      const companyId = companyRef.id;
+      const idToken = await user.firebaseUser.getIdToken();
 
-      await setDoc(companyRef, {
-        ...companyData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      const response = await fetch('/api/companies/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(companyData),
       });
 
-      // Ajouter l'entreprise à la liste de l'utilisateur
-      const userRef = doc(db, 'users', user.id);
-      const updatedCompanyIds = [...user.companyIds, companyId];
+      const data = await response.json();
 
-      await setDoc(userRef, {
-        companyIds: updatedCompanyIds,
-        currentCompanyId: companyId, // Basculer vers la nouvelle entreprise
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de la création de l\'entreprise');
+      }
 
       // Recharger les données utilisateur
+      const userRef = doc(db, 'users', user.id);
       const userDoc = await getDoc(userRef);
       if (userDoc.exists()) {
         const userData = userDoc.data() as Omit<AppUser, 'id'>;
@@ -297,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         // Recharger les entreprises
-        await loadCompanies(updatedCompanyIds, companyId);
+        await loadCompanies(userData.companyIds || [], data.companyId);
       }
     } catch (err) {
       console.error('Erreur lors de la création de l\'entreprise:', err);
