@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +12,16 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Building2, User, Mail } from 'lucide-react';
+import { Loader2, Building2, User, Mail, ShieldOff } from 'lucide-react';
 
 type BusinessSector = 'commerce' | 'commerce_and_services';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { signUp, loading, error } = useAuth();
+
+  // Vérification de l'activation de l'inscription
+  const [registrationStatus, setRegistrationStatus] = useState<'loading' | 'enabled' | 'disabled'>('loading');
 
   // Champs entreprise
   const [companyName, setCompanyName] = useState('');
@@ -33,6 +38,25 @@ export default function RegisterPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState('');
+
+  // Vérifier si l'inscription est activée
+  useEffect(() => {
+    async function checkRegistration() {
+      try {
+        const regDoc = await getDoc(doc(db, 'settings', 'registration'));
+        if (!regDoc.exists()) {
+          // Document n'existe pas → inscription activée par défaut
+          setRegistrationStatus('enabled');
+        } else {
+          setRegistrationStatus(regDoc.data().enabled === false ? 'disabled' : 'enabled');
+        }
+      } catch {
+        // En cas d'erreur (ex: rules), autoriser l'inscription par défaut
+        setRegistrationStatus('enabled');
+      }
+    }
+    checkRegistration();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,10 +103,35 @@ export default function RegisterPage() {
     }
   };
 
-  if (loading) {
+  if (loading || registrationStatus === 'loading') {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (registrationStatus === 'disabled') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader className="space-y-1 text-center">
+            <div className="flex justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-destructive/10">
+                <ShieldOff className="h-6 w-6 text-destructive" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold">Inscriptions désactivées</CardTitle>
+            <CardDescription>
+              La création de nouveaux comptes est actuellement désactivée par l&apos;administrateur.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex justify-center">
+            <Button onClick={() => router.push('/login')}>
+              Se connecter
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     );
   }

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { useThemeWithSettings } from '@/lib/hooks/useThemeWithSettings';
@@ -13,7 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Moon, Sun, Monitor, Download, Upload, Building2, Plus, Bell, BellOff } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Loader2, Moon, Sun, Monitor, Download, Upload, Building2, Plus, Bell, BellOff, UserPlus } from 'lucide-react';
 import { useFCM } from '@/lib/hooks/useFCM';
 import { CreateCompanyDialog } from '@/components/settings/CreateCompanyDialog';
 
@@ -30,6 +33,25 @@ export function SystemTab({ settings, onSaved }: SystemTabProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateCompanyDialogOpen, setIsCreateCompanyDialogOpen] = useState(false);
   const [isTogglingNotifications, setIsTogglingNotifications] = useState(false);
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [isTogglingRegistration, setIsTogglingRegistration] = useState(false);
+
+  // Charger l'état de l'inscription
+  useEffect(() => {
+    async function loadRegistrationStatus() {
+      try {
+        const regDoc = await getDoc(doc(db, 'settings', 'registration'));
+        if (regDoc.exists()) {
+          setRegistrationEnabled(regDoc.data().enabled !== false);
+        }
+      } catch {
+        // Par défaut activé
+      }
+    }
+    if (user?.role === 'admin') {
+      loadRegistrationStatus();
+    }
+  }, [user?.role]);
 
   const form = useForm<SystemSettingsFormData>({
     resolver: zodResolver(systemSettingsSchema),
@@ -81,6 +103,19 @@ export function SystemTab({ settings, onSaved }: SystemTabProps) {
     } catch (error) {
       console.error('Erreur lors du changement d\'entreprise:', error);
       toast.error('Erreur lors du changement d\'entreprise');
+    }
+  };
+
+  const handleToggleRegistration = async (enabled: boolean) => {
+    setIsTogglingRegistration(true);
+    try {
+      await setDoc(doc(db, 'settings', 'registration'), { enabled }, { merge: true });
+      setRegistrationEnabled(enabled);
+      toast.success(enabled ? 'Inscriptions activées' : 'Inscriptions désactivées');
+    } catch {
+      toast.error('Erreur lors de la modification');
+    } finally {
+      setIsTogglingRegistration(false);
     }
   };
 
@@ -234,6 +269,40 @@ export function SystemTab({ settings, onSaved }: SystemTabProps) {
                 )}
                 {token ? 'Désactiver' : 'Activer'}
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Inscription */}
+      {user?.role === 'admin' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Inscription
+            </CardTitle>
+            <CardDescription>
+              Activez ou désactivez la création de nouveaux comptes sur la page d&apos;inscription
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  {registrationEnabled ? 'Inscriptions ouvertes' : 'Inscriptions fermées'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {registrationEnabled
+                    ? 'Les nouveaux utilisateurs peuvent créer un compte'
+                    : 'La page d\'inscription affiche un message d\'indisponibilité'}
+                </p>
+              </div>
+              <Switch
+                checked={registrationEnabled}
+                onCheckedChange={handleToggleRegistration}
+                disabled={isTogglingRegistration}
+              />
             </div>
           </CardContent>
         </Card>
