@@ -22,8 +22,19 @@ export async function POST(req: NextRequest) {
     const companyRef = adminDb.collection('companies').doc();
     const companyId = companyRef.id;
 
+    const userRef = adminDb.collection('users').doc(currentUser.uid);
+
     await adminDb.runTransaction(async (transaction) => {
-      // Créer l'entreprise
+      // READ en premier — obligatoire avant tout write
+      const userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw new Error('Document utilisateur introuvable');
+      }
+
+      const existingCompanyIds: string[] = userDoc.data()?.companyIds || [];
+
+      // WRITES ensuite
       transaction.set(companyRef, {
         name,
         businessSector,
@@ -33,15 +44,6 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date(),
       });
 
-      // Mettre à jour l'utilisateur : ajouter companyId + basculer vers la nouvelle
-      const userRef = adminDb.collection('users').doc(currentUser.uid);
-      const userDoc = await transaction.get(userRef);
-
-      if (!userDoc.exists) {
-        throw new Error('Document utilisateur introuvable');
-      }
-
-      const existingCompanyIds: string[] = userDoc.data()?.companyIds || [];
       transaction.update(userRef, {
         companyIds: [...existingCompanyIds, companyId],
         currentCompanyId: companyId,
