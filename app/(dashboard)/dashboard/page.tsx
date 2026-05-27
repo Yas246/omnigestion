@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -40,6 +40,7 @@ import {
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 import { formatPrice } from "@/lib/utils";
+import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -60,7 +61,8 @@ export default function DashboardPage() {
     );
   }, []);
 
-  const { stats, loading, error } = useDashboard();
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const { stats, loading, error } = useDashboard(selectedDate);
   const { hasPermission, getFirstAccessiblePage } = usePermissions();
 
   // Vérifier les permissions et rediriger si nécessaire
@@ -100,6 +102,10 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const dateLabel = selectedDate
+    ? format(selectedDate, "d MMMM yyyy", { locale: fr })
+    : "du jour";
 
   // Préparer les données pour les graphiques
   const salesChartData = {
@@ -170,18 +176,21 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
-        <p className="text-muted-foreground">
-          Vue d&apos;ensemble de votre activité
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
+          <p className="text-muted-foreground">
+            Vue d&apos;ensemble de votre activité
+          </p>
+        </div>
+        <DashboardDatePicker date={selectedDate} onDateChange={setSelectedDate} />
       </div>
 
       {/* Statistiques du jour */}
       <div className="grid gap-4 md:grid-cols-3">
         <KpiCard variant="primary">
           <KpiCardHeader
-            title="CA du jour"
+            title={`CA ${dateLabel}`}
             icon={<DollarSign className="h-5 w-5" />}
             iconVariant="primary"
           />
@@ -213,7 +222,7 @@ export default function DashboardPage() {
           />
           <KpiCardValue
             value={`${formatPrice(stats.todayProfit)} ${currency}`}
-            label="Marge du jour"
+            label={`Marge ${dateLabel}`}
             variant="info"
           />
         </KpiCard>

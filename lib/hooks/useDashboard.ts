@@ -45,7 +45,7 @@ export interface DashboardStats {
   }>;
 }
 
-export function useDashboard() {
+export function useDashboard(selectedDate?: Date) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -74,7 +74,7 @@ export function useDashboard() {
   const stats = useMemo(() => {
     if (!user?.currentCompanyId || loading) return null;
 
-    const today = new Date();
+    const today = selectedDate || new Date();
     const startOfToday = startOfDay(today);
     const endOfToday = endOfDay(today);
 
@@ -229,7 +229,7 @@ export function useDashboard() {
       paymentDistribution,
       salesLast7Days,
     };
-  }, [invoices, products, clients, credits, user, loading]);
+  }, [invoices, products, clients, credits, user, loading, selectedDate]);
 
   return { stats, loading, error: null };
 }
