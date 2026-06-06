@@ -288,7 +288,7 @@ export function InvoiceDialog({
     for (const item of items) {
       if (item.purchasePrice && item.unitPrice < item.purchasePrice) {
         toast.error(
-          `Prix de vente invalide pour ${item.productName}: le prix est inférieur au coût d'achat`
+          `Prix de vente trop bas pour ${item.productName}`
         );
         return false;
       }
@@ -572,7 +572,7 @@ export function InvoiceDialog({
                               {isLoss && (
                                 <div className="flex items-center gap-1 text-xs text-red-600">
                                   <AlertTriangle className="h-3 w-3" />
-                                  Prix de vente inférieur au coût
+                                  Prix de vente trop bas
                                 </div>
                               )}
                               {item.isWholesale && (
@@ -648,7 +648,7 @@ export function InvoiceDialog({
                                 {isLoss && (
                                   <div className="flex items-center gap-1 text-xs text-red-600">
                                     <AlertTriangle className="h-3 w-3" />
-                                    Prix inférieur au coût
+                                    Prix de vente trop bas
                                   </div>
                                 )}
                                 {item.isWholesale && (

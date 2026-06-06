@@ -488,7 +488,7 @@ export function useInvoices() {
         for (const item of data.items) {
           if (item.purchasePrice && item.unitPrice < item.purchasePrice) {
             throw new Error(
-              `Prix de vente invalide pour ${item.productName}: le prix est inférieur au coût d'achat`
+              `Prix de vente trop bas pour ${item.productName}`
             );
           }
         }
@@ -1141,7 +1141,7 @@ export function useInvoices() {
         // 2A. Valider les prix
         for (const item of data.items) {
           if (item.purchasePrice && item.unitPrice < item.purchasePrice) {
-            throw new Error(`Prix de vente invalide pour ${item.productName}: le prix est inférieur au coût d'achat`);
+            throw new Error(`Prix de vente trop bas pour ${item.productName}`);
           }
         }
 
