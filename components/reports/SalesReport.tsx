@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
-import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
 import { DollarSign, ShoppingCart, TrendingUp, FileText } from 'lucide-react';
 import { Bar, Line, Pie } from 'react-chartjs-2';
 import {
@@ -47,7 +47,7 @@ interface SalesReportProps {
 
 export function SalesReport({ period, customRange }: SalesReportProps) {
   const { invoices } = useInvoicesRealtime();
-  const { credits, payments: creditPaymentsMap } = useClientCredits();
+  const { credits, payments: allCreditPayments } = useClientCreditsRealtime();
   const [filteredInvoices, setFilteredInvoices] = useState(invoices);
   const [filteredCreditPayments, setFilteredCreditPayments] = useState<any[]>([]);
 
@@ -97,7 +97,6 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
     });
 
     // Filtrer les paiements de crédits pour la même période
-    const allCreditPayments = Object.values(creditPaymentsMap).flat();
     const filteredCP = allCreditPayments.filter(cp => {
       const payDate = new Date(cp.createdAt);
       return payDate >= startDate && payDate <= endDate;
@@ -105,7 +104,7 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
 
     setFilteredInvoices(filtered);
     setFilteredCreditPayments(filteredCP);
-  }, [period, customRange, invoices, creditPaymentsMap]);
+  }, [period, customRange, invoices, allCreditPayments]);
 
   // Calculer les KPIs (CA = encaissé uniquement)
   const creditPaymentsTotal = filteredCreditPayments.reduce((sum, cp) => sum + (cp.amount || 0), 0);

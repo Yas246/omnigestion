@@ -136,3 +136,4 @@ next-env.d.ts
 .graphifyignore
 /.claude
 /graphify-out
+/.codex

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { realtimeService } from '@/lib/services/RealtimeService';
@@ -19,11 +19,17 @@ export function useClientCreditsRealtime() {
   useEffect(() => {
     if (user?.currentCompanyId) {
       realtimeService.startClientCreditsListener(queryClient, user.currentCompanyId);
+      realtimeService.startClientCreditPaymentsListener(queryClient, user.currentCompanyId);
     }
   }, [user?.currentCompanyId, queryClient]);
 
+  const payments = useMemo(() => {
+    return credits.flatMap((c: any) => (c.payments || []));
+  }, [credits]);
+
   return {
     credits,
+    payments,
     isLoading,
     error,
   };

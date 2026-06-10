@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
-import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
 import { getRecognizedProfits, buildInvoicePaymentsMap } from '@/lib/utils/profitCalculation';
 import { DollarSign, TrendingUp } from 'lucide-react';
 import { Bar, Line } from 'react-chartjs-2';
@@ -47,7 +47,7 @@ interface ProfitsReportProps {
 
 export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
   const { invoices } = useInvoicesRealtime();
-  const { credits, payments: clientCreditPayments } = useClientCredits();
+  const { credits, payments: allCreditPaymentsFlat } = useClientCreditsRealtime();
   const [filteredInvoices, setFilteredInvoices] = useState(invoices);
 
   useEffect(() => {
@@ -98,7 +98,6 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
   }, [period, customRange, invoices]);
 
   // Construire le map invoiceId → creditPayments
-  const allCreditPaymentsFlat = Object.values(clientCreditPayments).flat();
   const invoicePaymentsMap = buildInvoicePaymentsMap(
     credits,
     allCreditPaymentsFlat.map(cp => ({ creditId: cp.creditId, amount: cp.amount, createdAt: cp.createdAt }))

@@ -37,6 +37,7 @@ interface RealtimeState {
   cashRegistersListener: ListenerUnsubscribe | null;
   cashMovementsListener: ListenerUnsubscribe | null;
   clientCreditsListener: ListenerUnsubscribe | null;
+  clientCreditPaymentsListener: ListenerUnsubscribe | null;
   suppliersListener: ListenerUnsubscribe | null;
   supplierCreditsListener: ListenerUnsubscribe | null;
   settingsListener: ListenerUnsubscribe | null;
@@ -75,6 +76,7 @@ class RealtimeService {
     cashRegistersListener: null,
     cashMovementsListener: null,
     clientCreditsListener: null,
+    clientCreditPaymentsListener: null,
     suppliersListener: null,
     supplierCreditsListener: null,
     settingsListener: null,
@@ -885,7 +887,7 @@ class RealtimeService {
     );
 
     const unsubscribe = onSnapshot(q, {
-      next: async (snapshot) => {
+      next: (snapshot) => {
         const changes = snapshot.docChanges();
 
         // Snapshot initial
@@ -898,59 +900,17 @@ class RealtimeService {
               createdAt: data.createdAt?.toDate() || new Date(),
               updatedAt: data.updatedAt?.toDate() || new Date(),
             };
-            // Enrichir avec les payments du cache (si disponible)
             return this.enrichClientCreditWithPayments(credit);
           });
 
-          // Charger les payments pour chaque crédit de manière asynchrone
-          const enrichedCredits = await Promise.all(
-            credits.map(async (credit) => {
-              // Si déjà enrichi avec des payments, retourner tel quel
-              if (credit.payments && credit.payments.length > 0) {
-                return credit;
-              }
-
-              // Sinon, charger les payments depuis Firestore
-              try {
-                const paymentsSnapshot = await getDocs(
-                  query(collection(db, `companies/${companyId}/client_credits/${credit.id}/payments`))
-                );
-
-                const payments = paymentsSnapshot.docs.map((doc) => ({
-                  id: doc.id,
-                  ...doc.data(),
-                  paidAt: doc.data().paidAt?.toDate() || new Date(),
-                  createdAt: doc.data().createdAt?.toDate() || new Date(),
-                }));
-
-                const amountPaid = payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-                const remainingAmount = credit.amount - amountPaid;
-
-                // Mettre en cache pour les mises à jour incrémentales
-                this.state.clientCreditPaymentsCache.set(credit.id, payments);
-
-                return {
-                  ...credit,
-                  payments,
-                  amountPaid,
-                  remainingAmount,
-                };
-              } catch (err) {
-                console.error(`[RealtimeService] ❌ Erreur chargement payments pour crédit ${credit.id}:`, err);
-                return credit;
-              }
-            })
-          );
-
           queryClient.setQueryData(
             ['companies', companyId, 'clientCredits'],
-            enrichedCredits
+            credits
           );
 
-          // 🔄 Marquer que les crédits sont chargés avec leurs payments
           this.state.clientCreditsInitialLoadDone = true;
 
-          console.log(`[RealtimeService] ✅ ${enrichedCredits.length} crédits clients chargés (GLOBAL)`);
+          console.log(`[RealtimeService] ✅ ${credits.length} crédits clients chargés (GLOBAL)`);
           return;
         }
 
@@ -972,11 +932,7 @@ class RealtimeService {
             updatedAt: data.updatedAt?.toDate() || new Date(),
           };
 
-          // 🔄 IMPORTANT: Préserver les payments existants du crédit actuel
-          const existingCredit = updatedCredits.find(c => c.id === credit.id);
-          const creditWithPayments = existingCredit?.payments
-            ? { ...credit, payments: existingCredit.payments, amountPaid: existingCredit.amountPaid, remainingAmount: existingCredit.remainingAmount }
-            : this.enrichClientCreditWithPayments(credit);
+          const creditWithPayments = this.enrichClientCreditWithPayments(credit);
 
           switch (change.type) {
             case 'added':
@@ -1021,6 +977,115 @@ class RealtimeService {
 
     this.state.clientCreditsListener = unsubscribe;
     this.state.currentCompanyId = companyId;
+  }
+
+  /**
+   * Démarre l'écoute des paiements de crédits clients (si pas déjà démarrée)
+   */
+  startClientCreditPaymentsListener(queryClient: QueryClient, companyId: string) {
+    if (this.state.clientCreditPaymentsListener && this.state.currentCompanyId === companyId) {
+      return;
+    }
+
+    if (this.state.clientCreditPaymentsListener) {
+      this.state.clientCreditPaymentsListener();
+      this.state.clientCreditPaymentsListener = null;
+    }
+
+    const q = query(
+      collection(db, `companies/${companyId}/client_credit_payments`),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, {
+      next: (snapshot) => {
+        const changes = snapshot.docChanges();
+
+        const isInitialLoad = changes.length === snapshot.docs.length;
+        if (isInitialLoad) {
+          const paymentsByCredit = new Map<string, any[]>();
+
+          snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const payment = {
+              id: doc.id,
+              ...data,
+              createdAt: data.createdAt?.toDate() || new Date(),
+            };
+            const creditId = data.creditId;
+            if (!paymentsByCredit.has(creditId)) {
+              paymentsByCredit.set(creditId, []);
+            }
+            paymentsByCredit.get(creditId)!.push(payment);
+          });
+
+          this.state.clientCreditPaymentsCache.clear();
+          paymentsByCredit.forEach((payments, creditId) => {
+            this.state.clientCreditPaymentsCache.set(creditId, payments);
+          });
+
+          this.reEnrichCreditsWithPayments(queryClient, companyId);
+          return;
+        }
+
+        changes.forEach(change => {
+          const data = change.doc.data();
+          const payment = {
+            id: change.doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+          };
+          const creditId = data.creditId;
+
+          if (change.type === 'added') {
+            const existing = this.state.clientCreditPaymentsCache.get(creditId) || [];
+            if (!existing.find(p => p.id === payment.id)) {
+              existing.unshift(payment);
+            }
+            this.state.clientCreditPaymentsCache.set(creditId, existing);
+          } else if (change.type === 'modified') {
+            const existing = this.state.clientCreditPaymentsCache.get(creditId) || [];
+            this.state.clientCreditPaymentsCache.set(creditId, existing.map(p => p.id === payment.id ? payment : p));
+          } else if (change.type === 'removed') {
+            const existing = this.state.clientCreditPaymentsCache.get(creditId) || [];
+            this.state.clientCreditPaymentsCache.set(creditId, existing.filter(p => p.id !== payment.id));
+          }
+        });
+
+        this.reEnrichCreditsWithPayments(queryClient, companyId);
+      },
+      error: (err) => {
+        console.error('[RealtimeService] Erreur écoute paiements crédits clients:', err);
+        this.state.clientCreditPaymentsListener = null;
+      },
+    });
+
+    this.state.clientCreditPaymentsListener = unsubscribe;
+  }
+
+  private reEnrichCreditsWithPayments(queryClient: QueryClient, companyId: string) {
+    const currentCredits = queryClient.getQueryData<any[]>(
+      ['companies', companyId, 'clientCredits']
+    );
+    if (!currentCredits || currentCredits.length === 0) return;
+
+    const enrichedCredits = currentCredits.map(credit => {
+      const cachedPayments = this.state.clientCreditPaymentsCache.get(credit.id) || [];
+      return {
+        ...credit,
+        payments: cachedPayments,
+      };
+    });
+
+    queryClient.setQueryData(
+      ['companies', companyId, 'clientCredits'],
+      enrichedCredits
+    );
+
+    queryClient.invalidateQueries({
+      queryKey: ['companies', companyId, 'clientCredits'],
+      refetchType: 'none',
+    });
   }
 
   /**
@@ -1745,6 +1810,11 @@ class RealtimeService {
       this.state.clientCreditsListener = null;
     }
 
+    if (this.state.clientCreditPaymentsListener) {
+      this.state.clientCreditPaymentsListener();
+      this.state.clientCreditPaymentsListener = null;
+    }
+
     if (this.state.suppliersListener) {
       this.state.suppliersListener();
       this.state.suppliersListener = null;
@@ -1829,6 +1899,7 @@ class RealtimeService {
     this.startCashRegistersListener(queryClient, companyId);
     this.startCashMovementsListener(queryClient, companyId);
     this.startClientCreditsListener(queryClient, companyId);
+    this.startClientCreditPaymentsListener(queryClient, companyId);
     this.startSuppliersListener(queryClient, companyId);
     this.startSupplierCreditsListener(queryClient, companyId);
     this.startSettingsListener(queryClient, companyId);
@@ -1846,6 +1917,7 @@ class RealtimeService {
     const listeners: Array<keyof RealtimeState> = [
       'productsListener', 'invoicesListener', 'clientsListener', 'warehousesListener',
       'cashRegistersListener', 'cashMovementsListener', 'clientCreditsListener',
+      'clientCreditPaymentsListener',
       'suppliersListener', 'supplierCreditsListener', 'settingsListener',
       'stockMovementsListener', 'warehouseQuantitiesListener', 'purchasesListener',
     ];

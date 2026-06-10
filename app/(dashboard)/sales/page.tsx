@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
 import { useInvoices as useInvoicesHelpers } from '@/lib/hooks/useInvoices';
-import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { usePermissions } from '@/lib/hooks/usePermissions';
@@ -70,7 +70,7 @@ export default function SalesPage() {
     executeStockTransfers,
   } = useInvoicesHelpers();
 
-  const { credits, payments } = useClientCredits();
+  const { credits, payments } = useClientCreditsRealtime();
   const { user } = useAuth();
   const { company, settings } = useSettings();
   const { canCreateSale, canDeleteSale, canAccessModule, getFirstAccessiblePage } = usePermissions();
@@ -317,8 +317,7 @@ export default function SalesPage() {
   }, [invoices, targetDate]);
 
   // CA = encaissé uniquement
-  const allCreditPayments = Object.values(payments).flat();
-  const periodCreditPaymentsTotal = allCreditPayments
+  const periodCreditPaymentsTotal = payments
     .filter(cp => {
       if (!targetDate) return true;
       const payDate = new Date(cp.createdAt);
