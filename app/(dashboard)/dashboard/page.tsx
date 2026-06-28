@@ -42,24 +42,22 @@ import { Line, Bar, Doughnut } from "react-chartjs-2";
 import { formatPrice } from "@/lib/utils";
 import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
 
+// Enregistrer les composants Chart.js au niveau du module (avant tout render)
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+);
+
 export default function DashboardPage() {
   const router = useRouter();
-
-  // Enregistrer les composants Chart.js côté client uniquement
-  useEffect(() => {
-    ChartJS.register(
-      CategoryScale,
-      LinearScale,
-      PointElement,
-      LineElement,
-      BarElement,
-      ArcElement,
-      Title,
-      Tooltip,
-      Legend,
-      Filler,
-    );
-  }, []);
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { stats, loading, error } = useDashboard(selectedDate);
