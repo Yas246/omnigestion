@@ -294,6 +294,21 @@ class RealtimeService {
   }
 
   /**
+   * Convertit les dates Firestore Timestamp nichées dans le tableau payments
+   * d'un crédit (dénormalisé) en objets Date JS.
+   */
+  private normalizeCreditPaymentDates(credit: any): any {
+    if (!credit || !Array.isArray(credit.payments)) return credit;
+    return {
+      ...credit,
+      payments: credit.payments.map((p: any) => ({
+        ...p,
+        createdAt: p?.createdAt?.toDate ? p.createdAt.toDate() : (p?.createdAt instanceof Date ? p.createdAt : new Date(p?.createdAt)),
+      })),
+    };
+  }
+
+  /**
    * Met en cache les payments d'un crédit fournisseur
    */
   cacheSupplierCreditPayments(creditId: string, payments: any[]) {
@@ -898,7 +913,9 @@ class RealtimeService {
               createdAt: data.createdAt?.toDate() || new Date(),
               updatedAt: data.updatedAt?.toDate() || new Date(),
             };
-            return this.enrichClientCreditWithPayments(credit);
+            return this.normalizeCreditPaymentDates(
+              this.enrichClientCreditWithPayments(credit)
+            );
           });
 
           queryClient.setQueryData(
@@ -930,7 +947,9 @@ class RealtimeService {
             updatedAt: data.updatedAt?.toDate() || new Date(),
           };
 
-          const creditWithPayments = this.enrichClientCreditWithPayments(credit);
+          const creditWithPayments = this.normalizeCreditPaymentDates(
+            this.enrichClientCreditWithPayments(credit)
+          );
 
           switch (change.type) {
             case 'added':
@@ -1223,7 +1242,9 @@ class RealtimeService {
               createdAt: data.createdAt?.toDate() || new Date(),
               updatedAt: data.updatedAt?.toDate() || new Date(),
             };
-            return this.enrichSupplierCreditWithPayments(credit);
+            return this.normalizeCreditPaymentDates(
+              this.enrichSupplierCreditWithPayments(credit)
+            );
           });
 
           queryClient.setQueryData(
@@ -1255,7 +1276,9 @@ class RealtimeService {
             updatedAt: data.updatedAt?.toDate() || new Date(),
           };
 
-          const creditWithPayments = this.enrichSupplierCreditWithPayments(credit);
+          const creditWithPayments = this.normalizeCreditPaymentDates(
+            this.enrichSupplierCreditWithPayments(credit)
+          );
 
           switch (change.type) {
             case 'added':
