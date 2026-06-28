@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuthStore } from './useAuthStore';
+import { invalidateMainCashRegisterCache } from '@/lib/utils/cash-register';
 import type { CashRegister, CashMovement } from '@/types';
 
 /**
@@ -500,6 +501,7 @@ export const useCashRegistersStore = create<CashStore>()(
 
           console.log('[createCashRegister] Caisse créée', { id: docRef.id });
 
+          invalidateMainCashRegisterCache(companyId);
           await get().fetchCashRegisters(companyId);
           return docRef.id;
         } catch (error) {
@@ -532,6 +534,7 @@ export const useCashRegistersStore = create<CashStore>()(
 
           console.log('[updateCashRegister] Caisse mise à jour');
 
+          invalidateMainCashRegisterCache(companyId);
           await get().fetchCashRegisters(companyId);
         } catch (error) {
           console.error('[updateCashRegister] Erreur:', error);
@@ -568,6 +571,7 @@ export const useCashRegistersStore = create<CashStore>()(
 
           console.log('[deleteCashRegister] Caisse supprimée');
 
+          invalidateMainCashRegisterCache(companyId);
           await get().fetchCashRegisters(companyId);
         } catch (error) {
           console.error('[deleteCashRegister] Erreur:', error);

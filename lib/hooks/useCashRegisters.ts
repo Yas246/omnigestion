@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
+import { invalidateMainCashRegisterCache } from '@/lib/utils/cash-register';
 import type { CashRegister, CashMovement } from '@/types';
 
 const CASH_REGISTERS_PER_PAGE = 50;
@@ -181,6 +182,7 @@ export function useCashRegisters() {
       });
 
       await fetchCashRegisters();
+      invalidateMainCashRegisterCache(user.currentCompanyId);
       return { success: true, id: docRef.id };
     } catch (err) {
       console.error('Erreur lors de la création de la caisse:', err);
@@ -215,6 +217,7 @@ export function useCashRegisters() {
       });
 
       await fetchCashRegisters();
+      invalidateMainCashRegisterCache(user.currentCompanyId);
       return { success: true };
     } catch (err) {
       console.error('Erreur lors de la mise à jour de la caisse:', err);
@@ -230,6 +233,7 @@ export function useCashRegisters() {
       const docRef = doc(db, COLLECTIONS.companyCashRegisters(user.currentCompanyId), id);
       await deleteDoc(docRef);
       await fetchCashRegisters();
+      invalidateMainCashRegisterCache(user.currentCompanyId);
       return { success: true };
     } catch (err) {
       console.error('Erreur lors de la suppression de la caisse:', err);
