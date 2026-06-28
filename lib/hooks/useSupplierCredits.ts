@@ -1,24 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import {
   collection,
   addDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
   runTransaction,
   doc,
   getDoc,
   updateDoc,
   deleteDoc,
-  limit,
   increment,
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from './useAuth';
-import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import { getMainCashRegisterId } from '@/lib/utils/cash-register';
 import type { SupplierCredit, SupplierCreditPayment, PaymentMode } from '@/types';
 
@@ -41,67 +34,6 @@ export interface PaymentInput {
 
 export function useSupplierCredits() {
   const { user } = useAuth();
-  const [credits, setCredits] = useState<SupplierCredit[]>([]);
-  const [payments, setPayments] = useState<Record<string, SupplierCreditPayment[]>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user?.currentCompanyId) {
-      fetchCredits();
-    }
-  }, [user]);
-
-  const fetchCredits = async () => {
-    if (!user?.currentCompanyId) return;
-
-    try {
-      setLoading(true);
-      const q = query(
-        collection(db, COLLECTIONS.companySupplierCredits(user.currentCompanyId)),
-        orderBy('date', 'desc')
-      );
-
-      const snapshot = await getDocs(q);
-      const creditsData = snapshot.docs.map(docSnap => {
-        const data = docSnap.data();
-        return {
-          id: docSnap.id,
-          ...data,
-          date: data.date?.toDate() || new Date(),
-          dueDate: data.dueDate?.toDate(),
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-        } as SupplierCredit;
-      });
-
-      setCredits(creditsData);
-
-      // Récupérer les paiements pour chaque crédit
-      const paymentsMap: Record<string, SupplierCreditPayment[]> = {};
-      await Promise.all(
-        creditsData.map(async (credit) => {
-          const paymentsQuery = query(
-            collection(db, COLLECTIONS.companySupplierCreditPayments(user.currentCompanyId)),
-            where('creditId', '==', credit.id),
-            orderBy('createdAt', 'desc')
-          );
-          const paymentsSnap = await getDocs(paymentsQuery);
-          paymentsMap[credit.id] = paymentsSnap.docs.map(p => ({
-            id: p.id,
-            ...p.data(),
-            createdAt: p.data().createdAt?.toDate() || new Date(),
-          } as SupplierCreditPayment));
-        })
-      );
-      setPayments(paymentsMap);
-    } catch (err) {
-      console.error('Erreur lors du chargement des crédits fournisseurs:', err);
-      setError('Erreur lors du chargement des crédits fournisseurs');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const createCredit = async (data: SupplierCreditInput) => {
     if (!user?.currentCompanyId) throw new Error('Utilisateur non connecté');
@@ -143,7 +75,6 @@ export function useSupplierCredits() {
         }
       }
 
-      await fetchCredits();
       return { success: true, id: docRef.id };
     } catch (err) {
       console.error('Erreur lors de la création du crédit fournisseur:', err);
@@ -171,24 +102,28 @@ export function useSupplierCredits() {
           throw new Error('Le paiement dépasse le montant restant');
         }
 
-        // Créer le paiement
-        const paymentsRef = collection(db, COLLECTIONS.companySupplierCreditPayments(user.currentCompanyId));
-        const paymentRef = doc(paymentsRef);
-        transaction.set(paymentRef, {
+        // Créer le paiement (dénormalisé dans le doc crédit)
+        const newPayment: SupplierCreditPayment = {
+          id: doc(collection(db, COLLECTIONS.companySupplierCreditPayments(user.currentCompanyId))).id,
           creditId,
           amount: data.amount,
           paymentMode: data.paymentMode,
           notes: data.notes,
           userId: user.id,
           createdAt: new Date(),
-        });
+        };
 
-        // Mettre à jour le crédit
+        const existingPayments: SupplierCreditPayment[] = Array.isArray((credit as any).payments)
+          ? (credit as any).payments
+          : [];
+
+        // Mettre à jour le crédit (paiements dénormalisés)
         const newAmountPaid = credit.amountPaid + data.amount;
         const newRemainingAmount = credit.remainingAmount - data.amount;
         const newStatus = newRemainingAmount === 0 ? 'paid' : 'partial';
 
         transaction.update(creditRef, {
+          payments: [newPayment, ...existingPayments],
           amountPaid: newAmountPaid,
           remainingAmount: newRemainingAmount,
           status: newStatus,
@@ -229,8 +164,6 @@ export function useSupplierCredits() {
         }
       });
 
-      await fetchCredits();
-
       return { success: true };
     } catch (err: any) {
       console.error('Erreur lors de l\'ajout du paiement:', err);
@@ -248,7 +181,6 @@ export function useSupplierCredits() {
         updatedAt: new Date(),
       });
 
-      await fetchCredits();
       return { success: true };
     } catch (err) {
       console.error('Erreur lors de la mise à jour du crédit:', err);
@@ -263,7 +195,6 @@ export function useSupplierCredits() {
       const docRef = doc(db, COLLECTIONS.companySupplierCredits(user.currentCompanyId), id);
       await deleteDoc(docRef);
 
-      await fetchCredits();
       return { success: true };
     } catch (err) {
       console.error('Erreur lors de la suppression du crédit:', err);
@@ -271,26 +202,10 @@ export function useSupplierCredits() {
     }
   };
 
-  const getSupplierCredits = (supplierId: string) => {
-    return credits.filter(c => c.supplierId === supplierId && c.status !== 'paid' && c.status !== 'cancelled');
-  };
-
-  const getSupplierDebt = (supplierId: string) => {
-    const supplierCredits = getSupplierCredits(supplierId);
-    return supplierCredits.reduce((sum, c) => sum + c.remainingAmount, 0);
-  };
-
   return {
-    credits,
-    payments,
-    loading,
-    error,
-    fetchCredits,
     createCredit,
     addPayment,
     updateCredit,
     deleteCredit,
-    getSupplierCredits,
-    getSupplierDebt,
   };
 }

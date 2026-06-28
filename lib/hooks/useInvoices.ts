@@ -1076,17 +1076,16 @@ export function useInvoices() {
           }
         }
 
-        // 1C. Reverser l'ancien crédit et ses paiements
+        // 1C. Reverser l'ancien crédit et ses paiements (dénormalisés dans le doc crédit)
         if (oldInvoice.remainingAmount > 0 && oldInvoice.clientId) {
           const creditsRef = collection(db, COLLECTIONS.companyClientCredits(companyId));
           const creditsSnap = await getDocs(query(creditsRef, where('invoiceId', '==', invoiceId)));
 
           for (const creditDoc of creditsSnap.docs) {
-            const paymentsRef = collection(db, COLLECTIONS.companyClientCreditPayments(companyId));
-            const paymentsSnap = await getDocs(query(paymentsRef, where('creditId', '==', creditDoc.id)));
+            const creditData = creditDoc.data();
+            const payments: any[] = Array.isArray(creditData.payments) ? creditData.payments : [];
 
-            for (const paymentDoc of paymentsSnap.docs) {
-              const paymentData = paymentDoc.data();
+            for (const payment of payments) {
               const payCashRegId = await getMainCashRegisterId(companyId);
 
               if (payCashRegId) {
@@ -1094,19 +1093,18 @@ export function useInvoices() {
                 const cmRef = doc(cashMovementsRef);
                 transaction.set(cmRef, {
                   companyId, cashRegisterId: payCashRegId,
-                  type: 'out', amount: paymentData.amount, category: 'credit_payment_reversal',
+                  type: 'out', amount: payment.amount, category: 'credit_payment_reversal',
                   description: `Modification - reversement crédit (${oldInvoice.invoiceNumber})`,
-                  referenceId: paymentDoc.id, referenceType: 'invoice_modification',
+                  referenceId: payment.id || creditDoc.id, referenceType: 'invoice_modification',
                   userId: user.id, createdAt: new Date(),
                 });
                 transaction.update(doc(db, COLLECTIONS.companyCashRegisters(companyId), payCashRegId), {
-                  currentBalance: increment(-paymentData.amount), updatedAt: new Date(),
+                  currentBalance: increment(-payment.amount), updatedAt: new Date(),
                 });
               }
-              transaction.delete(doc(db, COLLECTIONS.companyClientCreditPayments(companyId), paymentDoc.id));
             }
             transaction.update(doc(db, COLLECTIONS.companyClientCredits(companyId), creditDoc.id), {
-              status: 'cancelled', updatedAt: new Date(),
+              status: 'cancelled', payments: [], updatedAt: new Date(),
             });
           }
 
@@ -1393,15 +1391,10 @@ export function useInvoices() {
 
           for (const creditDoc of creditsSnap.docs) {
             const creditData = creditDoc.data();
+            const payments: any[] = Array.isArray(creditData.payments) ? creditData.payments : [];
 
-            // Trouver et reverser tous les paiements du crédit
-            const paymentsRef = collection(db, COLLECTIONS.companyClientCreditPayments(companyId));
-            const paymentsSnap = await getDocs(query(paymentsRef, where('creditId', '==', creditDoc.id)));
-
-            for (const paymentDoc of paymentsSnap.docs) {
-              const paymentData = paymentDoc.data();
-
-              // Reverser le paiement dans la caisse
+            // Reverser tous les paiements du crédit (dénormalisés)
+            for (const payment of payments) {
               const payCashRegId = await getMainCashRegisterId(companyId);
 
               if (payCashRegId) {
@@ -1411,10 +1404,10 @@ export function useInvoices() {
                   companyId,
                   cashRegisterId: payCashRegId,
                   type: 'out',
-                  amount: paymentData.amount,
+                  amount: payment.amount,
                   category: 'credit_payment_reversal',
                   description: `Annulation paiement crédit - ${invoice.clientName || 'Client'} (facture ${invoice.invoiceNumber})`,
-                  referenceId: paymentDoc.id,
+                  referenceId: payment.id || creditDoc.id,
                   referenceType: 'credit_payment_reversal',
                   userId: user.id,
                   createdAt: new Date(),
@@ -1422,18 +1415,16 @@ export function useInvoices() {
 
                 const cashRegisterRef = doc(db, COLLECTIONS.companyCashRegisters(companyId), payCashRegId);
                 transaction.update(cashRegisterRef, {
-                  currentBalance: increment(-paymentData.amount),
+                  currentBalance: increment(-payment.amount),
                   updatedAt: new Date(),
                 });
               }
-
-              // Supprimer le paiement
-              transaction.delete(doc(db, COLLECTIONS.companyClientCreditPayments(companyId), paymentDoc.id));
             }
 
-            // Annuler le crédit
+            // Annuler le crédit et vider les paiements
             transaction.update(doc(db, COLLECTIONS.companyClientCredits(companyId), creditDoc.id), {
               status: 'cancelled',
+              payments: [],
               updatedAt: new Date(),
             });
           }

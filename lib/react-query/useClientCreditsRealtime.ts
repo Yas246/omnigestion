@@ -19,7 +19,6 @@ export function useClientCreditsRealtime() {
   useEffect(() => {
     if (user?.currentCompanyId) {
       realtimeService.startClientCreditsListener(queryClient, user.currentCompanyId);
-      realtimeService.startClientCreditPaymentsListener(queryClient, user.currentCompanyId);
     }
   }, [user?.currentCompanyId, queryClient]);
 

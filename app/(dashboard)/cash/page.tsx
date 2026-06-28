@@ -29,7 +29,7 @@ import { CashRegisterDialog } from '@/components/cash/CashRegisterDialog';
 import { useCashRegistersRealtime } from '@/lib/react-query/useCashRegistersRealtime';
 import { useCashMovementsRealtime } from '@/lib/react-query/useCashMovementsRealtime';
 import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
-import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
 import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -49,7 +49,7 @@ export default function CashPage() {
     isLoading: movementsLoading,
   } = useCashMovementsRealtime();
   const { invoices: allInvoices } = useInvoicesRealtime();
-  const { payments: clientCreditPayments } = useClientCredits();
+  const { payments: clientCreditPayments } = useClientCreditsRealtime();
 
   // Garder le store pour les autres fonctions utilitaires (CRUD)
   const { deleteCashRegister } = useCashRegistersStore();
@@ -114,7 +114,7 @@ export default function CashPage() {
 
     const todayPaidAmount = todayInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
 
-    const todayCreditPayments = Object.values(clientCreditPayments).flat()
+    const todayCreditPayments = clientCreditPayments
       .filter(cp => {
         const payDate = new Date(cp.createdAt);
         payDate.setHours(0, 0, 0, 0);
@@ -147,7 +147,7 @@ export default function CashPage() {
       return invDate.getTime() === today.getTime();
     });
 
-    const todayCreditPaymentsCount = Object.values(clientCreditPayments).flat()
+    const todayCreditPaymentsCount = clientCreditPayments
       .filter(cp => {
         const payDate = new Date(cp.createdAt);
         payDate.setHours(0, 0, 0, 0);
