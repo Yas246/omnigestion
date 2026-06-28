@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
-import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, CloudOff, RefreshCw, Cloud, Calendar, X } from 'lucide-react';
+import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, Calendar, X } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { fr } from 'date-fns/locale';
@@ -57,15 +57,11 @@ export default function SalesPage() {
     );
   }, [rawInvoices, searchQuery]);
 
-  // Utiliser l'ancien hook pour les fonctions helpers (offline, stock, etc.)
+  // Utiliser l'ancien hook pour les fonctions helpers (stock, etc.)
   const {
-    createInvoiceOffline,
+    createInvoice,
     deleteInvoice,
     updateInvoice,
-    isOnline,
-    pendingInvoicesCount,
-    isSyncing,
-    syncPendingInvoices,
     checkStockBeforeInvoice,
     executeStockTransfers,
   } = useInvoicesHelpers();
@@ -92,18 +88,6 @@ export default function SalesPage() {
   const [pendingInvoiceData, setPendingInvoiceData] = useState<any>(null);
   const [stockTransferProducts, setStockTransferProducts] = useState<any[]>([]);
 
-  // Effet pour la synchronisation automatique
-  useEffect(() => {
-    if (isOnline && pendingInvoicesCount > 0 && !isSyncing) {
-      // Afficher une notification de synchronisation
-      const syncTimer = setTimeout(() => {
-        syncPendingInvoices();
-      }, 2000);
-
-      return () => clearTimeout(syncTimer);
-    }
-  }, [isOnline, pendingInvoicesCount, isSyncing]);
-
   const handleCreateInvoice = async (data: any) => {
     if (!user?.currentCompanyId) {
       toast.error('Utilisateur non connecté');
@@ -128,27 +112,8 @@ export default function SalesPage() {
       }
 
       // 3. Si pas de transfert nécessaire, créer directement la facture
-      const result = await createInvoiceOffline(data) as InvoiceCreateResult;
-
-      // Si la facture est en attente (hors ligne)
-      if ('pending' in result && result.pending) {
-        toast.success(
-          `Facture créée (en attente de synchronisation)`,
-          {
-            description: `La facture sera synchronisée lorsque vous serez en ligne`,
-            action: {
-              label: 'Voir',
-              onClick: () => {
-                // Ouvrir la liste des factures en attente
-              },
-            },
-          }
-        );
-      } else {
-        toast.success('Facture créée avec succès');
-        // NOTE: Plus besoin de rafraîchir manuellement - onSnapshot gère la mise à jour automatiquement
-        console.log('[SalesPage] Facture créée, onSnapshot va mettre à jour automatiquement');
-      }
+      await createInvoice(data);
+      toast.success('Facture créée avec succès');
 
       setIsDialogOpen(false);
     } catch (error: any) {
@@ -178,7 +143,7 @@ export default function SalesPage() {
         toast.success('Transferts effectués et facture modifiée avec succès');
       } else {
         // Mode création
-        const result = await createInvoiceOffline(pendingInvoiceData) as InvoiceCreateResult;
+        await createInvoice(pendingInvoiceData);
         toast.success('Transferts effectués et facture créée avec succès');
       }
 
@@ -201,25 +166,6 @@ export default function SalesPage() {
     setIsTransferModalOpen(false);
     setPendingInvoiceData(null);
     setStockTransferProducts([]);
-  };
-
-  const handleSyncNow = async () => {
-    try {
-      const result = await syncPendingInvoices();
-
-      if (result && result.total > 0) {
-        toast.success(
-          `Synchronisation terminée: ${result.success} facture(s) synchronisée(s)`,
-          result.failed > 0 ? {
-            description: `${result.failed} facture(s) n'ont pas pu être synchronisée(s)`,
-          } : undefined
-        );
-      } else {
-        toast.info('Aucune facture à synchroniser');
-      }
-    } catch (error: any) {
-      toast.error('Erreur lors de la synchronisation');
-    }
   };
 
   const handleViewInvoice = (invoice: Invoice) => {
@@ -361,22 +307,6 @@ export default function SalesPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">Ventes</h1>
-
-            {/* Indicateur de statut hors ligne */}
-            {!isOnline && (
-              <Badge variant="secondary" className="gap-1.5">
-                <CloudOff className="h-3.5 w-3.5" />
-                Hors ligne
-              </Badge>
-            )}
-
-            {/* Indicateur de factures en attente */}
-            {pendingInvoicesCount > 0 && (
-              <Badge variant="outline" className="gap-1.5 border-orange-500 text-orange-600 hover:bg-orange-50">
-                <AlertCircle className="h-3.5 w-3.5" />
-                {pendingInvoicesCount} facture(s) en attente
-              </Badge>
-            )}
           </div>
           <p className="text-muted-foreground">
             Gérez vos factures et vos ventes
@@ -384,20 +314,6 @@ export default function SalesPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Bouton de synchronisation manuelle */}
-          {pendingInvoicesCount > 0 && isOnline && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSyncNow}
-              disabled={isSyncing}
-              className="gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Synchronisation...' : 'Synchroniser'}
-            </Button>
-          )}
-
           <PermissionGate module="sales" action="create">
             <Button onClick={() => setIsDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
