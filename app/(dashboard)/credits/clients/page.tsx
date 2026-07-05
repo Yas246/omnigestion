@@ -9,8 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus, DollarSign, Calendar, CreditCard } from 'lucide-react';
-import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
-import { useClientCredits } from '@/lib/hooks/useClientCredits'; // Garder pour les fonctions CRUD
+import { useClientCreditsRealtime, useClientCredits } from '@/lib/api/hooks/useClientCredits';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { CreditPaymentDialog } from '@/components/credits/CreditPaymentDialog';

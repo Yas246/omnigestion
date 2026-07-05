@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { format } from 'date-fns';
 import type { Product, StockMovement } from '@/types';
-import { useStockMovementsRealtime } from '@/lib/react-query/useStockMovementsRealtime';
+import { useStockMovements as useStockMovementsRealtime } from '@/lib/api/hooks/useStock';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,

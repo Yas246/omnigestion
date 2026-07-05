@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import type { Product, Warehouse } from "@/types";
-import { useProductDisplayStock } from "@/lib/react-query/useProductsRealtime";
+import { useProductDisplayStock } from "@/lib/api/hooks/useProducts";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -312,11 +312,7 @@ export function ProductsTable({
                   </TableCell>
                   <TableCell className="text-center">
                     <span className="font-medium">
-                      {getDisplayStock(
-                        product.id,
-                        user?.currentCompanyId || "",
-                        selectedWarehouse,
-                      )}
+                      {getDisplayStock(product)}
                       {product.unit && ` ${product.unit}`}
                     </span>
                   </TableCell>

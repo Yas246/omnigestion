@@ -10,7 +10,6 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { NotificationPermission } from "@/components/notification-permission";
 import { useFCM, FCMProvider } from "@/lib/hooks/useFCM";
-import { migrateCreditPaymentsIfNeeded } from "@/lib/migrations/migrateCreditPayments";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -68,13 +67,6 @@ function DashboardContent({
       initializeFCM();
     }
   }, [user, permissionStatus, token, initializeFCM]);
-
-  // Migration one-shot : dénormaliser les paiements de crédits (une fois par compagnie)
-  useEffect(() => {
-    if (user?.currentCompanyId) {
-      migrateCreditPaymentsIfNeeded(user.currentCompanyId);
-    }
-  }, [user?.currentCompanyId]);
 
   return (
     <div className="flex h-screen bg-background">

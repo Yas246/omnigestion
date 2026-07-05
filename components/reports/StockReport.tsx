@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
-import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
+import { useProductsRealtime } from '@/lib/api/hooks/useProducts';
 import { Package, AlertTriangle, DollarSign } from 'lucide-react';
 import { Bar, Pie } from 'react-chartjs-2';
 import { PaginatedTable } from '@/components/ui/PaginatedTable';

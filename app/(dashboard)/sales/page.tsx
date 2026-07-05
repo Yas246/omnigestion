@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
-import { useInvoices as useInvoicesHelpers } from '@/lib/hooks/useInvoices';
-import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
-import { useAuth } from '@/lib/hooks/useAuth';
-import { useSettings } from '@/lib/hooks/useSettings';
+import { useInvoicesRealtime, useInvoices as useInvoicesHelpers } from '@/lib/api/hooks/useInvoices';
+import { useClientCreditsRealtime } from '@/lib/api/hooks/useClientCredits';
+import { useAuth } from '@/lib/auth-context';
+import { useSettings } from '@/lib/api/hooks/useSettings';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import type { Invoice } from '@/types';
@@ -64,6 +63,7 @@ export default function SalesPage() {
     updateInvoice,
     checkStockBeforeInvoice,
     executeStockTransfers,
+    fetchInvoice,
   } = useInvoicesHelpers();
 
   const { credits, payments } = useClientCreditsRealtime();
@@ -190,8 +190,15 @@ export default function SalesPage() {
     window.open(`/sales/print/${invoice.id}`, '_blank');
   };
 
-   const handleEditInvoice = (invoice: Invoice) => {
-    setEditingInvoice(invoice);
+   const handleEditInvoice = async (invoice: Invoice) => {
+    // Load the full invoice (with items) so the dialog can edit them — the list
+    // endpoint doesn't include items.
+    try {
+      const full = await fetchInvoice(invoice.id);
+      setEditingInvoice(full);
+    } catch {
+      setEditingInvoice(invoice);
+    }
     setIsDialogOpen(true);
   };
 
@@ -204,10 +211,10 @@ export default function SalesPage() {
     setIsSubmitting(true);
 
     try {
-      // 1. Vérifier le stock avant modification — passer les anciens items pour le diff
+      // 1. Vérifier le stock des nouveaux items (le backend update reverrouille
+      //    la dispo au moment du apply — ce pré-check est une aide UX).
       const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
-      const oldItems = editingInvoice?.items;
-      const stockCheck = await checkStockBeforeInvoice(data.items, primaryWarehouseId, oldItems);
+      const stockCheck = await checkStockBeforeInvoice(data.items, primaryWarehouseId);
 
       // 2. Si des produits nécessitent un transfert, afficher la modale
       if (stockCheck.productsNeedingTransfer.length > 0) {

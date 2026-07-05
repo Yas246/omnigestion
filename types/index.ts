@@ -265,6 +265,17 @@ export interface InvoiceItem {
   isWholesale: boolean; // Prix gros ou détail
 }
 
+export interface InvoiceItemInput {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  isWholesale?: boolean;
+  productName?: string;
+  productCode?: string;
+  unit?: string;
+  purchasePrice?: number;
+}
+
 export interface Invoice {
   id: string;
   companyId: string;

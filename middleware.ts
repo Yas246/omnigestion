@@ -4,18 +4,6 @@ import type { NextRequest } from 'next/server';
 // Routes publiques (accessibles sans authentification)
 const PUBLIC_PATHS = ['/login', '/register', '/forgot-password'];
 
-// Routes qui nécessitent une authentification mais sont des pages spéciales
-const AUTH_REQUIRED_SPECIAL = ['/select-company', '/dashboard'];
-
-function isJwtExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.exp * 1000 < Date.now();
-  } catch {
-    return true;
-  }
-}
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -29,12 +17,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionCookie = request.cookies.get('firebase-session');
-  const isAuthenticated = !!sessionCookie && !isJwtExpired(sessionCookie.value);
+  // The rewired auth stores the token in localStorage + a presence cookie
+  // `omnigestion-auth` (synced by the client). The real auth check (token
+  // validity vs the API) happens client-side; this cookie only drives
+  // server-side route protection (avoiding a flash of protected content).
+  const authCookie = request.cookies.get('omnigestion-auth');
+  const isAuthenticated = !!authCookie;
   const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
   const isRootPath = pathname === '/';
 
-  // Page racine : laisser passer (redirection gérée côté client)
   if (isRootPath) {
     return NextResponse.next();
   }

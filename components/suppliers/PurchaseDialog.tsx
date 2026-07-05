@@ -14,8 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, Trash2, Package, AlertTriangle } from 'lucide-react';
-import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
-import { useWarehousesRealtime } from '@/lib/react-query/useWarehousesRealtime';
+import { useProductsRealtime } from '@/lib/api/hooks/useProducts';
+import { useWarehousesRealtime } from '@/lib/api/hooks/useWarehouses';
 import { useSupplierPurchases } from '@/lib/hooks/useSupplierPurchases';
 import type { Product } from '@/types';
 import { useDebounce } from '@/lib/hooks/useDebounce';

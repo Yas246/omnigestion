@@ -5,8 +5,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { useAuth } from '@/lib/hooks/useAuth';
-import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
+import { useAuth } from '@/lib/auth-context';
+import { useCashMovements } from '@/lib/api/hooks/useCashMovements';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { NumberInput } from '@/components/ui/number-input';
@@ -60,7 +60,7 @@ interface CashMovementDialogProps {
 
 export function CashMovementDialog({ open, onOpenChange, cashRegisterId, cashRegisters, onSuccess }: CashMovementDialogProps) {
   const { user } = useAuth();
-  const createMovement = useCashRegistersStore((state) => state.createMovement);
+  const { createMovement } = useCashMovements();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<MovementFormData>({

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { useSettings } from '@/lib/hooks/useSettings';
+import { useSettings } from '@/lib/api/hooks/useSettings';
 import { companySchema, type CompanyFormData } from '@/lib/validations/settings';
 import type { Company } from '@/types';
 import { Button } from '@/components/ui/button';

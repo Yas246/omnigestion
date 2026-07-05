@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { useClientsRealtime } from '@/lib/react-query/useClientsRealtime';
-import { useClients as useClientsHelpers } from '@/lib/hooks/useClients';
-import { useAuth } from '@/lib/hooks/useAuth';
+import { useClientsRealtime, useClients as useClientsHelpers } from '@/lib/api/hooks/useClients';
+import { useAuth } from '@/lib/auth-context';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { ClientsTable } from '@/components/clients/ClientsTable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

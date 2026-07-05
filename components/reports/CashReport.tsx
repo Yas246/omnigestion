@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useCashRegisters } from '@/lib/hooks/useCashRegisters';
+import { useCashRegistersRealtime } from '@/lib/api/hooks/useCashRegisters';
+import { useCashMovementsRealtime } from '@/lib/api/hooks/useCashMovements';
 import { DollarSign, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -39,7 +40,8 @@ interface CashReportProps {
 }
 
 export function CashReport({ period, customRange }: CashReportProps) {
-  const { movements, cashRegisters } = useCashRegisters();
+  const { cashRegisters } = useCashRegistersRealtime();
+  const { movements } = useCashMovementsRealtime();
   const [filteredMovements, setFilteredMovements] = useState(movements);
   const [selectedCashRegister, setSelectedCashRegister] = useState<string>('all');
 

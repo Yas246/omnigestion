@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSettingsRealtime } from "@/lib/react-query/useSettingsRealtime";
-import { useWarehousesRealtime } from "@/lib/react-query/useWarehousesRealtime"; // Pour les entrepôts
+import { useSettingsRealtime } from "@/lib/api/hooks/useSettings";
+import { useWarehousesRealtime } from "@/lib/api/hooks/useWarehouses";
+import { useAuth } from "@/lib/auth-context";
 
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,6 +28,7 @@ export default function SettingsPage() {
 
   // Récupérer les dépôts via le listener temps réel
   const { warehouses } = useWarehousesRealtime();
+  const { currentCompany } = useAuth();
 
   const [activeTab, setActiveTab] = useState("company");
 
@@ -81,7 +83,7 @@ export default function SettingsPage() {
   if (error && !settings) {
     return (
       <div className="rounded-md bg-destructive/15 p-4 text-destructive">
-        {error instanceof Error ? error.message : 'Une erreur est survenue'}
+        {error || 'Une erreur est survenue'}
       </div>
     );
   }
@@ -124,7 +126,7 @@ export default function SettingsPage() {
               </Card>
             )}
           >
-            <CompanyTab company={settings || null} onSaved={refresh} />
+            <CompanyTab company={currentCompany} onSaved={refresh} />
           </PermissionGate>
         </TabsContent>
 

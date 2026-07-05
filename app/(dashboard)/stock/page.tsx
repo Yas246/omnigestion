@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
+import { useProductsRealtime, useProducts } from '@/lib/api/hooks/useProducts';
 import { useProductsStore } from '@/lib/stores/useProductsStore';
-import { useStockMovements } from '@/lib/hooks/useStockMovements';
-import { useSettings } from '@/lib/hooks/useSettings';
+import { useStockMovements } from '@/lib/api/hooks/useStock';
+import { useSettings } from '@/lib/api/hooks/useSettings';
+import { api } from '@/lib/api/client';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useAuth } from '@/lib/auth-context';
 import { PermissionGate } from '@/components/auth';
@@ -30,9 +31,10 @@ export default function StockPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Utiliser React Query + onSnapshot pour les produits temps réel
-  // NOTE: Avec la nouvelle architecture, les produits contiennent déjà leurs warehouseQuantities
+  // Products come from the API (React Query). Each product already carries its
+  // per-warehouse breakdown (warehouseQuantities) from the backend.
   const { products: rawProducts, isLoading } = useProductsRealtime();
+  const { createProduct, updateProduct, deleteProduct } = useProducts();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Écouter les changements de filtres dans le store Zustand
@@ -113,8 +115,7 @@ export default function StockPage() {
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
 
-  // Statistiques globales dérivées des produits temps réel (useProductsRealtime)
-  // Les produits sont déjà enrichis avec warehouse_quantities par enrichProductWithWarehouses
+  // Global stats derived from the (cached) products list.
   const globalStats = useMemo(() => {
     const activeProducts = rawProducts.filter(p => p.isActive);
     const lowStock = activeProducts.filter(p => p.currentStock > 0 && p.currentStock <= p.alertThreshold).length;
@@ -143,33 +144,45 @@ export default function StockPage() {
   }, [selectedWarehouse]);
 
   const handleCreate = async (data: any) => {
-    // Vérifier les doublons : même nom
     const normalizedName = data.name.trim().toLowerCase();
-    const duplicate = rawProducts.find(p => {
-      if (p.deletedAt) return false;
-      return p.name.trim().toLowerCase() === normalizedName;
-    });
-
+    const duplicate = rawProducts.find((p) => !p.deletedAt && p.name.trim().toLowerCase() === normalizedName);
     if (duplicate) {
       throw new Error(`Un produit "${duplicate.name}" existe déjà.`);
     }
 
     setIsSubmitting(true);
     try {
-      // Créer le produit avec l'API Firestore
-      const { createProduct: createProductAPI } = await import('@/lib/firestore/products');
-      const { currentCompanyId } = user || {};
+      // 1. Create the product (stock is NOT a product field — it lives in
+      //    product_stock_locations, mutated only via stock operations).
+      const { currentStock, stockAllocations, ...productData } = data;
+      const created: any = await createProduct(productData);
+      const newId = created?.id;
 
-      if (!currentCompanyId) {
-        throw new Error('No company selected');
+      // 2. Create the initial stock: advanced mode → per-depot allocations;
+      //    simple mode → the whole quantity in the default depot.
+      if (newId) {
+        const allocations: Array<{ warehouseId: string; quantity: number }> =
+          stockAllocations && stockAllocations.length > 0
+            ? stockAllocations
+            : currentStock > 0 && settings?.stock?.defaultWarehouseId
+              ? [{ warehouseId: settings.stock.defaultWarehouseId, quantity: currentStock }]
+              : [];
+        for (const a of allocations) {
+          if (a.quantity > 0) {
+            await api.post('/stock/restock', {
+              productId: Number(newId),
+              warehouseId: Number(a.warehouseId),
+              quantity: Number(a.quantity),
+            });
+          }
+        }
+        // Re-invalidate AFTER the restocks complete — createProduct already
+        // invalidated ['products'] (racing the refetch against these restocks);
+        // without this final invalidate the list refetch can land before the
+        // stock_locations exist and show the new product at 0 stock.
+        await queryClient.invalidateQueries({ queryKey: ['products'] });
+        await queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
       }
-
-      const newProduct = await createProductAPI(currentCompanyId, data);
-
-      // Optimistic update dans le store
-      useProductsStore.getState().optimisticCreateProduct(newProduct);
-
-      // Les KPI se mettront à jour automatiquement via onSnapshot
     } finally {
       setIsSubmitting(false);
     }
@@ -179,76 +192,10 @@ export default function StockPage() {
     if (!editingProduct) return;
     setIsSubmitting(true);
     try {
-      const { currentCompanyId } = user || {};
-      if (!currentCompanyId) {
-        throw new Error('No company selected');
-      }
-
-      // Séparer les champs stock des champs produit
+      // Stock is managed via stock operations (restock/loss/transfer), NOT by
+      // editing the product. Only product fields are persisted here.
       const { currentStock, stockAllocations, ...productData } = data;
-
-      // 1. Mettre à jour warehouse_quantities
-      const { doc: firestoreDoc, serverTimestamp: fsServerTimestamp, runTransaction: fsRunTransaction, getDoc: fsGetDoc } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-
-      if (stockAllocations && stockAllocations.length > 0) {
-        // Mode multi-dépôt : écrire les valeurs absolues par dépôt
-        await fsRunTransaction(db, async (transaction: any) => {
-          const wqRef = firestoreDoc(db, `companies/${currentCompanyId}/warehouse_quantities`, editingProduct.id);
-          const wqSnap = await fsGetDoc(wqRef);
-          let existingQuantities: any[] = wqSnap.exists() ? (wqSnap.data().quantities || []) : [];
-
-          // Construire un map des nouvelles quantités
-          const newAllocMap = new Map<string, number>();
-          for (const alloc of stockAllocations) {
-            newAllocMap.set(alloc.warehouseId, alloc.quantity);
-          }
-
-          // Mettre à jour les dépôts existants et ajouter les nouveaux
-          const updatedQuantities = existingQuantities.map((q: any) => {
-            if (newAllocMap.has(q.warehouseId)) {
-              return { ...q, quantity: newAllocMap.get(q.warehouseId)! };
-            }
-            return q;
-          });
-
-          // Ajouter les dépôts pas encore dans les quantités existantes
-          for (const alloc of stockAllocations) {
-            if (!updatedQuantities.some((q: any) => q.warehouseId === alloc.warehouseId)) {
-              updatedQuantities.push({
-                warehouseId: alloc.warehouseId,
-                warehouseName: alloc.warehouseId,
-                quantity: alloc.quantity,
-              });
-            }
-          }
-
-          transaction.set(wqRef, {
-            productId: editingProduct.id,
-            quantities: updatedQuantities,
-            updatedAt: fsServerTimestamp(),
-          }, { merge: true });
-        });
-      } else {
-        // Mode simple : diff sur le dépôt par défaut
-        const oldStock = editingProduct.currentStock || 0;
-        const newStock = currentStock || 0;
-        if (newStock !== oldStock) {
-          const diff = newStock - oldStock;
-          const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
-          if (primaryWarehouseId) {
-            const { updateProductStockInWarehouse } = await import('@/lib/firestore/products');
-            await updateProductStockInWarehouse(currentCompanyId, editingProduct.id, primaryWarehouseId, diff);
-          }
-        }
-      }
-
-      // 2. Mettre à jour le document produit (sans currentStock ni stockAllocations)
-      const { updateProduct: updateProductAPI } = await import('@/lib/firestore/products');
-      await updateProductAPI(currentCompanyId, editingProduct.id, productData);
-
-      // Optimistic update dans le store
-      useProductsStore.getState().optimisticUpdateProduct(editingProduct.id, data);
+      await updateProduct(editingProduct.id, productData);
     } catch (error) {
       console.error('[handleUpdate] Erreur:', error);
       throw error;
@@ -261,20 +208,8 @@ export default function StockPage() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
       return;
     }
-
     try {
-      // Optimistic update dans le store
-      useProductsStore.getState().optimisticDeleteProduct(id);
-
-      // Supprimer dans Firestore
-      const { deleteProduct: deleteProductAPI } = await import('@/lib/firestore/products');
-      const { currentCompanyId } = user || {};
-
-      if (!currentCompanyId) {
-        throw new Error('No company selected');
-      }
-
-      await deleteProductAPI(currentCompanyId, id);
+      await deleteProduct(id);
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
     }
@@ -306,7 +241,9 @@ export default function StockPage() {
     setIsTransferring(true);
     try {
       await transferStock(params);
-      // ⚠️ Plus besoin de recharger - onSnapshot met à jour automatiquement
+      // The mutation's onSuccess invalidates ['stock-movements'] + ['products'],
+      // so both the movements history and the products list (stock display)
+      // refetch automatically.
       await fetchMovements();
     } finally {
       setIsTransferring(false);
@@ -327,7 +264,9 @@ export default function StockPage() {
     setIsRestocking(true);
     try {
       await recordInMovement({ ...params, referenceType: 'restock' });
-      // ⚠️ Plus besoin de recharger - onSnapshot met à jour automatiquement
+      // The mutation's onSuccess invalidates ['stock-movements'] + ['products'],
+      // so both the movements history and the products list (stock display)
+      // refetch automatically.
       await fetchMovements();
     } finally {
       setIsRestocking(false);
@@ -348,7 +287,9 @@ export default function StockPage() {
     setIsRecordingLoss(true);
     try {
       await recordOutMovement({ ...params, referenceType: 'loss' });
-      // ⚠️ Plus besoin de recharger - onSnapshot met à jour automatiquement
+      // The mutation's onSuccess invalidates ['stock-movements'] + ['products'],
+      // so both the movements history and the products list (stock display)
+      // refetch automatically.
       await fetchMovements();
     } finally {
       setIsRecordingLoss(false);
@@ -365,26 +306,14 @@ export default function StockPage() {
     setIsFiltering(false);
   };
 
-  // Recharger manuellement les warehouse quantités
-  // NOTE: Avec le listener temps réel, cette fonction est moins nécessaire
-  // mais elle peut servir à forcer un re-refresh si besoin
+  // Force a refetch of products + stock movements from the API.
   const handleRefreshWarehouseQuantities = async () => {
-    if (!user?.currentCompanyId) return;
-
     setIsRefreshing(true);
     try {
-      console.log('[StockPage] 🔄 Actualisation forcée des données');
-
-      // Invalider les requêtes pour forcer React Query à rafraîchir depuis le cache
-      // Les données sont déjà à jour grâce aux listeners onSnapshot
-      queryClient.invalidateQueries({
-        queryKey: ['companies', user.currentCompanyId, 'products'],
-        refetchType: 'none', // Ne pas recharger depuis Firestore, juste utiliser le cache
-      });
-
-      console.log('[StockPage] ✅ Données actualisées (depuis le cache temps réel)');
-    } catch (error) {
-      console.error('[StockPage] ❌ Erreur actualisation:', error);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['stock-movements'] }),
+      ]);
     } finally {
       setIsRefreshing(false);
     }
@@ -409,7 +338,7 @@ export default function StockPage() {
             variant="outline"
             onClick={handleRefreshWarehouseQuantities}
             disabled={isRefreshing || isLoading}
-            title="Actualiser les données (les données sont synchronisées automatiquement)"
+            title="Actualiser les produits et les mouvements depuis l'API"
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             Actualiser
@@ -519,7 +448,6 @@ export default function StockPage() {
             products={filteredProducts}
             warehouses={warehouses}
             loading={isLoading}
-            // NOTE: Plus de pagination - onSnapshot synchronise tout automatiquement
             onFilterByWarehouse={handleFilterByWarehouse}
             onEdit={handleEdit}
             onDelete={handleDelete}
@@ -560,7 +488,7 @@ export default function StockPage() {
               movements={movements.map(m => ({
                 ...m,
                 productName: rawProducts.find(p => p.id === m.productId)?.name,
-                warehouseName: warehouses.find(w => w.id === m.warehouseId)?.name,
+                warehouseName: warehouses.find((w: any) => w.id === m.warehouseId)?.name,
               }))}
               loading={movementsLoading}
               hasMore={movementsHasMore}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { api } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Download, FileSpreadsheet } from 'lucide-react';
 import { exportProductsToExcel, exportProductsToCSV } from '@/lib/utils/excelGenerator';
-import { db, COLLECTIONS } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import type { Product } from '@/types';
 import { toast } from 'sonner';
@@ -21,15 +20,22 @@ export function ExportProductsButton() {
   const [isExporting, setIsExporting] = useState(false);
 
   const fetchAllProducts = async (): Promise<Product[]> => {
-    if (!user?.currentCompanyId) return [];
-
-    const q = query(
-      collection(db, COLLECTIONS.companyProducts(user.currentCompanyId)),
-      orderBy('name')
-    );
-
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Product));
+    const res = await api.get<{ data: any[] } | any[]>('/products?limit=500');
+    const arr = Array.isArray(res) ? res : (res as any).data ?? [];
+    return arr.map((p: any) => ({
+      id: String(p.id),
+      name: p.name,
+      code: p.code ?? '',
+      category: p.category ?? '',
+      purchasePrice: Number(p.purchasePrice),
+      retailPrice: Number(p.retailPrice),
+      wholesalePrice: Number(p.wholesalePrice),
+      currentStock: p.currentStock,
+      alertThreshold: p.alertThreshold,
+      status: p.status,
+      unit: p.unit ?? '',
+      isActive: p.isActive,
+    })) as Product[];
   };
 
   const handleExportExcel = async () => {

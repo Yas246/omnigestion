@@ -3,12 +3,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState, type ReactNode } from 'react';
-import { useConnectionRecovery } from '@/lib/hooks/useConnectionRecovery';
-
-function ConnectionRecovery() {
-  useConnectionRecovery();
-  return null;
-}
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -16,21 +10,12 @@ export function Providers({ children }: { children: ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Conserver les données en cache indéfiniment (géré par onSnapshot)
-            staleTime: Infinity,
-            // Ne JAMAIS garbage collecter (les données sont gérées par onSnapshot, pas par React Query)
-            gcTime: Infinity,
-            // Ne PAS recharger au mount si les données sont en cache
-            refetchOnMount: false,
-            // Ne PAS recharger quand le réseau revient (les données sont gérées par onSnapshot)
-            refetchOnReconnect: false,
-            // Ne PAS recharger au focus de la fenêtre
+            staleTime: 1000 * 30, // 30s — data is fresh for 30s then eligible for refetch
+            gcTime: 1000 * 60 * 5, // 5 min cache
             refetchOnWindowFocus: false,
-            // Nombre de tentatives de retry
             retry: 1,
           },
           mutations: {
-            // Rollback automatique en cas d'erreur
             onError: (error) => {
               console.error('Mutation error:', error);
             },
@@ -41,7 +26,6 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ConnectionRecovery />
       {children}
       {process.env.NODE_ENV === 'development' && (
         <ReactQueryDevtools initialIsOpen={false} />

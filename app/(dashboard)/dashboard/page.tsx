@@ -20,7 +20,7 @@ import {
   DollarSign,
   AlertTriangle,
 } from "lucide-react";
-import { useDashboard } from "@/lib/hooks/useDashboard";
+import { useDashboard } from "@/lib/api/hooks/useDashboard";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";

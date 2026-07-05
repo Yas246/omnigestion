@@ -21,16 +21,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, Plus, ArrowUpCircle, ArrowDownCircle, ArrowRightCircle, DollarSign, Pencil, Trash2, MoreVertical, AlertTriangle } from 'lucide-react';
-import { useAuth } from '@/lib/hooks/useAuth';
+import { useAuth } from '@/lib/auth-context';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { CashMovementDialog } from '@/components/cash/CashMovementDialog';
 import { CashRegisterDialog } from '@/components/cash/CashRegisterDialog';
-import { useCashRegistersRealtime } from '@/lib/react-query/useCashRegistersRealtime';
-import { useCashMovementsRealtime } from '@/lib/react-query/useCashMovementsRealtime';
-import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
-import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
-import { useCashRegistersStore } from '@/lib/stores/useCashRegistersStore';
+import { useCashRegistersRealtime, useCashRegisters } from '@/lib/api/hooks/useCashRegisters';
+import { useCashMovementsRealtime } from '@/lib/api/hooks/useCashMovements';
+import { useInvoicesRealtime } from '@/lib/api/hooks/useInvoices';
+import { useClientCreditsRealtime } from '@/lib/api/hooks/useClientCredits';
+// Register CRUD now goes via the API hook (useCashRegisters) above — the old
+// Firebase-backed store is no longer used.
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -51,8 +52,7 @@ export default function CashPage() {
   const { invoices: allInvoices } = useInvoicesRealtime();
   const { payments: clientCreditPayments } = useClientCreditsRealtime();
 
-  // Garder le store pour les autres fonctions utilitaires (CRUD)
-  const { deleteCashRegister } = useCashRegistersStore();
+  const { deleteCashRegister } = useCashRegisters();
 
   const { canCreateCashOperation, canAccessModule, getFirstAccessiblePage } = usePermissions();
 
@@ -127,7 +127,7 @@ export default function CashPage() {
     const todayOut = todayMovements
       .filter(m => {
         if (m.type !== 'out' && !(m.type === 'transfer' && !m.sourceCashRegisterId)) return false;
-        if (['cancellation', 'modification', 'credit_payment_reversal'].includes(m.category)) return false;
+        if (['cancellation', 'modification', 'credit_payment_reversal', 'transfer'].includes(m.category || '')) return false;
         return true;
       })
       .reduce((sum, m) => sum + m.amount, 0);
@@ -164,7 +164,8 @@ export default function CashPage() {
       const movementDate = new Date(m.createdAt);
       movementDate.setHours(0, 0, 0, 0);
       return movementDate.getTime() === today.getTime() &&
-        (m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId));
+        (m.type === 'out' || (m.type === 'transfer' && !m.sourceCashRegisterId)) &&
+        m.category !== 'transfer';
     }).length;
   }, [movements]);
 

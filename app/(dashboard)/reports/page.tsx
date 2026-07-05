@@ -16,13 +16,11 @@ import { StockReport } from '@/components/reports/StockReport';
 import { CashReport } from '@/components/reports/CashReport';
 import { ExportButton } from '@/components/ui/ExportButton';
 import { exportToExcel, exportToCSV, type ExportColumn } from '@/lib/utils/export';
-import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
-import { useProductsRealtime } from '@/lib/react-query/useProductsRealtime';
-import {
-  useCashRegisters,
-  useMovements,
-} from '@/lib/stores/useCashRegistersStore';
-import { useAuth } from '@/lib/hooks/useAuth';
+import { useInvoicesRealtime } from '@/lib/api/hooks/useInvoices';
+import { useProductsRealtime } from '@/lib/api/hooks/useProducts';
+import { useCashRegistersRealtime as useCashRegisters } from '@/lib/api/hooks/useCashRegisters';
+import { useCashMovementsRealtime as useMovements } from '@/lib/api/hooks/useCashMovements';
+import { useAuth } from '@/lib/auth-context';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { formatPrice } from '@/lib/utils';
 
@@ -48,8 +46,8 @@ export default function ReportsPage() {
   // React Query + onSnapshot hooks
   const { invoices } = useInvoicesRealtime();
   const { products } = useProductsRealtime();
-  const cashRegisters = useCashRegisters();
-  const movements = useMovements();
+  const { cashRegisters } = useCashRegisters();
+  const { movements } = useMovements();
 
   // Auth user for store initialization
   const { user } = useAuth();

@@ -127,6 +127,12 @@ export default function LoginPage() {
                 "Se connecter"
               )}
             </Button>
+            <p className="text-sm text-center text-muted-foreground">
+              Pas encore de compte ?{" "}
+              <Link href="/register" className="text-primary font-medium hover:underline">
+                Créer un compte
+              </Link>
+            </p>
           </CardFooter>
         </form>
       </Card>

@@ -4,8 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { getDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { api } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth-context';
 import { Loader2, ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -57,7 +56,7 @@ interface Company {
 
 export default function PrintInvoicePage() {
   const params = useParams();
-  const { user } = useAuth();
+  const { user, currentCompany } = useAuth();
   const router = useRouter();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
@@ -129,37 +128,24 @@ export default function PrintInvoicePage() {
           return;
         }
 
-        // Récupérer la facture
-        const invoiceRef = doc(db, 'companies', user.currentCompanyId, 'invoices', params.id as string);
-        const invoiceSnap = await getDoc(invoiceRef);
-
-        if (!invoiceSnap.exists()) {
+        // Récupérer la facture depuis l'API
+        const res = await api.get<any>(`/invoices/${params.id}`);
+        if (!res) {
           setError('Facture non trouvée');
           setLoading(false);
           return;
         }
 
-        const data = invoiceSnap.data();
         const invoiceData = {
-          id: invoiceSnap.id,
-          ...data,
-          // Convertir les dates Firestore en chaînes ISO
-          date: data?.date?.toDate?.()?.toISOString() || data?.date || new Date().toISOString(),
-          dueDate: data?.dueDate?.toDate?.()?.toISOString() || data?.dueDate || undefined,
+          ...res,
+          date: res.saleDate ? new Date(res.saleDate) : new Date(),
+          dueDate: res.dueDate ? new Date(res.dueDate) : undefined,
         } as Invoice;
         setInvoice(invoiceData);
 
-        // Récupérer l'entreprise
-        if (invoiceData.companyId) {
-          const companyRef = doc(db, 'companies', invoiceData.companyId);
-          const companySnap = await getDoc(companyRef);
-
-          if (companySnap.exists()) {
-            setCompany({
-              id: companySnap.id,
-              ...companySnap.data()
-            } as Company);
-          }
+        // L'entreprise vient du contexte d'auth (pas de fetch séparé)
+        if (currentCompany) {
+          setCompany(currentCompany as any);
         }
 
         // Imprimer automatiquement après le chargement (une seule fois)

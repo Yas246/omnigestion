@@ -1,17 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { doc, collection, getDocs, query, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { FileSpreadsheet, Check, X, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
-import { db, COLLECTIONS } from '@/lib/firebase';
+import { api } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth-context';
-import { useSettings } from '@/lib/hooks/useSettings';
+import { useSettings } from '@/lib/api/hooks/useSettings';
 import { parseProductFile, type ParsedProduct } from '@/lib/utils/excelParser';
 import type { Product } from '@/types';
 
@@ -22,8 +22,9 @@ interface ImportProductsModalProps {
 }
 
 export function ImportProductsModal({ open, onOpenChange, onImportComplete }: ImportProductsModalProps) {
+  const qc = useQueryClient();
   const { user } = useAuth();
-  const { settings } = useSettings();
+  const { settings, warehouses } = useSettings();
   const [step, setStep] = useState<'upload' | 'preview' | 'importing' | 'result'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -114,26 +115,10 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
   };
 
   const checkForDuplicates = async (products: ParsedProduct[]): Promise<number> => {
-    if (!user?.currentCompanyId) return 0;
-
-    const productNames = products.map(p => p.name.toLowerCase());
-
-    const q = query(
-      collection(db, COLLECTIONS.companyProducts(user.currentCompanyId)),
-      where('companyId', '==', user.currentCompanyId)
-    );
-    const snapshot = await getDocs(q);
-
-    // Compter les doublons
-    let duplicateCount = 0;
-    snapshot.forEach((doc) => {
-      const product = doc.data() as Product;
-      if (productNames.includes(product.name.toLowerCase())) {
-        duplicateCount++;
-      }
-    });
-
-    return duplicateCount;
+    const res = await api.get<{ data: any[] } | any[]>('/products?limit=500');
+    const arr = Array.isArray(res) ? res : (res as any).data ?? [];
+    const existingNames = new Set((arr as any[]).map((p) => p.name?.toLowerCase()));
+    return products.filter((p) => existingNames.has(p.name.toLowerCase())).length;
   };
 
   const handleImport = async () => {
@@ -148,81 +133,53 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
     const errorDetails: string[] = [];
 
     try {
-      const q = query(
-        collection(db, COLLECTIONS.companyProducts(user.currentCompanyId)),
-        where('companyId', '==', user.currentCompanyId)
-      );
-      const snapshot = await getDocs(q);
-      const existingProductNames = new Set(
-        snapshot.docs.map(doc => (doc.data() as Product).name.toLowerCase())
-      );
+      const res = await api.get<{ data: any[] } | any[]>('/products?limit=500');
+      const arr = Array.isArray(res) ? res : (res as any).data ?? [];
+      const existingProductNames = new Set((arr as any[]).map((p) => p.name?.toLowerCase()));
 
-      // Utiliser un batch pour l'import
-      const batch = writeBatch(db);
-      const batchSize = 500; // Firestore batch limit
-      let currentBatch = 0;
+      // Resolve the import depot: prefer the user-configured default depot
+      // (settings.stock.defaultWarehouseId — the "Dépôt par défaut" select in
+      // Settings), fall back to the main warehouse. Coherent with InvoiceService.
+      const [whRes, settingsRes] = await Promise.all([
+        api.get<any>('/warehouses'),
+        api.get<any>('/settings').catch(() => null),
+      ]);
+      const whArr = Array.isArray(whRes) ? whRes : (whRes as any).data ?? [];
+      const preferredId = (settingsRes as any)?.stock?.defaultWarehouseId;
+      let defaultWh = preferredId
+        ? whArr.find((w: any) => String(w.id) === String(preferredId))
+        : null;
+      if (!defaultWh) defaultWh = whArr.find((w: any) => w.isMain) ?? whArr[0];
+      const defaultWarehouseId = defaultWh ? String(defaultWh.id) : null;
+      console.log('[import] warehouse:', defaultWh?.name, 'id:', defaultWarehouseId);
 
       for (const parsedProduct of parsedProducts) {
-        // Vérifier si le produit existe déjà
         if (existingProductNames.has(parsedProduct.name.toLowerCase())) {
           skippedCount++;
           continue;
         }
 
         try {
-          const productId = doc(collection(db, COLLECTIONS.companyProducts(user.currentCompanyId))).id;
-          const productRef = doc(db, COLLECTIONS.companyProducts(user.currentCompanyId), productId);
-
-          // Récupérer le dépôt par défaut depuis les settings
-          const defaultWarehouseId = settings?.stock?.defaultWarehouseId;
-
-          const productData: Omit<Product, 'id'> = {
-            companyId: user.currentCompanyId,
+          const created = await api.post<any>('/products', {
             name: parsedProduct.name,
-            code: `PROD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-            warehouseId: defaultWarehouseId,
             purchasePrice: Number(parsedProduct.purchasePrice) || 0,
             retailPrice: Number(parsedProduct.retailPrice) || 0,
             wholesalePrice: Number(parsedProduct.wholesalePrice) || 0,
             wholesaleThreshold: Number(parsedProduct.wholesaleThreshold) || 10,
-            currentStock: Number(parsedProduct.quantity) || 0,
             alertThreshold: Number(parsedProduct.alertThreshold) || 5,
-            ...(parsedProduct.category && { category: parsedProduct.category }),
-            status: parsedProduct.quantity <= (Number(parsedProduct.alertThreshold) || 5) ? 'low' : parsedProduct.quantity === 0 ? 'out' : 'ok',
+            ...(parsedProduct.category ? { category: parsedProduct.category } : {}),
             unit: parsedProduct.unit || 'Pièce',
-            isActive: true,
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
-          };
+            ...(defaultWarehouseId ? { warehouseId: Number(defaultWarehouseId) } : {}),
+          });
 
-          batch.set(productRef, productData);
-
-          // Créer la répartition de stock dans le dépôt par défaut
-          if (defaultWarehouseId) {
-            // Créer le document warehouse_quantities (collection centralisée)
-            const warehouseQuantitiesRef = doc(
-              db,
-              `companies/${user.currentCompanyId}/warehouse_quantities`,
-              productId
-            );
-            batch.set(warehouseQuantitiesRef, {
-              productId: productId,
-              quantities: [{
-                warehouseId: defaultWarehouseId,
-                warehouseName: defaultWarehouseId,
-                quantity: Number(parsedProduct.quantity) || 0,
-              }],
-              createdAt: Timestamp.now(),
-              updatedAt: Timestamp.now(),
+          const qty = Number(parsedProduct.quantity) || 0;
+          console.log('[import]', parsedProduct.name, 'qty:', qty, 'wh:', defaultWarehouseId, 'pid:', created?.id);
+          if (qty > 0 && defaultWarehouseId && created?.id) {
+            await api.post('/stock/restock', {
+              productId: Number(created.id),
+              warehouseId: Number(defaultWarehouseId),
+              quantity: qty,
             });
-          }
-
-          currentBatch++;
-
-          // Si le batch est plein, l'exécuter et en créer un nouveau
-          if (currentBatch >= batchSize) {
-            await batch.commit();
-            currentBatch = 0;
           }
 
           successCount++;
@@ -232,26 +189,15 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
         }
       }
 
-      // Exécuter le dernier batch s'il reste des opérations
-      if (currentBatch > 0) {
-        console.log('[ImportProductsModal] Commit du batch avec', currentBatch, 'opérations');
-        try {
-          await batch.commit();
-          console.log('[ImportProductsModal] Batch commit réussi');
-        } catch (commitError) {
-          console.error('[ImportProductsModal] Erreur lors du commit du batch:', commitError);
-          throw commitError;
-        }
-      } else {
-        console.warn('[ImportProductsModal] Aucune opération à committer (currentBatch = 0)');
-      }
-
       setImportResult({
         success: successCount,
         errors: errorCount,
         skipped: skippedCount,
         errorDetails,
       });
+
+      // Invalidate the products cache so the list refreshes without a page reload.
+      qc.invalidateQueries({ queryKey: ['products'] });
 
       setStep('result');
       toast.success(`${successCount} produit(s) importé(s) avec succès`);
@@ -290,8 +236,8 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-4xl max-h-screen flex flex-col overflow-hidden p-4 sm:p-6">
+        <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>Importer des produits</DialogTitle>
           <DialogDescription>
             {step === 'upload' && 'Importez vos produits depuis un fichier Excel ou CSV'}
@@ -302,9 +248,9 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
         </DialogHeader>
 
         {step === 'upload' && (
-          <div className="space-y-4 py-4">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4">
             <div
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 space-y-4 transition-colors ${
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-4 sm:p-8 space-y-4 transition-colors ${
                 isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
               }`}
               onDragOver={handleDragOver}
@@ -334,10 +280,10 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
 
             {file && (
               <Card>
-                <CardContent className="py-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">{file.name}</span>
+                <CardContent className="py-4 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileSpreadsheet className="h-5 w-5 shrink-0 text-primary" />
+                    <span className="text-sm font-medium truncate">{file.name}</span>
                     <span className="text-xs text-muted-foreground">({(file.size / 1024).toFixed(2)} KB)</span>
                   </div>
                   <Button
@@ -369,8 +315,8 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
         )}
 
         {step === 'preview' && (
-          <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm">
                 <span className="font-medium">{parsedProducts.length}</span> produits à importer
                 {duplicates > 0 && (
@@ -404,7 +350,7 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
 
             <Card>
               <CardContent className="p-0">
-                <div className="max-h-96 overflow-auto">
+                <div className="overflow-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -413,11 +359,11 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
                         <TableHead>Quantité</TableHead>
                         <TableHead>Prix achat</TableHead>
                         <TableHead>Prix vente</TableHead>
-                        <TableHead>Prix gros</TableHead>
-                        <TableHead>Seuil alerte</TableHead>
-                        <TableHead>Catégorie</TableHead>
-                        <TableHead>Unité</TableHead>
-                        <TableHead>Statut</TableHead>
+                        <TableHead className="hidden sm:table-cell">Prix gros</TableHead>
+                        <TableHead className="hidden sm:table-cell">Seuil alerte</TableHead>
+                        <TableHead className="hidden sm:table-cell">Catégorie</TableHead>
+                        <TableHead className="hidden sm:table-cell">Unité</TableHead>
+                        <TableHead className="hidden sm:table-cell">Statut</TableHead>
                         <TableHead className="w-10"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -431,11 +377,11 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
                             <TableCell>{product.quantity}</TableCell>
                             <TableCell>{product.purchasePrice}</TableCell>
                             <TableCell>{product.retailPrice}</TableCell>
-                            <TableCell>{product.wholesalePrice}</TableCell>
-                            <TableCell>{product.alertThreshold}</TableCell>
-                            <TableCell>{product.category || '-'}</TableCell>
-                            <TableCell>{product.unit}</TableCell>
-                            <TableCell>
+                            <TableCell className="hidden sm:table-cell">{product.wholesalePrice}</TableCell>
+                            <TableCell className="hidden sm:table-cell">{product.alertThreshold}</TableCell>
+                            <TableCell className="hidden sm:table-cell">{product.category || '-'}</TableCell>
+                            <TableCell className="hidden sm:table-cell">{product.unit}</TableCell>
+                            <TableCell className="hidden sm:table-cell">
                               {product.errors.length === 0 && product.warnings.length === 0 && (
                                 <Badge variant="default" className="gap-1">
                                   <Check className="h-3 w-3" /> OK
@@ -469,7 +415,7 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
                   </div>
                 )}
                 {filteredProducts.length === 0 && (
-                  <div className="p-8 text-center text-sm text-muted-foreground">
+                  <div className="p-4 sm:p-8 text-center text-sm text-muted-foreground">
                     Aucun produit à afficher avec ce filtre
                   </div>
                 )}
@@ -479,8 +425,8 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
         )}
 
         {step === 'importing' && (
-          <div className="flex flex-col items-center justify-center py-12 space-y-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <div className="flex-1 flex flex-col items-center justify-center py-12 space-y-4">
+            <Loader2 className="h-10 w-10 sm:h-12 sm:w-12 animate-spin text-primary" />
             <p className="text-sm font-medium">Import en cours...</p>
             <p className="text-xs text-muted-foreground">
               Veuillez patienter, cela peut prendre quelques instants
@@ -489,23 +435,23 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
         )}
 
         {step === 'result' && (
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-3 gap-4">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <Card className={importResult.success > 0 ? 'border-green-500' : ''}>
-                <CardContent className="pt-6 text-center">
-                  <div className="text-3xl font-bold text-green-600">{importResult.success}</div>
+                <CardContent className="pt-4 sm:pt-6 text-center">
+                  <div className="text-2xl sm:text-3xl font-bold text-green-600">{importResult.success}</div>
                   <div className="text-xs text-muted-foreground mt-1">Importé(s)</div>
                 </CardContent>
               </Card>
               <Card className={importResult.skipped > 0 ? 'border-yellow-500' : ''}>
-                <CardContent className="pt-6 text-center">
-                  <div className="text-3xl font-bold text-yellow-600">{importResult.skipped}</div>
+                <CardContent className="pt-4 sm:pt-6 text-center">
+                  <div className="text-2xl sm:text-3xl font-bold text-yellow-600">{importResult.skipped}</div>
                   <div className="text-xs text-muted-foreground mt-1">Ignoré(s)</div>
                 </CardContent>
               </Card>
               <Card className={importResult.errors > 0 ? 'border-red-500' : ''}>
-                <CardContent className="pt-6 text-center">
-                  <div className="text-3xl font-bold text-red-600">{importResult.errors}</div>
+                <CardContent className="pt-4 sm:pt-6 text-center">
+                  <div className="text-2xl sm:text-3xl font-bold text-red-600">{importResult.errors}</div>
                   <div className="text-xs text-muted-foreground mt-1">Erreur(s)</div>
                 </CardContent>
               </Card>
@@ -517,9 +463,9 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
                   <p className="text-sm font-medium">Détails des erreurs</p>
                 </CardHeader>
                 <CardContent>
-                  <div className="max-h-40 overflow-auto space-y-1">
+                  <div className="max-h-40 overflow-y-auto space-y-1">
                     {importResult.errorDetails.map((error, index) => (
-                      <div key={index} className="text-xs text-destructive">
+                      <div key={index} className="text-xs text-destructive wrap-break-word">
                         {error}
                       </div>
                     ))}
@@ -530,29 +476,29 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <div className="shrink-0 flex flex-col-reverse gap-2 pt-4 border-t sm:flex-row sm:justify-end">
           {step === 'upload' && (
             <>
-              <Button variant="outline" onClick={handleClose}>
+              <Button variant="outline" onClick={handleClose} className="w-full sm:w-auto">
                 Annuler
               </Button>
-              <Button onClick={handlePreview} disabled={!file}>
+              <Button onClick={handlePreview} disabled={!file} className="w-full sm:w-auto">
                 Suivant
               </Button>
             </>
           )}
           {step === 'preview' && (
             <>
-              <Button variant="outline" onClick={() => setStep('upload')}>
+              <Button variant="outline" onClick={() => setStep('upload')} className="w-full sm:w-auto">
                 Retour
               </Button>
-              <Button onClick={handleImport} disabled={isImporting}>
+              <Button onClick={handleImport} disabled={isImporting} className="w-full sm:w-auto">
                 Importer {parsedProducts.length} produit(s)
               </Button>
             </>
           )}
           {step === 'result' && (
-            <Button onClick={handleClose}>
+            <Button onClick={handleClose} className="w-full sm:w-auto">
               Fermer
             </Button>
           )}

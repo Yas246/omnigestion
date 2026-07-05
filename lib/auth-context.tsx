@@ -1,28 +1,38 @@
 'use client';
 
-// Contexte d'authentification pour Omnigestion
-import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import {
-  User,
-  signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  onIdTokenChanged,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-} from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
-import { auth, db, isFirebaseConfigured } from './firebase';
-import type { User as AppUser, Company } from '@/types';
+/**
+ * Auth context — API-backed (AdonisJS). No Firebase.
+ *
+ * The user object is shaped like the legacy `AppUser` so existing consumers
+ * (login, layout, settings tabs, PermissionGate) keep working: `role` +
+ * `permissions` come from `/account/profile` (resolved for the currently
+ * selected company), so `usePermissions` / `PermissionGate` enforce granular
+ * access client-side. Token + current company live in localStorage
+ * (see lib/api/client).
+ */
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import * as authApi from '@/lib/api/auth';
+import { getToken, setToken, getCompanyId, setCompanyId } from '@/lib/api/client';
+import type { AuthUser, Company as ApiCompany } from '@/lib/api/auth';
+import type { User as AppUser, Company, UserRole } from '@/types';
 
 interface AuthContextType {
-  user: (AppUser & { firebaseUser: User }) | null;
+  user: AppUser | null;
   companies: Company[];
   currentCompany: Company | null;
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, companyName: string, firstName: string, lastName: string, position: string, phone: string, businessSector: 'commerce' | 'commerce_and_services') => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    companyName: string,
+    firstName: string,
+    lastName: string,
+    position: string,
+    phone: string,
+    businessSector: 'commerce' | 'commerce_and_services'
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   switchCompany: (companyId: string) => Promise<void>;
@@ -32,327 +42,192 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function mapCompany(c: ApiCompany): Company {
+  return {
+    id: String(c.id),
+    name: c.name,
+    businessSector: (c.businessSector as Company['businessSector']) ?? undefined,
+    currency: c.currency,
+    taxId: c.taxId ?? undefined,
+    ifu: c.ifu ?? undefined,
+    rccm: c.rccm ?? undefined,
+    phone: c.phone ?? undefined,
+    email: c.email ?? undefined,
+    address: c.address ?? undefined,
+    website: c.website ?? undefined,
+    logoUrl: c.logoUrl ?? undefined,
+    invoiceFooter: c.invoiceFooter ?? undefined,
+    createdAt: new Date(c.createdAt),
+    updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date(),
+  };
+}
+
+function mapUser(u: AuthUser, companies: Company[], currentCompany: Company | null): AppUser {
+  const role: UserRole = u.role ?? (u.isOwner ? 'admin' : 'employee');
+  return {
+    id: String(u.id),
+    email: u.email,
+    displayName: u.fullName ?? '',
+    role,
+    companyIds: companies.map((c) => c.id),
+    currentCompanyId: currentCompany?.id ?? '',
+    permissions: u.permissions ?? [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<(AppUser & { firebaseUser: User }) | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const deliberateLogoutRef = useRef(false);
 
+  /**
+   * Selects the company (so the API client sends the right X-Company-Id), then
+   * fetches the profile to resolve the user's role + permissions FOR THAT
+   * COMPANY. Permissions are company-scoped, so this runs after every company
+   * switch (and on login/restore).
+   */
+  const resolveCurrentCompany = async (comps: Company[], storedId: number | null): Promise<Company | null> => {
+    const current = comps.find((c) => c.id === String(storedId ?? '')) ?? comps[0] ?? null;
+    if (current) setCompanyId(Number(current.id));
+    return current;
+  };
+
+  const buildCurrentUser = async (comps: Company[], current: Company | null): Promise<AppUser> => {
+    if (current) setCompanyId(Number(current.id));
+    const profile = await authApi.fetchProfile();
+    setToken(getToken()); // refresh the route-protection cookie (may have expired)
+    return mapUser(profile, comps, current);
+  };
+
+  // Restore session on mount if a token is present
   useEffect(() => {
-    if (!isFirebaseConfigured()) {
+    const token = getToken();
+    if (!token) {
       setLoading(false);
-      setError('Firebase n\'est pas configuré. Veuillez configurer les variables d\'environnement.');
       return;
     }
-
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (firebaseUser: User | null) => {
-        if (firebaseUser) {
-          try {
-            // Créer le cookie de session pour le middleware
-            const idToken = await firebaseUser.getIdToken();
-            document.cookie = `firebase-session=${idToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Strict`;
-
-            // Récupérer les données utilisateur depuis Firestore
-            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-
-            if (userDoc.exists()) {
-              const userData = userDoc.data() as Omit<AppUser, 'id'>;
-              setUser({
-                id: firebaseUser.uid,
-                ...userData,
-                firebaseUser,
-              });
-
-              // Charger les entreprises de l'utilisateur
-              if (userData.companyIds && userData.companyIds.length > 0) {
-                await loadCompanies(userData.companyIds, userData.currentCompanyId);
-              }
-            } else {
-              // Utilisateur Firebase sans document Firestore
-              setUser({
-                id: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                role: 'employee',
-                companyIds: [],
-                currentCompanyId: '',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                firebaseUser,
-              });
-            }
-          } catch (err) {
-            console.error('Erreur lors de la récupération des données utilisateur:', err);
-            setError('Erreur lors du chargement des données utilisateur');
-          }
-        } else {
-          if (deliberateLogoutRef.current) {
-            deliberateLogoutRef.current = false;
-          }
-          // Toujours nettoyer — gcTime: Infinity protège les données React Query
-          setUser(null);
-          setCompanies([]);
-          setCurrentCompany(null);
-          document.cookie = 'firebase-session=; path=/; max-age=0';
-        }
-        setLoading(false);
-      },
-      (err) => {
-        console.error('Erreur d\'authentification:', err);
-        setError('Erreur d\'authentification');
-        setLoading(false);
-      }
-    );
-
-    // Rafraîchir le cookie session à chaque renouvellement de token (~1h)
-    const unsubscribeToken = onIdTokenChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const idToken = await firebaseUser.getIdToken();
-        document.cookie = `firebase-session=${idToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Strict`;
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      unsubscribeToken();
-    };
-  }, []);
-
-  // Charger les entreprises de l'utilisateur
-  const loadCompanies = async (companyIds: string[], currentCompanyId: string) => {
-    try {
-      const companyPromises = companyIds.map(async (companyId) => {
-        const companyDoc = await getDoc(doc(db, 'companies', companyId));
-        if (companyDoc.exists()) {
-          return {
-            id: companyDoc.id,
-            ...companyDoc.data(),
-          } as Company;
-        }
-        return null;
-      });
-
-      const companiesData = await Promise.all(companyPromises);
-      const validCompanies = companiesData.filter((c): c is Company => c !== null);
-      setCompanies(validCompanies);
-
-      // Définir l'entreprise actuelle
-      const current = validCompanies.find(c => c.id === currentCompanyId);
-      if (current) {
+    (async () => {
+      try {
+        const comps = (await authApi.listCompanies()).map(mapCompany);
+        setCompanies(comps);
+        const current = await resolveCurrentCompany(comps, getCompanyId());
         setCurrentCompany(current);
-      } else if (validCompanies.length > 0) {
-        // Fallback : première entreprise si currentCompanyId invalide
-        setCurrentCompany(validCompanies[0]);
+        setUser(await buildCurrentUser(comps, current));
+      } catch (err) {
+        // Invalid/expired token — clear and start clean
+        setToken(null);
+        setCompanyId(null);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('Erreur lors du chargement des entreprises:', err);
-    }
-  };
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     setError(null);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await authApi.login(email, password);
+      const comps = (await authApi.listCompanies()).map(mapCompany);
+      setCompanies(comps);
+      const current = await resolveCurrentCompany(comps, getCompanyId());
+      setCurrentCompany(current);
+      setUser(await buildCurrentUser(comps, current));
     } catch (err: any) {
-      console.error('Erreur de connexion:', err);
-      const errorMessage = err.code === 'auth/invalid-credential'
+      const message = err?.status === 401 || err?.status === 400
         ? 'Email ou mot de passe incorrect'
-        : err.code === 'auth/user-not-found'
-        ? 'Utilisateur non trouvé'
-        : err.code === 'auth/wrong-password'
-        ? 'Mot de passe incorrect'
-        : 'Erreur lors de la connexion';
-      setError(errorMessage);
+        : err?.message || 'Erreur lors de la connexion';
+      setError(message);
       throw err;
     }
   };
 
-  const signUp = async (
-    email: string,
-    password: string,
-    companyName: string,
-    firstName: string,
-    lastName: string,
-    position: string,
-    phone: string,
-    businessSector: 'commerce' | 'commerce_and_services'
+  const signUp: AuthContextType['signUp'] = async (
+    email, password, companyName, firstName, _lastName, _position, _phone, _businessSector
   ) => {
     setError(null);
     try {
-      // Créer l'utilisateur Firebase
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-
-      // Générer un ID unique pour l'entreprise
-      const companyRef = doc(collection(db, 'companies'));
-      const companyId = companyRef.id;
-
-      // Créer l'entreprise
-      await setDoc(companyRef, {
-        name: companyName,
-        businessSector: businessSector,
-        currency: 'FCFA',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      const fullName = [firstName, _lastName].filter(Boolean).join(' ') || null;
+      const { company } = await authApi.register({
+        fullName,
+        email,
+        password,
+        passwordConfirmation: password,
+        companyName,
       });
-
-      // Créer le document utilisateur
-      const userRef = doc(db, 'users', userCredential.user.uid);
-      await setDoc(userRef, {
-        email: email,
-        displayName: `${firstName} ${lastName}`,
-        firstName: firstName,
-        lastName: lastName,
-        position: position,
-        phone: phone,
-        role: 'admin',
-        companyIds: [companyId],
-        currentCompanyId: companyId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      const comps = (await authApi.listCompanies()).map(mapCompany);
+      setCompanies(comps);
+      const current = comps.find((c) => c.id === String(company.id)) ?? comps[0] ?? null;
+      setCurrentCompany(current);
+      setUser(await buildCurrentUser(comps, current));
     } catch (err: any) {
-      console.error('Erreur d\'inscription:', err);
-      const errorMessage = err.code === 'auth/email-already-in-use'
-        ? 'Cette adresse email est déjà utilisée'
-        : err.code === 'auth/weak-password'
-        ? 'Le mot de passe doit contenir au moins 6 caractères'
-        : err.code === 'auth/invalid-email'
-        ? 'Adresse email invalide'
-        : 'Erreur lors de l\'inscription';
-      setError(errorMessage);
+      const message = err?.message || 'Erreur lors de l\'inscription';
+      setError(message);
       throw err;
     }
   };
 
   const switchCompany = async (companyId: string) => {
-    if (!user) return;
-
+    const company = companies.find((c) => c.id === companyId);
+    if (!company) return;
+    setCurrentCompany(company);
+    setCompanyId(Number(company.id));
+    // Re-resolve permissions for the newly selected company.
     try {
-      const userRef = doc(db, 'users', user.id);
-      await setDoc(userRef, {
-        currentCompanyId: companyId,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-
-      // Recharger les données utilisateur
-      const userDoc = await getDoc(userRef);
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as Omit<AppUser, 'id'>;
-        setUser({
-          id: user.id,
-          ...userData,
-          firebaseUser: user.firebaseUser,
-        });
-
-        // Mettre à jour l'entreprise actuelle
-        const company = companies.find(c => c.id === companyId);
-        if (company) {
-          setCurrentCompany(company);
-        }
-      }
-    } catch (err) {
-      console.error('Erreur lors du changement d\'entreprise:', err);
-      setError('Erreur lors du changement d\'entreprise');
-      throw err;
-    }
-  };
-
-  const createCompany = async (companyData: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!user || user.role !== 'admin') {
-      throw new Error('Seuls les administrateurs peuvent créer des entreprises');
-    }
-
-    try {
-      const idToken = await user.firebaseUser.getIdToken();
-
-      const response = await fetch('/api/companies/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify(companyData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de la création de l\'entreprise');
-      }
-
-      // Recharger les données utilisateur
-      const userRef = doc(db, 'users', user.id);
-      const userDoc = await getDoc(userRef);
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as Omit<AppUser, 'id'>;
-        setUser({
-          id: user.id,
-          ...userData,
-          firebaseUser: user.firebaseUser,
-        });
-
-        // Recharger les entreprises
-        await loadCompanies(userData.companyIds || [], data.companyId);
-      }
-    } catch (err) {
-      console.error('Erreur lors de la création de l\'entreprise:', err);
-      setError('Erreur lors de la création de l\'entreprise');
-      throw err;
-    }
-  };
-
-  const signOutUser = async () => {
-    setError(null);
-    deliberateLogoutRef.current = true;
-    try {
-      // Supprimer le cookie de session
-      document.cookie = 'firebase-session=; path=/; max-age=0; SameSite=Strict';
-      await firebaseSignOut(auth);
+      const profile = await authApi.fetchProfile();
+      setUser((prev) => (prev ? mapUser(profile, companies, company) : prev));
     } catch (err: any) {
-      console.error('Erreur de déconnexion:', err);
-      setError('Erreur lors de la déconnexion');
+      console.error('[AuthContext] switchCompany profile fetch failed:', err);
+    }
+  };
+
+  const createCompany: AuthContextType['createCompany'] = async (companyData) => {
+    try {
+      const created = await authApi.createCompany({
+        name: companyData.name,
+        businessSector: companyData.businessSector ?? undefined,
+        currency: companyData.currency,
+        taxId: companyData.taxId,
+        ifu: companyData.ifu,
+        rccm: companyData.rccm,
+        phone: companyData.phone,
+        email: companyData.email,
+        address: companyData.address,
+      });
+      const mapped = mapCompany(created);
+      setCompanies((prev) => [...prev, mapped]);
+    } catch (err: any) {
+      setError(err?.message || 'Erreur lors de la création de l\'entreprise');
       throw err;
     }
+  };
+
+  const signOut = async () => {
+    setError(null);
+    await authApi.logout();
+    setUser(null);
+    setCompanies([]);
+    setCurrentCompany(null);
   };
 
   const refreshUser = async () => {
-    if (!user) return;
-
+    if (!getToken()) return;
     try {
-      // Recharger les données utilisateur depuis Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.id));
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as Omit<AppUser, 'id'>;
-        setUser({
-          id: user.id,
-          ...userData,
-          firebaseUser: user.firebaseUser,
-        });
-      }
-    } catch (err) {
-      console.error('Erreur lors du rafraîchissement des données utilisateur:', err);
-      setError('Erreur lors du rafraîchissement des données utilisateur');
-      throw err;
+      const profile = await authApi.fetchProfile();
+      setUser((prev) => (prev ? mapUser(profile, companies, currentCompany) : prev));
+    } catch (err: any) {
+      console.error('[AuthContext] refresh failed:', err);
     }
   };
 
-  const resetPassword = async (email: string) => {
-    setError(null);
-    try {
-      await sendPasswordResetEmail(auth, email);
-    } catch (err: any) {
-      console.error('[AuthContext] Erreur de réinitialisation:', err.code, err.message);
-      const errorMessage = err.code === 'auth/user-not-found'
-        ? 'Aucun compte trouvé avec cette adresse email'
-        : err.code === 'auth/invalid-email'
-        ? 'Adresse email invalide'
-        : `Erreur lors de la réinitialisation du mot de passe (${err.code})`;
-      setError(errorMessage);
-      throw err;
-    }
+  const resetPassword = async (_email: string) => {
+    // Not yet implemented on the API (no password-reset endpoint). Wire when added.
+    setError('La réinitialisation de mot de passe n\'est pas encore disponible sur la nouvelle API.');
+    throw new Error('not-implemented');
   };
 
   return (
@@ -365,7 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error,
         signIn,
         signUp,
-        signOut: signOutUser,
+        signOut,
         resetPassword,
         switchCompany,
         createCompany,

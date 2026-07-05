@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,16 +10,13 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Building2, User, Mail, ShieldOff } from 'lucide-react';
+import { Loader2, Building2, User, Mail } from 'lucide-react';
 
 type BusinessSector = 'commerce' | 'commerce_and_services';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { signUp, loading, error } = useAuth();
-
-  // Vérification de l'activation de l'inscription
-  const [registrationStatus, setRegistrationStatus] = useState<'loading' | 'enabled' | 'disabled'>('loading');
 
   // Champs entreprise
   const [companyName, setCompanyName] = useState('');
@@ -39,42 +34,22 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState('');
 
-  // Vérifier si l'inscription est activée
-  useEffect(() => {
-    async function checkRegistration() {
-      try {
-        const regDoc = await getDoc(doc(db, 'settings', 'registration'));
-        if (!regDoc.exists()) {
-          // Document n'existe pas → inscription activée par défaut
-          setRegistrationStatus('enabled');
-        } else {
-          setRegistrationStatus(regDoc.data().enabled === false ? 'disabled' : 'enabled');
-        }
-      } catch {
-        // En cas d'erreur (ex: rules), autoriser l'inscription par défaut
-        setRegistrationStatus('enabled');
-      }
-    }
-    checkRegistration();
-  }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError('');
 
-    // Validation
     if (password !== confirmPassword) {
       setValidationError('Les mots de passe ne correspondent pas');
       return;
     }
 
-    if (password.length < 6) {
-      setValidationError('Le mot de passe doit contenir au moins 6 caractères');
+    if (password.length < 8) {
+      setValidationError('Le mot de passe doit contenir au moins 8 caractères');
       return;
     }
 
     if (!companyName.trim()) {
-      setValidationError('Veuillez entrer le nom de votre entreprise');
+      setValidationError("Veuillez entrer le nom de votre entreprise");
       return;
     }
 
@@ -83,55 +58,22 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!position.trim()) {
-      setValidationError('Veuillez entrer votre poste occupé');
-      return;
-    }
-
-    if (!phone.trim()) {
-      setValidationError('Veuillez entrer votre numéro de téléphone');
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
       await signUp(email, password, companyName, firstName, lastName, position, phone, businessSector);
-      router.push('/dashboard');
+      // Signup creates one company + logs the owner in. Land on the clients page
+      // (rewired) — /dashboard still uses Firebase until it is rewired.
+      router.push('/clients');
     } catch {
       setIsSubmitting(false);
     }
   };
 
-  if (loading || registrationStatus === 'loading') {
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (registrationStatus === 'disabled') {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md shadow-lg">
-          <CardHeader className="space-y-1 text-center">
-            <div className="flex justify-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-destructive/10">
-                <ShieldOff className="h-6 w-6 text-destructive" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl font-bold">Inscriptions désactivées</CardTitle>
-            <CardDescription>
-              La création de nouveaux comptes est actuellement désactivée par l&apos;administrateur.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex justify-center">
-            <Button onClick={() => router.push('/login')}>
-              Se connecter
-            </Button>
-          </CardFooter>
-        </Card>
       </div>
     );
   }
@@ -228,27 +170,25 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="position">Poste occupé *</Label>
+                  <Label htmlFor="position">Poste occupé</Label>
                   <Input
                     id="position"
                     type="text"
                     placeholder="Gérant, Directeur..."
                     value={position}
                     onChange={(e) => setPosition(e.target.value)}
-                    required
                     disabled={isSubmitting}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Téléphone *</Label>
+                  <Label htmlFor="phone">Téléphone</Label>
                   <Input
                     id="phone"
                     type="tel"
                     placeholder="+241 XX XX XX XX"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    required
                     disabled={isSubmitting}
                   />
                 </div>
@@ -290,7 +230,7 @@ export default function RegisterPage() {
                       autoComplete="new-password"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Minimum 6 caractères
+                      Minimum 8 caractères
                     </p>
                   </div>
 

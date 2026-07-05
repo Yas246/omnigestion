@@ -11,8 +11,8 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Calendar, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useClientsRealtime } from '@/lib/react-query/useClientsRealtime';
-import { useClientCredits } from '@/lib/hooks/useClientCredits';
+import { useClientsRealtime } from '@/lib/api/hooks/useClients';
+import { useClientCredits } from '@/lib/api/hooks/useClientCredits';
 import { toast } from 'sonner';
 
 interface ManualCreditDialogProps {

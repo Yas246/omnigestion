@@ -202,9 +202,24 @@ export function CreateCompanyDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Devise *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="FCFA" {...field} />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="FCFA">FCFA — Franc CFA</SelectItem>
+                          <SelectItem value="EUR">EUR — Euro</SelectItem>
+                          <SelectItem value="USD">USD — Dollar US</SelectItem>
+                          <SelectItem value="GBP">GBP — Livre sterling</SelectItem>
+                          <SelectItem value="MAD">MAD — Dirham marocain</SelectItem>
+                          <SelectItem value="NGN">NGN — Naira</SelectItem>
+                          <SelectItem value="GHS">GHS — Cedi</SelectItem>
+                          <SelectItem value="CAD">CAD — Dollar canadien</SelectItem>
+                          <SelectItem value="CHF">CHF — Franc suisse</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

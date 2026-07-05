@@ -11,7 +11,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Calendar, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useSuppliersRealtime } from '@/lib/react-query/useSuppliersRealtime';
+import { useSuppliersRealtime } from '@/lib/api/hooks/useSuppliers';
 import { useSupplierCredits } from '@/lib/hooks/useSupplierCredits';
 import { toast } from 'sonner';
 

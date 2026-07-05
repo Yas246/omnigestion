@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useRouter } from 'next/navigation';
 import type { Invoice, Company } from '@/types';
-import { useSettings } from '@/lib/hooks/useSettings';
+import { useSettings } from '@/lib/api/hooks/useSettings';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {

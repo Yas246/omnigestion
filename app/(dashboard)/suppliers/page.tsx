@@ -9,11 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus, DollarSign, Calendar, Package, User, Edit, Trash2 } from 'lucide-react';
-import { useSuppliersRealtime } from '@/lib/react-query/useSuppliersRealtime';
-import { useSupplierCreditsRealtime } from '@/lib/react-query/useSupplierCreditsRealtime';
-import { usePurchasesRealtime } from '@/lib/react-query/usePurchasesRealtime';
-import { useSuppliers } from '@/lib/hooks/useSuppliers'; // Garder pour les fonctions CRUD
-import { useSupplierCredits } from '@/lib/hooks/useSupplierCredits'; // Garder pour les fonctions CRUD
+import { useSuppliersRealtime, useSuppliers } from '@/lib/api/hooks/useSuppliers';
+import { useSupplierCreditsRealtime, useSupplierCredits } from '@/lib/api/hooks/useSupplierCredits';
+import { usePurchasesRealtime } from '@/lib/api/hooks/usePurchases';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
 import { SupplierCreditPaymentDialog } from '@/components/suppliers/SupplierCreditPaymentDialog';
@@ -165,10 +163,10 @@ export default function SuppliersPage() {
     }
   };
 
-  const handleUpdateSupplier = async (data: any) => {
+  const handleUpdateSupplier = async (id: string, data: any) => {
     setIsUpdating(true);
     try {
-      await updateSupplier(selectedSupplier.id, data);
+      await updateSupplier(id, data);
       setShowEditDialog(false);
       setSelectedSupplier(null);
       toast.success('Fournisseur modifié avec succès');

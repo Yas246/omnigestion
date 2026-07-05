@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
-import { useInvoicesRealtime } from '@/lib/react-query/useInvoicesRealtime';
-import { useClientCreditsRealtime } from '@/lib/react-query/useClientCreditsRealtime';
+import { useInvoicesRealtime } from '@/lib/api/hooks/useInvoices';
+import { useClientCreditsRealtime } from '@/lib/api/hooks/useClientCredits';
 import { getRecognizedProfits, buildInvoicePaymentsMap } from '@/lib/utils/profitCalculation';
 import { DollarSign, TrendingUp } from 'lucide-react';
 import { Bar, Line } from 'react-chartjs-2';

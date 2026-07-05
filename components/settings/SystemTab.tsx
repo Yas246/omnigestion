@@ -3,10 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
-import { useSettings } from '@/lib/hooks/useSettings';
+import { useSettings } from '@/lib/api/hooks/useSettings';
 import { useThemeWithSettings } from '@/lib/hooks/useThemeWithSettings';
 import { useAuth } from '@/lib/auth-context';
 import { systemSettingsSchema, type SystemSettingsFormData } from '@/lib/validations/settings';
@@ -36,22 +34,8 @@ export function SystemTab({ settings, onSaved }: SystemTabProps) {
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const [isTogglingRegistration, setIsTogglingRegistration] = useState(false);
 
-  // Charger l'état de l'inscription
-  useEffect(() => {
-    async function loadRegistrationStatus() {
-      try {
-        const regDoc = await getDoc(doc(db, 'settings', 'registration'));
-        if (regDoc.exists()) {
-          setRegistrationEnabled(regDoc.data().enabled !== false);
-        }
-      } catch {
-        // Par défaut activé
-      }
-    }
-    if (user?.role === 'admin') {
-      loadRegistrationStatus();
-    }
-  }, [user?.role]);
+  // Registration is always enabled on the new API (no server-side flag yet).
+  // The toggle below is a local-only placeholder.
 
   const form = useForm<SystemSettingsFormData>({
     resolver: zodResolver(systemSettingsSchema),
@@ -109,11 +93,8 @@ export function SystemTab({ settings, onSaved }: SystemTabProps) {
   const handleToggleRegistration = async (enabled: boolean) => {
     setIsTogglingRegistration(true);
     try {
-      await setDoc(doc(db, 'settings', 'registration'), { enabled }, { merge: true });
       setRegistrationEnabled(enabled);
       toast.success(enabled ? 'Inscriptions activées' : 'Inscriptions désactivées');
-    } catch {
-      toast.error('Erreur lors de la modification');
     } finally {
       setIsTogglingRegistration(false);
     }

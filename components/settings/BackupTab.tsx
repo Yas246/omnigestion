@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { useSettings } from '@/lib/hooks/useSettings';
+import { useSettings } from '@/lib/api/hooks/useSettings';
 import type { BackupSettings } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
