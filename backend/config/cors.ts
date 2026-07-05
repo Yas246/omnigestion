@@ -14,11 +14,13 @@ const corsConfig = defineConfig({
   enabled: true,
 
   /**
-   * In development, allow every origin to simplify local front/backend setup.
-   * In production, keep an explicit allowlist (empty by default, so no
-   * cross-origin browser access is allowed until configured).
+   * In development, allow every origin. In production, allow the origins
+   * listed in CORS_ORIGIN (comma-separated), e.g.
+   * `CORS_ORIGIN=http://168.119.119.4:3001,https://gestion.example.com`.
    */
-  origin: app.inDev ? true : [],
+  origin: app.inDev
+    ? true
+    : (process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean) : []),
 
   /**
    * HTTP methods accepted for cross-origin requests.
