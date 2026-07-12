@@ -22,6 +22,9 @@ export default class Client extends CompanyScopedModel {
   declare name: string
 
   @column()
+  declare storeAccountId: number | null
+
+  @column()
   declare code: string | null
 
   @column()

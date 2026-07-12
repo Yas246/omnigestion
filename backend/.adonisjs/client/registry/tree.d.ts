@@ -18,6 +18,18 @@ export interface ApiDefinition {
       destroy: typeof routes['profile.access_tokens.destroy']
     }
   }
+  publicStore: {
+    show: typeof routes['public_store.show']
+  }
+  storeAuth: {
+    signup: typeof routes['store_auth.signup']
+    login: typeof routes['store_auth.login']
+  }
+  publicCommerce: {
+    checkout: typeof routes['public_commerce.checkout']
+    reviews: typeof routes['public_commerce.reviews']
+    addReview: typeof routes['public_commerce.add_review']
+  }
   dashboard: {
     index: typeof routes['dashboard.index']
   }
@@ -43,6 +55,13 @@ export interface ApiDefinition {
     store: typeof routes['employees.store']
     update: typeof routes['employees.update']
     destroy: typeof routes['employees.destroy']
+  }
+  storefronts: {
+    show: typeof routes['storefronts.show']
+    update: typeof routes['storefronts.update']
+    publish: typeof routes['storefronts.publish']
+    updateSlug: typeof routes['storefronts.update_slug']
+    updateEnabled: typeof routes['storefronts.update_enabled']
   }
   warehouses: {
     index: typeof routes['warehouses.index']

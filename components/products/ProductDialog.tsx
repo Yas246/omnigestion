@@ -88,6 +88,7 @@ export function ProductDialog({
       alertThreshold: 10,
       unit: "pièce",
       isActive: true,
+      published: false,
     },
   });
 
@@ -105,6 +106,7 @@ export function ProductDialog({
         alertThreshold: product.alertThreshold || 10,
         unit: (product.unit || "pièce") as any,
         isActive: product.isActive ?? true,
+        published: (product as any).published ?? false,
       });
       setAllocationMode("simple");
       setStockAllocations([]);
@@ -120,6 +122,7 @@ export function ProductDialog({
         alertThreshold: 10,
         unit: "pièce",
         isActive: true,
+        published: false,
       });
       setAllocationMode("simple");
       setStockAllocations([]);
@@ -575,6 +578,27 @@ export function ProductDialog({
                     <FormLabel className="text-base">Produit actif</FormLabel>
                     <p className="text-sm text-muted-foreground">
                       Un produit inactif n&apos;apparaît pas dans les sélections
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="published"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Publier sur la vitrine</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Rend ce produit visible sur votre site vitrine public
                     </p>
                   </div>
                   <FormControl>

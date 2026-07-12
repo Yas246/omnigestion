@@ -14,6 +14,7 @@ export const createProductValidator = vine.create({
   alertThreshold: vine.number().withoutDecimals().min(0).optional(),
   warehouseId: vine.number().withoutDecimals().min(1).optional(),
   unit: vine.string().trim().maxLength(30).optional(),
+  published: vine.boolean().optional(),
 })
 
 export const updateProductValidator = vine.create({
@@ -29,4 +30,5 @@ export const updateProductValidator = vine.create({
   warehouseId: vine.number().withoutDecimals().min(1).optional(),
   unit: vine.string().trim().maxLength(30).optional(),
   isActive: vine.boolean().optional(),
+  published: vine.boolean().optional(),
 })

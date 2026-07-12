@@ -15,6 +15,12 @@ export default class Company extends BaseModel {
   declare name: string
 
   @column()
+  declare slogan: string | null
+
+  @column()
+  declare description: string | null
+
+  @column()
   declare businessSector: string | null
 
   @column()
@@ -41,6 +47,33 @@ export default class Company extends BaseModel {
   declare logoUrl: string | null
   @column()
   declare invoiceFooter: string | null
+
+  // Storefront (site vitrine)
+  @column()
+  declare storeSlug: string | null
+  @column()
+  declare storeEnabled: boolean
+  @column()
+  declare bannerUrl: string | null
+
+  /**
+   * Auto-generate a unique store_slug at creation (slugified name + short
+   * suffix). Editable later in the "Ma vitrine" tab.
+   */
+  static boot() {
+    if (this.booted) return
+    super.boot()
+    this.before('create', (company: Company) => {
+      if (!company.storeSlug && company.name) {
+        const base =
+          company.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || 'store'
+        company.storeSlug = `${base}-${Math.random().toString(36).slice(2, 6)}`
+      }
+    })
+  }
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

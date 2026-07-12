@@ -30,6 +30,8 @@ interface ProductDto {
   warehouseQuantities?: Array<{ warehouseId: string; warehouseName: string; quantity: number }>;
   displayQuantity?: number;
   isActive: boolean;
+  published: boolean;
+  mainImageUrl: string | null;
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string | null;
@@ -55,6 +57,8 @@ function mapProduct(p: ProductDto): Product {
     warehouseQuantities: p.warehouseQuantities ?? [],
     displayQuantity: p.displayQuantity ?? p.currentStock,
     isActive: p.isActive,
+    published: p.published,
+    mainImageUrl: p.mainImageUrl ?? undefined,
     createdAt: new Date(p.createdAt),
     updatedAt: p.updatedAt ? new Date(p.updatedAt) : new Date(),
   } as Product;

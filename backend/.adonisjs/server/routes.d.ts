@@ -8,6 +8,12 @@ export type ScannedRoutes = {
     'auth.access_tokens.store': { paramsTuple?: []; params?: {} }
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
+    'public_store.show': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'store_auth.signup': { paramsTuple?: []; params?: {} }
+    'store_auth.login': { paramsTuple?: []; params?: {} }
+    'public_commerce.checkout': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
+    'public_commerce.add_review': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
     'settings.update': { paramsTuple?: []; params?: {} }
@@ -24,6 +30,11 @@ export type ScannedRoutes = {
     'employees.store': { paramsTuple?: []; params?: {} }
     'employees.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'employees.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'storefronts.show': { paramsTuple?: []; params?: {} }
+    'storefronts.update': { paramsTuple?: []; params?: {} }
+    'storefronts.publish': { paramsTuple?: []; params?: {} }
+    'storefronts.update_slug': { paramsTuple?: []; params?: {} }
+    'storefronts.update_enabled': { paramsTuple?: []; params?: {} }
     'warehouses.index': { paramsTuple?: []; params?: {} }
     'warehouses.store': { paramsTuple?: []; params?: {} }
     'warehouses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -71,6 +82,8 @@ export type ScannedRoutes = {
   }
   GET: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
+    'public_store.show': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
     'companies.index': { paramsTuple?: []; params?: {} }
@@ -78,6 +91,7 @@ export type ScannedRoutes = {
     'clients.index': { paramsTuple?: []; params?: {} }
     'clients.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'employees.index': { paramsTuple?: []; params?: {} }
+    'storefronts.show': { paramsTuple?: []; params?: {} }
     'warehouses.index': { paramsTuple?: []; params?: {} }
     'warehouses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'products.index': { paramsTuple?: []; params?: {} }
@@ -101,6 +115,8 @@ export type ScannedRoutes = {
   }
   HEAD: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
+    'public_store.show': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
     'companies.index': { paramsTuple?: []; params?: {} }
@@ -108,6 +124,7 @@ export type ScannedRoutes = {
     'clients.index': { paramsTuple?: []; params?: {} }
     'clients.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'employees.index': { paramsTuple?: []; params?: {} }
+    'storefronts.show': { paramsTuple?: []; params?: {} }
     'warehouses.index': { paramsTuple?: []; params?: {} }
     'warehouses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'products.index': { paramsTuple?: []; params?: {} }
@@ -133,9 +150,14 @@ export type ScannedRoutes = {
     'auth.new_account.store': { paramsTuple?: []; params?: {} }
     'auth.access_tokens.store': { paramsTuple?: []; params?: {} }
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
+    'store_auth.signup': { paramsTuple?: []; params?: {} }
+    'store_auth.login': { paramsTuple?: []; params?: {} }
+    'public_commerce.checkout': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_commerce.add_review': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'companies.store': { paramsTuple?: []; params?: {} }
     'clients.store': { paramsTuple?: []; params?: {} }
     'employees.store': { paramsTuple?: []; params?: {} }
+    'storefronts.publish': { paramsTuple?: []; params?: {} }
     'warehouses.store': { paramsTuple?: []; params?: {} }
     'products.store': { paramsTuple?: []; params?: {} }
     'stock.restock': { paramsTuple?: []; params?: {} }
@@ -156,6 +178,7 @@ export type ScannedRoutes = {
     'settings.update': { paramsTuple?: []; params?: {} }
     'clients.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'employees.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'storefronts.update': { paramsTuple?: []; params?: {} }
     'warehouses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'products.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'invoices.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -164,6 +187,8 @@ export type ScannedRoutes = {
   }
   PATCH: {
     'companies.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'storefronts.update_slug': { paramsTuple?: []; params?: {} }
+    'storefronts.update_enabled': { paramsTuple?: []; params?: {} }
   }
   DELETE: {
     'clients.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

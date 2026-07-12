@@ -59,9 +59,10 @@ export function useStockMovements() {
   const invalidate = () => {
     // Stock ops change per-warehouse quantities → the products list (which
     // derives its displayed stock from warehouseQuantities) must refetch too,
-    // not just the movements history.
+    // not just the movements history. Dashboard stock alerts also change.
     qc.invalidateQueries({ queryKey: KEY });
     qc.invalidateQueries({ queryKey: ['products'] });
+    qc.invalidateQueries({ queryKey: ['dashboard'] });
   };
 
   const inMutation = useMutation({

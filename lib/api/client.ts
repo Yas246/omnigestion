@@ -12,6 +12,14 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333'
 const TOKEN_KEY = 'omnigestion_token'
+
+/** Backend origin (for media URLs + server-side public fetch). */
+export const API_ORIGIN = API_URL
+/** Resolve a stored media path (/uploads/...) to an absolute URL. */
+export function mediaUrl(path: string | null | undefined): string | null {
+  if (!path) return null
+  return path.startsWith('http') ? path : `${API_ORIGIN}${path}`
+}
 const COMPANY_KEY = 'omnigestion_company_id'
 
 export class ApiError extends Error {

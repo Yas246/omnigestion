@@ -70,6 +70,7 @@ export function useCashMovements() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: KEY });
     qc.invalidateQueries({ queryKey: ['cash-registers'] });
+    qc.invalidateQueries({ queryKey: ['dashboard'] });
   };
 
   const createMutation = useMutation({

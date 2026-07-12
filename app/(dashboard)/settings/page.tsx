@@ -16,6 +16,7 @@ import { InvoiceTab } from "@/components/settings/InvoiceTab";
 import { StockTab } from "@/components/settings/StockTab";
 import { UsersTab } from "@/components/settings/UsersTab";
 import { SystemTab } from "@/components/settings/SystemTab";
+import { StorefrontTab } from "@/components/settings/StorefrontTab";
 import { ThemeSelector } from "@/components/settings/ThemeSelector";
 import { PermissionGate } from "@/components/auth";
 
@@ -23,12 +24,12 @@ export default function SettingsPage() {
   const router = useRouter();
   const { hasPermission, isAdmin, getFirstAccessiblePage } = usePermissions();
 
-  // NOUVEAU hook React Query + onSnapshot pour temps réel
+  // Settings (API-backed via React Query)
   const { settings, isLoading, error } = useSettingsRealtime();
 
-  // Récupérer les dépôts via le listener temps réel
+  // Warehouses (API-backed)
   const { warehouses } = useWarehousesRealtime();
-  const { currentCompany } = useAuth();
+  const { currentCompany, refreshCompanies } = useAuth();
 
   const [activeTab, setActiveTab] = useState("company");
 
@@ -43,12 +44,10 @@ export default function SettingsPage() {
     }
   }, [hasAccess, router, getFirstAccessiblePage]);
 
-  // Fonction refresh qui utilise maintenant onSnapshot automatiquement
-  const refresh = () => {
-    // NOTE: Plus besoin de refresh manuel - onSnapshot met à jour automatiquement
-    // Mais on garde la fonction pour la compatibilité avec ThemeSelector
-    console.log('[SettingsPage] Refresh - les données sont synchronisées automatiquement via onSnapshot');
-  };
+  // No-op callback for the tabs' onSaved prop — each mutation's onSuccess
+  // already invalidates the relevant React Query keys, so the data refreshes
+  // automatically. Kept for API compatibility.
+  const refresh = () => {};
 
   if (!hasAccess) {
     return (
@@ -105,11 +104,12 @@ export default function SettingsPage() {
         onValueChange={setActiveTab}
         className="space-y-6"
       >
-        <TabsList className="!flex !flex-wrap !w-full gap-2 mb-8 lg:!grid lg:grid-cols-5 lg:gap-0 lg:mb-0">
+        <TabsList className="flex w-full flex-wrap gap-1">
           <TabsTrigger value="company">Entreprise</TabsTrigger>
           <TabsTrigger value="invoice">Facturation</TabsTrigger>
           <TabsTrigger value="stock">Stock</TabsTrigger>
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
+          <TabsTrigger value="storefront">Ma vitrine</TabsTrigger>
           <TabsTrigger value="system">Système</TabsTrigger>
         </TabsList>
 
@@ -126,7 +126,7 @@ export default function SettingsPage() {
               </Card>
             )}
           >
-            <CompanyTab company={currentCompany} onSaved={refresh} />
+            <CompanyTab company={currentCompany} onSaved={refreshCompanies} />
           </PermissionGate>
         </TabsContent>
 
@@ -179,6 +179,22 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="storefront" className="space-y-6">
+          <PermissionGate
+            module="settings"
+            action="update"
+            renderNoAccess={() => (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  Vous n&apos;avez pas la permission de gérer la vitrine.
+                </CardContent>
+              </Card>
+            )}
+          >
+            <StorefrontTab />
+          </PermissionGate>
         </TabsContent>
 
         <TabsContent value="system" className="space-y-6">

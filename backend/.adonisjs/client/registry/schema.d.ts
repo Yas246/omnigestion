@@ -55,6 +55,78 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/access_tokens_controller').default['destroy']>>>
     }
   }
+  'public_store.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/public/store/:slug'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { slug: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'store_auth.signup': {
+    methods: ["POST"]
+    pattern: '/api/v1/public/auth/signup'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'store_auth.login': {
+    methods: ["POST"]
+    pattern: '/api/v1/public/auth/login'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'public_commerce.checkout': {
+    methods: ["POST"]
+    pattern: '/api/v1/public/store/:slug/checkout'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { slug: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'public_commerce.reviews': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/public/store/:slug/product/:productId/reviews'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { slug: ParamValue; productId: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'public_commerce.add_review': {
+    methods: ["POST"]
+    pattern: '/api/v1/public/store/:slug/product/:productId/reviews'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { slug: ParamValue; productId: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
   'dashboard.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/dashboard'
@@ -242,6 +314,66 @@ export interface Registry {
       body: {}
       paramsTuple: [ParamValue]
       params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'storefronts.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/storefront'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'storefronts.update': {
+    methods: ["PUT"]
+    pattern: '/api/v1/storefront'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'storefronts.publish': {
+    methods: ["POST"]
+    pattern: '/api/v1/storefront/publish'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'storefronts.update_slug': {
+    methods: ["PATCH"]
+    pattern: '/api/v1/storefront/slug'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'storefronts.update_enabled': {
+    methods: ["PATCH"]
+    pattern: '/api/v1/storefront/enabled'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
       query: {}
       response: unknown
       errorResponse: unknown

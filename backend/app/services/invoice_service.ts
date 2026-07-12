@@ -47,6 +47,7 @@ export interface CreateInvoiceInput {
   discount?: number
   taxRate?: number
   notes?: string | null
+  channel?: string
   saleDate?: any
   mobileNumber?: string | null
   bankName?: string | null
@@ -182,6 +183,7 @@ export const InvoiceService = {
         .insert({
           tenant_id: tenantId,
           company_id: companyId,
+          channel: input.channel ?? 'pos',
           invoice_number: invoiceNumber,
           client_id: input.clientId ?? null,
           client_name: input.clientName ?? null,

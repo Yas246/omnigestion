@@ -171,6 +171,8 @@ export interface Product {
   unit?: string; // ex: 'pièce', 'kg', 'litre'
 
   isActive: boolean;
+  published?: boolean;
+  mainImageUrl?: string;
   deletedAt?: Date | any | null;
 
   // Champs calculés (non stockés dans Firestore)

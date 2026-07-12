@@ -31,6 +31,7 @@ export const productSchema = z.object({
   alertThreshold: z.number().min(0, 'Le seuil d\'alerte doit être positif'),
   unit: z.enum(PRODUCT_UNITS),
   isActive: z.boolean(),
+  published: z.boolean(),
 }).refine(
   (data) => data.retailPrice >= data.purchasePrice,
   {

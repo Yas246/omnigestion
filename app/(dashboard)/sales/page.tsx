@@ -147,8 +147,6 @@ export default function SalesPage() {
         toast.success('Transferts effectués et facture créée avec succès');
       }
 
-      console.log('[SalesPage] Transferts effectués, onSnapshot va mettre à jour automatiquement');
-
       // Fermer les modales
       setIsTransferModalOpen(false);
       setIsDialogOpen(false);

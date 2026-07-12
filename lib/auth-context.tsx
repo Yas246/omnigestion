@@ -38,6 +38,7 @@ interface AuthContextType {
   switchCompany: (companyId: string) => Promise<void>;
   createCompany: (companyData: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   refreshUser: () => Promise<void>;
+  refreshCompanies: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,6 +47,8 @@ function mapCompany(c: ApiCompany): Company {
   return {
     id: String(c.id),
     name: c.name,
+    slogan: c.slogan ?? undefined,
+    description: c.description ?? undefined,
     businessSector: (c.businessSector as Company['businessSector']) ?? undefined,
     currency: c.currency,
     taxId: c.taxId ?? undefined,
@@ -224,6 +227,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /**
+   * Re-fetch the companies list + refresh currentCompany in state. Call after a
+   * company update (e.g. CompanyTab save) so the new values reflect without a
+   * page reload — currentCompany is the source for CompanyTab's form.
+   */
+  const refreshCompanies = async () => {
+    if (!getToken()) return;
+    try {
+      const comps = (await authApi.listCompanies()).map(mapCompany);
+      setCompanies(comps);
+      setCurrentCompany((prev) => (prev ? comps.find((c) => c.id === prev.id) ?? prev : prev));
+    } catch (err: any) {
+      console.error('[AuthContext] refreshCompanies failed:', err);
+    }
+  };
+
   const resetPassword = async (_email: string) => {
     // Not yet implemented on the API (no password-reset endpoint). Wire when added.
     setError('La réinitialisation de mot de passe n\'est pas encore disponible sur la nouvelle API.');
@@ -245,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         switchCompany,
         createCompany,
         refreshUser,
+        refreshCompanies,
       }}
     >
       {children}

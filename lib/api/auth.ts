@@ -21,6 +21,8 @@ export interface AuthUser {
 export interface Company {
   id: number
   name: string
+  slogan: string | null
+  description: string | null
   businessSector: string | null
   currency: string
   taxId: string | null

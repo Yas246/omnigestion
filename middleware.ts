@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Routes publiques (accessibles sans authentification)
-const PUBLIC_PATHS = ['/login', '/register', '/forgot-password'];
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/store'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

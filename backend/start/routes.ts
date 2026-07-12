@@ -22,6 +22,10 @@ import SupplierCreditsController from '#controllers/supplier_credits_controller'
 import DashboardController from '#controllers/dashboard_controller'
 import SettingsController from '#controllers/settings_controller'
 import CompaniesController from '#controllers/companies_controller'
+import StorefrontsController from '#controllers/storefronts_controller'
+import PublicStoreController from '#controllers/public_store_controller'
+import PublicCommerceController from '#controllers/public_commerce_controller'
+import StoreAuthController from '#controllers/store_auth_controller'
 
 router.get('/', () => {
   return { hello: 'world' }
@@ -47,6 +51,14 @@ router
       .prefix('account')
       .as('profile')
       .use(middleware.auth())
+
+    // Public storefront (no auth — resolved by company slug)
+    router.get('public/store/:slug', [PublicStoreController, 'show'])
+        router.post('public/auth/signup', [StoreAuthController, 'signup'])
+        router.post('public/auth/login', [StoreAuthController, 'login'])
+        router.post('public/store/:slug/checkout', [PublicCommerceController, 'checkout'])
+        router.get('public/store/:slug/product/:productId/reviews', [PublicCommerceController, 'reviews'])
+        router.post('public/store/:slug/product/:productId/reviews', [PublicCommerceController, 'addReview'])
 
     // Company-scoped business routes (auth + tenancy)
     router
@@ -80,6 +92,13 @@ router
         router.post('employees', [EmployeesController, 'store'])
         router.put('employees/:id', [EmployeesController, 'update'])
         router.delete('employees/:id', [EmployeesController, 'destroy'])
+
+        // Storefront (site vitrine) — config draft/publish + slug/enabled
+        router.get('storefront', [StorefrontsController, 'show'])
+        router.put('storefront', [StorefrontsController, 'update'])
+        router.post('storefront/publish', [StorefrontsController, 'publish'])
+        router.patch('storefront/slug', [StorefrontsController, 'updateSlug'])
+        router.patch('storefront/enabled', [StorefrontsController, 'updateEnabled'])
 
         // Warehouses
         router.get('warehouses', [WarehousesController, 'index'])

@@ -56,6 +56,12 @@ export default class Product extends CompanyScopedModel {
   @column()
   declare isActive: boolean
 
+  // Storefront (site vitrine)
+  @column()
+  declare published: boolean
+  @column()
+  declare mainImageUrl: string | null
+
   @column.dateTime()
   declare deletedAt: DateTime | null
 
