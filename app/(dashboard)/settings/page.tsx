@@ -11,12 +11,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { CompanyTab } from "@/components/settings/CompanyTab";
 import { InvoiceTab } from "@/components/settings/InvoiceTab";
 import { StockTab } from "@/components/settings/StockTab";
 import { UsersTab } from "@/components/settings/UsersTab";
 import { SystemTab } from "@/components/settings/SystemTab";
 import { StorefrontTab } from "@/components/settings/StorefrontTab";
+import { AIKeyTab } from "@/components/settings/AIKeyTab";
 import { ThemeSelector } from "@/components/settings/ThemeSelector";
 import { PermissionGate } from "@/components/auth";
 
@@ -89,12 +91,11 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Paramètres</h1>
-        <p className="text-muted-foreground">
-          Configurez votre entreprise et les préférences de l&apos;application
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Système"
+        title="Paramètres"
+        description="Configurez votre entreprise et les préférences de l&apos;application"
+      />
 
       {/* Sélecteur de thème - accessible à tous les utilisateurs */}
       <ThemeSelector onThemeChanged={refresh} />
@@ -110,6 +111,7 @@ export default function SettingsPage() {
           <TabsTrigger value="stock">Stock</TabsTrigger>
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
           <TabsTrigger value="storefront">Ma vitrine</TabsTrigger>
+          <TabsTrigger value="ai">Intelligence</TabsTrigger>
           <TabsTrigger value="system">Système</TabsTrigger>
         </TabsList>
 
@@ -194,6 +196,22 @@ export default function SettingsPage() {
             )}
           >
             <StorefrontTab />
+          </PermissionGate>
+        </TabsContent>
+
+        <TabsContent value="ai" className="space-y-6">
+          <PermissionGate
+            module="settings"
+            action="update"
+            renderNoAccess={() => (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  Vous n&apos;avez pas la permission de gérer les paramètres IA.
+                </CardContent>
+              </Card>
+            )}
+          >
+            <AIKeyTab />
           </PermissionGate>
         </TabsContent>
 

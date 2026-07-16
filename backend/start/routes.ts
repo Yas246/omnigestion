@@ -26,6 +26,7 @@ import StorefrontsController from '#controllers/storefronts_controller'
 import PublicStoreController from '#controllers/public_store_controller'
 import PublicCommerceController from '#controllers/public_commerce_controller'
 import StoreAuthController from '#controllers/store_auth_controller'
+import AiReportsController from '#controllers/ai_reports_controller'
 
 router.get('/', () => {
   return { hello: 'world' }
@@ -106,6 +107,12 @@ router
         router.get('warehouses/:id', [WarehousesController, 'show'])
         router.put('warehouses/:id', [WarehousesController, 'update'])
         router.delete('warehouses/:id', [WarehousesController, 'destroy'])
+
+        // AI reports ( Analyse IA ) — list/read open to reports readers; save/delete gated
+        router.get('ai-reports', [AiReportsController, 'index']).use(middleware.permission({ module: 'reports', action: 'read' }))
+        router.post('ai-reports', [AiReportsController, 'store']).use(middleware.permission({ module: 'reports', action: 'create' }))
+        router.get('ai-reports/:id', [AiReportsController, 'show']).use(middleware.permission({ module: 'reports', action: 'read' }))
+        router.delete('ai-reports/:id', [AiReportsController, 'destroy']).use(middleware.permission({ module: 'reports', action: 'delete' }))
 
         // Products
         router.get('products', [ProductsController, 'index'])

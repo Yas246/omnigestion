@@ -383,12 +383,12 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
                             <TableCell className="hidden sm:table-cell">{product.unit}</TableCell>
                             <TableCell className="hidden sm:table-cell">
                               {product.errors.length === 0 && product.warnings.length === 0 && (
-                                <Badge variant="default" className="gap-1">
+                                <Badge variant="success" className="gap-1">
                                   <Check className="h-3 w-3" /> OK
                                 </Badge>
                               )}
                               {product.warnings.length > 0 && (
-                                <Badge variant="secondary" className="gap-1">
+                                <Badge variant="warning" className="gap-1">
                                   <AlertTriangle className="h-3 w-3" /> {product.warnings.length} avert.
                                 </Badge>
                               )}
@@ -437,21 +437,21 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
         {step === 'result' && (
           <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4">
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <Card className={importResult.success > 0 ? 'border-green-500' : ''}>
+              <Card className={importResult.success > 0 ? 'border-[oklch(0.65_0.12_145)]/40' : ''}>
                 <CardContent className="pt-4 sm:pt-6 text-center">
-                  <div className="text-2xl sm:text-3xl font-bold text-green-600">{importResult.success}</div>
+                  <div className="text-2xl sm:text-3xl font-bold tabular-nums text-[oklch(0.42_0.11_145)]">{importResult.success}</div>
                   <div className="text-xs text-muted-foreground mt-1">Importé(s)</div>
                 </CardContent>
               </Card>
-              <Card className={importResult.skipped > 0 ? 'border-yellow-500' : ''}>
+              <Card className={importResult.skipped > 0 ? 'border-[oklch(0.75_0.15_75)]/40' : ''}>
                 <CardContent className="pt-4 sm:pt-6 text-center">
-                  <div className="text-2xl sm:text-3xl font-bold text-yellow-600">{importResult.skipped}</div>
+                  <div className="text-2xl sm:text-3xl font-bold tabular-nums text-[oklch(0.52_0.13_75)]">{importResult.skipped}</div>
                   <div className="text-xs text-muted-foreground mt-1">Ignoré(s)</div>
                 </CardContent>
               </Card>
-              <Card className={importResult.errors > 0 ? 'border-red-500' : ''}>
+              <Card className={importResult.errors > 0 ? 'border-destructive/40' : ''}>
                 <CardContent className="pt-4 sm:pt-6 text-center">
-                  <div className="text-2xl sm:text-3xl font-bold text-red-600">{importResult.errors}</div>
+                  <div className="text-2xl sm:text-3xl font-bold tabular-nums text-destructive">{importResult.errors}</div>
                   <div className="text-xs text-muted-foreground mt-1">Erreur(s)</div>
                 </CardContent>
               </Card>

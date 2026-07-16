@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useInvoicesRealtime } from '@/lib/api/hooks/useInvoices';
 import { useClientCreditsRealtime } from '@/lib/api/hooks/useClientCredits';
-import { DollarSign, ShoppingCart, TrendingUp, FileText } from 'lucide-react';
+import { DollarSign, ShoppingCart, TrendingUp, FileText, LineChart } from 'lucide-react';
 import { Bar, Line, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -133,8 +134,8 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
       {
         label: "Chiffre d'affaires",
         data: Object.values(salesByDay),
-        borderColor: 'oklch(0.62 0.14 35)',
-        backgroundColor: 'oklch(0.62 0.14 35 / 0.15)',
+        borderColor: 'oklch(0.55 0.20 280)',
+        backgroundColor: 'oklch(0.55 0.20 280 / 0.15)',
         fill: true,
         tension: 0.4,
       },
@@ -227,7 +228,7 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
       {
         label: 'Montant total (FCFA)',
         data: topClients.map(([, amount]) => amount),
-        backgroundColor: 'oklch(0.62 0.14 35 / 0.85)',
+        backgroundColor: 'oklch(0.55 0.20 280 / 0.85)',
         borderRadius: 4,
       },
     ],
@@ -242,8 +243,16 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
       },
     },
     scales: {
+      x: {
+        grid: { color: 'oklch(0.90 0.01 85)' },
+        ticks: { color: 'oklch(0.52 0.02 50)', font: { size: 11 } },
+        border: { display: false },
+      },
       y: {
         beginAtZero: true,
+        grid: { color: 'oklch(0.90 0.01 85)' },
+        ticks: { color: 'oklch(0.52 0.02 50)', font: { size: 11 } },
+        border: { display: false },
       },
     },
   };
@@ -257,6 +266,8 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
         labels: {
           boxWidth: 12,
           padding: 15,
+          color: 'oklch(0.52 0.02 50)',
+          font: { size: 11 },
         },
       },
     },
@@ -315,13 +326,14 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
             <CardDescription>Chiffre d'affaires par jour</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[200px] sm:h-[250px] md:h-[300px]">
+            <div className="h-50 sm:h-62.5 md:h-75">
               {Object.keys(salesByDay).length > 0 ? (
                 <Line data={salesChartData} options={chartOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune donnée pour cette période
-                </p>
+                <EmptyState
+                  icon={<LineChart className="h-5 w-5" />}
+                  title="Aucune donnée pour cette période"
+                />
               )}
             </div>
           </CardContent>
@@ -334,13 +346,14 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
             <CardDescription>Répartition du CA</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center justify-center">
+            <div className="h-75 flex items-center justify-center">
               {Object.keys(paymentDistribution).length > 0 ? (
                 <Pie data={paymentChartData} options={pieOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune donnée
-                </p>
+                <EmptyState
+                  icon={<DollarSign className="h-5 w-5" />}
+                  title="Aucune donnée"
+                />
               )}
             </div>
           </CardContent>
@@ -353,13 +366,14 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
             <CardDescription>Les plus vendus</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-75">
               {topProducts.length > 0 ? (
                 <Bar data={topProductsChartData} options={chartOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune donnée
-                </p>
+                <EmptyState
+                  icon={<ShoppingCart className="h-5 w-5" />}
+                  title="Aucune donnée"
+                />
               )}
             </div>
           </CardContent>
@@ -372,13 +386,14 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
             <CardDescription>Meilleurs clients</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-75">
               {topClients.length > 0 ? (
                 <Bar data={topClientsChartData} options={chartOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune donnée
-                </p>
+                <EmptyState
+                  icon={<DollarSign className="h-5 w-5" />}
+                  title="Aucune donnée"
+                />
               )}
             </div>
           </CardContent>

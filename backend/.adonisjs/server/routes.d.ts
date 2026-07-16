@@ -40,6 +40,10 @@ export type ScannedRoutes = {
     'warehouses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'warehouses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'warehouses.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'ai_reports.index': { paramsTuple?: []; params?: {} }
+    'ai_reports.store': { paramsTuple?: []; params?: {} }
+    'ai_reports.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'ai_reports.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'products.index': { paramsTuple?: []; params?: {} }
     'products.store': { paramsTuple?: []; params?: {} }
     'products.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -94,6 +98,8 @@ export type ScannedRoutes = {
     'storefronts.show': { paramsTuple?: []; params?: {} }
     'warehouses.index': { paramsTuple?: []; params?: {} }
     'warehouses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'ai_reports.index': { paramsTuple?: []; params?: {} }
+    'ai_reports.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'products.index': { paramsTuple?: []; params?: {} }
     'products.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'products.stock': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -127,6 +133,8 @@ export type ScannedRoutes = {
     'storefronts.show': { paramsTuple?: []; params?: {} }
     'warehouses.index': { paramsTuple?: []; params?: {} }
     'warehouses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'ai_reports.index': { paramsTuple?: []; params?: {} }
+    'ai_reports.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'products.index': { paramsTuple?: []; params?: {} }
     'products.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'products.stock': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -159,6 +167,7 @@ export type ScannedRoutes = {
     'employees.store': { paramsTuple?: []; params?: {} }
     'storefronts.publish': { paramsTuple?: []; params?: {} }
     'warehouses.store': { paramsTuple?: []; params?: {} }
+    'ai_reports.store': { paramsTuple?: []; params?: {} }
     'products.store': { paramsTuple?: []; params?: {} }
     'stock.restock': { paramsTuple?: []; params?: {} }
     'stock.loss': { paramsTuple?: []; params?: {} }
@@ -194,6 +203,7 @@ export type ScannedRoutes = {
     'clients.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'employees.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'warehouses.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'ai_reports.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'products.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'cash_registers.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'suppliers.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

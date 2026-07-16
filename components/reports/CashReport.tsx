@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCashRegistersRealtime } from '@/lib/api/hooks/useCashRegisters';
 import { useCashMovementsRealtime } from '@/lib/api/hooks/useCashMovements';
@@ -164,7 +165,7 @@ export function CashReport({ period, customRange }: CashReportProps) {
       {
         label: 'Entrées (FCFA)',
         data: inByCategory.map(([, amount]) => amount),
-        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+        backgroundColor: 'oklch(0.65 0.12 145 / 0.8)',
       },
     ],
   };
@@ -175,7 +176,7 @@ export function CashReport({ period, customRange }: CashReportProps) {
       {
         label: 'Sorties (FCFA)',
         data: outByCategory.map(([, amount]) => amount),
-        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+        backgroundColor: 'oklch(0.58 0.22 25 / 0.8)',
       },
     ],
   };
@@ -189,8 +190,16 @@ export function CashReport({ period, customRange }: CashReportProps) {
       },
     },
     scales: {
+      x: {
+        ticks: { color: 'oklch(0.52 0.02 50)', font: { size: 11 } },
+        grid: { color: 'oklch(0.90 0.01 85)' },
+        border: { display: false },
+      },
       y: {
         beginAtZero: true,
+        ticks: { color: 'oklch(0.52 0.02 50)', font: { size: 11 } },
+        grid: { color: 'oklch(0.90 0.01 85)' },
+        border: { display: false },
       },
     },
   };
@@ -281,13 +290,14 @@ export function CashReport({ period, customRange }: CashReportProps) {
             <CardDescription>Répartition des entrées</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-75">
               {inByCategory.length > 0 ? (
                 <Bar data={inChartData} options={chartOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune entrée pour cette période
-                </p>
+                <EmptyState
+                  icon={<TrendingUp className="h-5 w-5" />}
+                  title="Aucune entrée pour cette période"
+                />
               )}
             </div>
           </CardContent>
@@ -300,13 +310,14 @@ export function CashReport({ period, customRange }: CashReportProps) {
             <CardDescription>Répartition des sorties</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-75">
               {outByCategory.length > 0 ? (
                 <Bar data={outChartData} options={chartOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune sortie pour cette période
-                </p>
+                <EmptyState
+                  icon={<TrendingDown className="h-5 w-5" />}
+                  title="Aucune sortie pour cette période"
+                />
               )}
             </div>
           </CardContent>
@@ -347,7 +358,7 @@ export function CashReport({ period, customRange }: CashReportProps) {
                 render: (movement) => {
                   const isIn = movement.type === 'in' || (movement.type === 'transfer' && movement.sourceCashRegisterId);
                   return (
-                    <span className={`font-semibold ${isIn ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
+                    <span className={`font-semibold tabular-nums ${isIn ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
                       {isIn ? '+' : '-'}{formatPrice(movement.amount)} FCFA
                     </span>
                   );

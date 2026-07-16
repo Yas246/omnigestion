@@ -8,7 +8,9 @@ import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, DollarSign, Calendar, CreditCard } from 'lucide-react';
+import { Loader2, Plus, DollarSign, Calendar, CreditCard, Wallet } from 'lucide-react';
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from '@/components/ui/empty-state';
 import { useClientCreditsRealtime, useClientCredits } from '@/lib/api/hooks/useClientCredits';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
@@ -26,7 +28,6 @@ export default function CreditsPage() {
   const router = useRouter();
   const { canAccessModule, getFirstAccessiblePage } = usePermissions();
 
-  // NOUVEAU hook React Query + onSnapshot pour temps réel
   const { credits, isLoading } = useClientCreditsRealtime();
 
   // Garder l'ancien hook pour les fonctions CRUD (addPayment)
@@ -50,11 +51,11 @@ export default function CreditsPage() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, { label: string; variant: any }> = {
-      active: { label: 'En cours', variant: 'default' },
-      partial: { label: 'En cours', variant: 'default' }, // Même affichage que active
-      paid: { label: 'Payé', variant: 'outline' },
-      overdue: { label: 'En retard', variant: 'destructive' },
-      cancelled: { label: 'Annulé', variant: 'outline' },
+      active: { label: 'En cours', variant: 'info' },
+      partial: { label: 'En cours', variant: 'warning' }, // Partiel = warning
+      paid: { label: 'Payé', variant: 'success' },
+      overdue: { label: 'En retard', variant: 'warning' },
+      cancelled: { label: 'Annulé', variant: 'destructive' },
     };
     return labels[status] || { label: status, variant: 'outline' };
   };
@@ -98,7 +99,6 @@ export default function CreditsPage() {
       setShowPaymentDialog(false);
       setSelectedCredit(null);
       toast.success('Paiement enregistré avec succès');
-      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch (error: any) {
       console.error('Erreur lors du paiement:', error);
       toast.error('Erreur lors de l\'enregistrement du paiement');
@@ -108,18 +108,16 @@ export default function CreditsPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Crédits clients</h1>
-          <p className="text-muted-foreground">
-            Suivi et gestion des créances clients
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Commercial"
+        title="Crédits clients"
+        description="Suivi et gestion des créances clients"
+      >
         <Button onClick={() => setIsManualCreditDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Nouveau crédit
         </Button>
-      </div>
+      </PageHeader>
 
       {/* Statistiques */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -193,9 +191,11 @@ export default function CreditsPage() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : filteredCredits.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              {debouncedSearchQuery ? 'Aucun crédit trouvé' : 'Aucun crédit trouvé'}
-            </p>
+            <EmptyState
+              icon={<Wallet className="h-5 w-5" />}
+              title={debouncedSearchQuery ? 'Aucun crédit trouvé' : 'Aucun crédit trouvé'}
+              description={debouncedSearchQuery ? 'Essayez d\'ajuster votre recherche ou vos filtres.' : 'Les crédits clients apparaîtront ici.'}
+            />
           ) : (
             <div className="space-y-3">
               {filteredCredits.map((credit) => (
@@ -215,14 +215,14 @@ export default function CreditsPage() {
                         {getStatusLabel(credit.status).label}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                      <span className="text-muted-foreground tabular-nums">
                         Total : {formatPrice(credit.amount || 0)} FCFA
                       </span>
-                      <span className="text-[oklch(0.65_0.12_145)]">
+                      <span className="text-[oklch(0.65_0.12_145)] tabular-nums">
                         Payé : {formatPrice(credit.amountPaid || 0)} FCFA
                       </span>
-                      <span className="text-[oklch(0.75_0.15_75)] font-medium">
+                      <span className="text-[oklch(0.75_0.15_75)] font-medium tabular-nums">
                         Reste : {formatPrice(credit.remainingAmount || 0)} FCFA
                       </span>
                       <span className="text-muted-foreground flex items-center gap-1">

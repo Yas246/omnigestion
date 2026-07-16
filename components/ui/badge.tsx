@@ -14,6 +14,11 @@ const badgeVariants = cva(
           "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
         destructive:
           "bg-destructive text-white focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
+        success:
+          "bg-[oklch(0.65_0.12_145)]/12 text-[oklch(0.42_0.11_145)] dark:bg-[oklch(0.65_0.12_145)]/20 dark:text-[oklch(0.80_0.14_145)] border-transparent [a&]:hover:bg-[oklch(0.65_0.12_145)]/20",
+        warning:
+          "bg-[oklch(0.75_0.15_75)]/14 text-[oklch(0.52_0.13_75)] dark:bg-[oklch(0.75_0.15_75)]/22 dark:text-[oklch(0.82_0.15_75)] border-transparent [a&]:hover:bg-[oklch(0.75_0.15_75)]/22",
+        info: "bg-[oklch(0.68_0.10_200)]/12 text-[oklch(0.45_0.10_200)] dark:bg-[oklch(0.68_0.10_200)]/20 dark:text-[oklch(0.78_0.11_200)] border-transparent [a&]:hover:bg-[oklch(0.68_0.10_200)]/20",
         outline:
           "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",

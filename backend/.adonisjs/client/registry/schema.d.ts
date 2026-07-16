@@ -439,6 +439,54 @@ export interface Registry {
       errorResponse: unknown
     }
   }
+  'ai_reports.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/ai-reports'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'ai_reports.store': {
+    methods: ["POST"]
+    pattern: '/api/v1/ai-reports'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'ai_reports.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/ai-reports/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'ai_reports.destroy': {
+    methods: ["DELETE"]
+    pattern: '/api/v1/ai-reports/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
   'products.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/products'

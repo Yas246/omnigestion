@@ -8,15 +8,14 @@ import { useAuth } from '@/lib/auth-context';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { ClientsTable } from '@/components/clients/ClientsTable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from "@/components/ui/page-header";
 import { Loader2 } from 'lucide-react';
 
 export default function ClientsPage() {
   const router = useRouter();
   const { canAccessModule, getFirstAccessiblePage } = usePermissions();
 
-  // React Query + onSnapshot hook
   const { clients, isLoading: loading } = useClientsRealtime();
-  const hasMore = false; // Plus de pagination - onSnapshot synchronise tout
 
   // Vérifier les permissions - rediriger si pas d'accès
   useEffect(() => {
@@ -31,7 +30,6 @@ export default function ClientsPage() {
   // Auth user for store initialization
   const { user } = useAuth();
 
-  // ⚠️ Plus besoin de charger les données - onSnapshot gère tout automatiquement
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -81,12 +79,11 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Clientèle</h1>
-        <p className="text-muted-foreground">
-          Gérez vos clients et leurs informations
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Commercial"
+        title="Clientèle"
+        description="Gérez vos clients et leurs informations"
+      />
 
       <Card>
         <CardHeader>

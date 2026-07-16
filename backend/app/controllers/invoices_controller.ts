@@ -18,7 +18,23 @@ export default class InvoicesController {
     let query = Invoice.forContext(ctx)
     if (status) query = query.where('status', status)
     const results = await query.orderBy('sale_date', 'desc').paginate(page, limit)
-    return results.toJSON()
+    const invoiceRows = results.all()
+
+    // Batch-load items for all invoices on this page (for reports/profits).
+    const invoiceIds = invoiceRows.map((inv) => inv.id)
+    const itemsByInvoice = new Map<number, any[]>()
+    if (invoiceIds.length > 0) {
+      const items = await InvoiceItem.forContext(ctx)
+        .whereIn('invoiceId', invoiceIds)
+        .orderBy('position', 'asc')
+      for (const item of items) {
+        const arr = itemsByInvoice.get(item.invoiceId) ?? []
+        arr.push(item.toJSON())
+        itemsByInvoice.set(item.invoiceId, arr)
+      }
+    }
+    const data = invoiceRows.map((inv) => ({ ...inv.toJSON(), items: itemsByInvoice.get(inv.id) ?? [] }))
+    return { meta: results.toJSON().meta, data }
   }
 
   async show(ctx: HttpContext) {

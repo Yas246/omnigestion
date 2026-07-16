@@ -5,9 +5,9 @@ export function getInvoiceStatusBadge(status: string) {
     case 'draft':
       return <Badge variant="secondary">Brouillon</Badge>;
     case 'validated':
-      return <Badge variant="outline" className="border-orange-500 text-orange-500">Validée</Badge>;
+      return <Badge variant="info">Validée</Badge>;
     case 'paid':
-      return <Badge variant="default" className="bg-green-600">Payée</Badge>;
+      return <Badge variant="success">Payée</Badge>;
     case 'cancelled':
       return <Badge variant="destructive">Annulée</Badge>;
     default:

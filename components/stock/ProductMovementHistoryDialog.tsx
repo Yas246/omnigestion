@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import type { Product, StockMovement } from '@/types';
 import { useStockMovements as useStockMovementsRealtime } from '@/lib/api/hooks/useStock';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ArrowUp, ArrowDown, ArrowRight, XCircle, History } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowRight, XCircle, History, Inbox } from 'lucide-react';
 import { getMovementBadge } from '@/lib/utils/stock-helpers';
 
 interface ProductMovementHistoryDialogProps {
@@ -67,7 +68,7 @@ export function ProductMovementHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-screen overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
@@ -79,9 +80,10 @@ export function ProductMovementHistoryDialog({
         </DialogHeader>
 
         {movements.length === 0 ? (
-          <div className="py-8 text-center text-muted-foreground">
-            Aucun mouvement enregistré pour ce produit
-          </div>
+          <EmptyState
+            icon={<Inbox className="h-5 w-5" />}
+            title="Aucun mouvement enregistré pour ce produit"
+          />
         ) : (
           /* Desktop : tableau, Mobile : cartes */
           <>

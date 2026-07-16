@@ -82,7 +82,7 @@ export function ManualCreditDialog({ open, onOpenChange }: ManualCreditDialogPro
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nouveau crédit client</DialogTitle>
         </DialogHeader>

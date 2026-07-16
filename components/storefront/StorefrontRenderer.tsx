@@ -1,8 +1,11 @@
 'use client';
 
 import { allFontsClass } from './fonts';
+import { resolveFonts } from './font-pairs';
 import { MinimalTemplate } from './templates/MinimalTemplate';
 import { BoutiqueTemplate } from './templates/BoutiqueTemplate';
+import { MarcheTemplate } from './templates/MarcheTemplate';
+import { StudioTemplate } from './templates/StudioTemplate';
 import type {
   StorefrontCompany,
   StorefrontConfig,
@@ -16,7 +19,7 @@ interface Props {
 }
 
 /**
- * Renders the merchant's storefront. Sets theme colors + the template's font
+ * Renders the merchant's storefront. Sets theme colors + the resolved font
  * pairing as CSS variables on a wrapper, then picks the template. Used both by
  * the public /store/[slug] page AND the live preview in the builder (same
  * component → preview is faithful).
@@ -24,22 +27,24 @@ interface Props {
 export function StorefrontRenderer({ company, config, products }: Props) {
   const { primary, accent, background, text } = config.colors;
   const isBoutique = config.template === 'boutique';
-  const fontDisplay = isBoutique ? 'var(--font-cormorant)' : 'var(--font-fraunces)';
-  const fontBody = isBoutique ? 'var(--font-jost)' : 'var(--font-manrope)';
+  const isMarche = config.template === 'marche';
+  const isStudio = config.template === 'studio';
+
+  const pair = resolveFonts(config);
 
   const style = {
     '--store-primary': primary,
     '--store-accent': accent,
     '--store-bg': background,
     '--store-text': text,
-    '--store-font-display': fontDisplay,
-    '--store-font-body': fontBody,
+    '--store-font-display': pair.display,
+    '--store-font-body': pair.body,
     backgroundColor: background,
     color: text,
-    fontFamily: fontBody,
+    fontFamily: pair.body,
   } as React.CSSProperties;
 
-  const Template = isBoutique ? BoutiqueTemplate : MinimalTemplate;
+  const Template = isBoutique ? BoutiqueTemplate : isMarche ? MarcheTemplate : isStudio ? StudioTemplate : MinimalTemplate;
 
   return (
     <div style={style} className={`${allFontsClass} min-h-screen antialiased`}>

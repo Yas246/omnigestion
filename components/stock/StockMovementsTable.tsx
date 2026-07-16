@@ -5,7 +5,6 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { StockMovement } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Table,
@@ -15,7 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowUp, ArrowDown, ArrowRight, XCircle, Filter } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ArrowUp, ArrowDown, ArrowRight, XCircle, Filter, Inbox } from 'lucide-react';
 import { getMovementBadge } from '@/lib/utils/stock-helpers';
 
 interface StockMovementsTableProps {
@@ -41,12 +41,12 @@ export function StockMovementsTable({
   const getMovementIcon = (type: string) => {
     switch (type) {
       case 'in':
-        return <ArrowUp className="h-4 w-4 text-green-600" />;
+        return <ArrowUp className="h-4 w-4" />;
       case 'out':
       case 'loss':
-        return <ArrowDown className="h-4 w-4 text-red-600" />;
+        return <ArrowDown className="h-4 w-4" />;
       case 'transfer':
-        return <ArrowRight className="h-4 w-4 text-blue-600" />;
+        return <ArrowRight className="h-4 w-4" />;
       default:
         return null;
     }
@@ -62,32 +62,32 @@ export function StockMovementsTable({
       <div className="flex items-center gap-2">
         <Filter className="h-4 w-4 text-muted-foreground" />
         <Select onValueChange={(value) => setSelectedType(value as any)} value={selectedType}>
-          <SelectTrigger className="w-55">
+          <SelectTrigger className="w-56">
             <SelectValue placeholder="Tous les types" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les types</SelectItem>
             <SelectItem value="in">
-              <div className="flex items-center gap-2">
-                <ArrowUp className="h-3 w-3 text-green-600" />
+              <div className="flex items-center gap-2 text-[oklch(0.42_0.11_145)]">
+                <ArrowUp className="h-3 w-3" />
                 Entrées
               </div>
             </SelectItem>
             <SelectItem value="out">
-              <div className="flex items-center gap-2">
-                <ArrowDown className="h-3 w-3 text-red-600" />
+              <div className="flex items-center gap-2 text-destructive">
+                <ArrowDown className="h-3 w-3" />
                 Sorties
               </div>
             </SelectItem>
             <SelectItem value="loss">
-              <div className="flex items-center gap-2">
-                <XCircle className="h-3 w-3 text-red-600" />
+              <div className="flex items-center gap-2 text-destructive">
+                <XCircle className="h-3 w-3" />
                 Pertes
               </div>
             </SelectItem>
             <SelectItem value="transfer">
-              <div className="flex items-center gap-2">
-                <ArrowRight className="h-3 w-3 text-blue-600" />
+              <div className="flex items-center gap-2 text-[oklch(0.45_0.10_200)]">
+                <ArrowRight className="h-3 w-3" />
                 Transferts
               </div>
             </SelectItem>
@@ -116,12 +116,15 @@ export function StockMovementsTable({
               </TableRow>
             ) : filteredMovements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    {selectedType === 'all'
-                      ? 'Aucun mouvement de stock enregistré'
-                      : `Aucun mouvement de type "${selectedType}" trouvé`}
-                  </p>
+                <TableCell colSpan={6} className="h-24">
+                  <EmptyState
+                    icon={<Inbox className="h-5 w-5" />}
+                    title={
+                      selectedType === 'all'
+                        ? 'Aucun mouvement de stock enregistré'
+                        : `Aucun mouvement de type "${selectedType}" trouvé`
+                    }
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -150,8 +153,8 @@ export function StockMovementsTable({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className={`text-right font-medium ${
-                    movement.quantity > 0 ? 'text-green-600' : 'text-red-600'
+                  <TableCell className={`text-right font-medium tabular-nums ${
+                    movement.quantity > 0 ? 'text-[oklch(0.42_0.11_145)]' : 'text-destructive'
                   }`}>
                     {formatQuantity(movement.quantity)}
                   </TableCell>

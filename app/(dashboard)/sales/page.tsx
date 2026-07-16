@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, Calendar, X } from 'lucide-react';
+import { PageHeader } from "@/components/ui/page-header";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { fr } from 'date-fns/locale';
@@ -35,7 +36,6 @@ type InvoiceCreateResult = {
 };
 
 export default function SalesPage() {
-  // Utiliser React Query + onSnapshot pour les factures temps réel
   const { invoices: rawInvoices, isLoading } = useInvoicesRealtime();
 
   // État local pour la recherche
@@ -308,25 +308,18 @@ export default function SalesPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">Ventes</h1>
-          </div>
-          <p className="text-muted-foreground">
-            Gérez vos factures et vos ventes
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <PermissionGate module="sales" action="create">
-            <Button onClick={() => setIsDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nouvelle facture
-            </Button>
-          </PermissionGate>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Commercial"
+        title="Ventes"
+        description="Gérez vos factures et vos ventes"
+      >
+        <PermissionGate module="sales" action="create">
+          <Button onClick={() => setIsDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvelle facture
+          </Button>
+        </PermissionGate>
+      </PageHeader>
 
 
       {/* Filtre par date (admin uniquement) */}

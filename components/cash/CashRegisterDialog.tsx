@@ -89,7 +89,7 @@ export function CashRegisterDialog({ open, onOpenChange, onSuccess, cashRegister
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Modifier la caisse' : 'Nouvelle caisse'}</DialogTitle>
           <DialogDescription>

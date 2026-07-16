@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, Trash2, Package, AlertTriangle } from 'lucide-react';
 import { useProductsRealtime } from '@/lib/api/hooks/useProducts';
 import { useWarehousesRealtime } from '@/lib/api/hooks/useWarehouses';
-import { useSupplierPurchases } from '@/lib/hooks/useSupplierPurchases';
+import { usePurchases } from '@/lib/api/hooks/usePurchases';
 import type { Product } from '@/types';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { formatPrice } from '@/lib/utils';
@@ -48,7 +48,7 @@ interface PurchaseDialogProps {
 export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialogProps) {
   const { products } = useProductsRealtime();
   const { warehouses } = useWarehousesRealtime();
-  const { createPurchase } = useSupplierPurchases();
+  const { createPurchase } = usePurchases();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
@@ -205,7 +205,7 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-5xl max-h-screen overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nouvel achat fournisseur</DialogTitle>
           <DialogDescription>
@@ -322,7 +322,7 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
                               )}
                             </div>
                             <div className="text-right">
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-muted-foreground tabular-nums">
                                 Prix actuel: {product.purchasePrice?.toLocaleString() || 0} FCFA
                               </span>
                             </div>
@@ -394,21 +394,21 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
                             />
                             {priceChanged && (
                               <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                <div className="w-2 h-2 bg-orange-500 rounded-full" title="Prix modifié (sera mis à jour dans le système)" />
+                                <div className="w-2 h-2 bg-[oklch(0.75_0.15_75)] rounded-full" title="Prix modifié (sera mis à jour dans le système)" />
                               </div>
                             )}
                           </div>
                           {product && (
-                            <div className="text-xs text-muted-foreground mt-1">
+                            <div className="text-xs text-muted-foreground mt-1 tabular-nums">
                               Système: {formatPrice(systemPrice)} FCFA
                               {priceChanged && (
-                                <span className="text-orange-600 ml-1">→ {formatPrice(item.unitPrice)} FCFA</span>
+                                <span className="text-[oklch(0.52_0.13_75)] ml-1">→ {formatPrice(item.unitPrice)} FCFA</span>
                               )}
                             </div>
                           )}
                         </div>
                         <div className="col-span-2 text-right">
-                          <div className="font-medium">{formatPrice(item.unitPrice * item.quantity)} FCFA</div>
+                          <div className="font-medium tabular-nums">{formatPrice(item.unitPrice * item.quantity)} FCFA</div>
                         </div>
                         <div className="col-span-1 flex justify-end">
                           <Button
@@ -472,15 +472,15 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
                       </FormControl>
                       <FormDescription>
                         {remainingAmount > 0 ? (
-                          <span className="text-orange-600">
+                          <span className="text-[oklch(0.52_0.13_75)] tabular-nums">
                             Reste à payer: {formatPrice(remainingAmount)} FCFA
                           </span>
                         ) : remainingAmount < 0 ? (
-                          <span className="text-green-600">
+                          <span className="text-[oklch(0.42_0.11_145)] tabular-nums">
                             À rendre: {formatPrice(Math.abs(remainingAmount))} FCFA
                           </span>
                         ) : (
-                          <span className="text-green-600">Payé intégralement</span>
+                          <span className="text-[oklch(0.42_0.11_145)]">Payé intégralement</span>
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -570,19 +570,19 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
               <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Total:</span>
-                  <span className="flex items-center gap-1 font-bold text-lg">
+                  <span className="flex items-center gap-1 font-bold text-lg tabular-nums">
                     <Package className="h-4 w-4" />
                     {formatPrice(total)} FCFA
                   </span>
                 </div>
                 {paymentMethod !== 'credit' && (
                   <>
-                    <div className="flex justify-between text-sm text-green-600">
+                    <div className="flex justify-between text-sm text-[oklch(0.42_0.11_145)] tabular-nums">
                       <span>Payé:</span>
                       <span>{formatPrice(form.watch('paidAmount'))} FCFA</span>
                     </div>
                     {remainingAmount > 0 && (
-                      <div className="flex justify-between text-sm text-orange-600 font-medium">
+                      <div className="flex justify-between text-sm text-[oklch(0.52_0.13_75)] font-medium tabular-nums">
                         <span>Reste à payer:</span>
                         <span>{formatPrice(remainingAmount)} FCFA</span>
                       </div>
@@ -590,7 +590,7 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
                   </>
                 )}
                 {remainingAmount > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-orange-600">
+                  <div className="flex items-center gap-2 text-sm text-[oklch(0.52_0.13_75)]">
                     <AlertTriangle className="h-4 w-4" />
                     <span>Un crédit fournisseur sera créé automatiquement</span>
                   </div>

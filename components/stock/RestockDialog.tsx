@@ -113,7 +113,7 @@ export function RestockDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-screen overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Approvisionner le stock</DialogTitle>
           <DialogDescription>
@@ -140,7 +140,7 @@ export function RestockDialog({
                         <span className="text-muted-foreground">
                           {warehouse.name} {warehouse.isMain ? '(Principal)' : ''}
                         </span>
-                        <Badge variant={stock > 0 ? "default" : "secondary"} className="text-xs">
+                        <Badge variant={stock > 0 ? "success" : "secondary"} className="text-xs tabular-nums">
                           {stock} {product.unit}
                         </Badge>
                       </div>
@@ -183,7 +183,7 @@ export function RestockDialog({
                   </Select>
                   {warehouseId && (
                     <FormDescription>
-                      Stock actuel : <span className="font-semibold">{currentStock} {product.unit}</span>
+                      Stock actuel : <span className="font-semibold tabular-nums">{currentStock} {product.unit}</span>
                     </FormDescription>
                   )}
                   <FormMessage />
@@ -212,7 +212,7 @@ export function RestockDialog({
                   </FormControl>
                   {warehouseId && quantity > 0 && (
                     <FormDescription>
-                      Nouveau stock : <span className="font-semibold text-green-600">{newStock} {product.unit}</span>
+                      Nouveau stock : <span className="font-semibold">{newStock} {product.unit}</span>
                     </FormDescription>
                   )}
                   <FormMessage />
@@ -222,14 +222,14 @@ export function RestockDialog({
 
             {/* Récapitulatif */}
             {selectedWarehouse && quantity > 0 && (
-              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                <p className="text-sm font-medium mb-1 text-green-800">Récapitulatif de l'approvisionnement</p>
-                <div className="text-sm text-green-700">
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <p className="text-sm font-medium mb-1">Récapitulatif de l'approvisionnement</p>
+                <div className="text-sm text-muted-foreground">
                   <p>Dépôt : {selectedWarehouse.name}</p>
-                  <p>Stock actuel : {currentStock} {product.unit}</p>
-                  <p>À ajouter : +{quantity} {product.unit}</p>
-                  <p className="font-semibold text-green-800 mt-1">
-                    Nouveau stock : {newStock} {product.unit}
+                  <p>Stock actuel : <span className="tabular-nums">{currentStock}</span> {product.unit}</p>
+                  <p>À ajouter : +<span className="tabular-nums">{quantity}</span> {product.unit}</p>
+                  <p className="font-semibold text-foreground mt-1">
+                    Nouveau stock : <span className="tabular-nums">{newStock}</span> {product.unit}
                   </p>
                 </div>
               </div>

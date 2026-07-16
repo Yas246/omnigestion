@@ -36,7 +36,10 @@ export function BuyerAuthModal({
         await login(email, password);
       }
       onOpenChange(false);
-      onSuccess?.();
+      // Defer onSuccess so the parent re-renders with the new buyer state
+      // (React batches state updates — calling onSuccess synchronously would
+      // see the stale `buyer` from the closure and re-open the modal).
+      setTimeout(() => onSuccess?.(), 50);
     } catch (e: any) {
       setError(e.message);
     } finally {

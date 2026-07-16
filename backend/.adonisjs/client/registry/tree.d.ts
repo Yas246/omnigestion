@@ -70,6 +70,12 @@ export interface ApiDefinition {
     update: typeof routes['warehouses.update']
     destroy: typeof routes['warehouses.destroy']
   }
+  aiReports: {
+    index: typeof routes['ai_reports.index']
+    store: typeof routes['ai_reports.store']
+    show: typeof routes['ai_reports.show']
+    destroy: typeof routes['ai_reports.destroy']
+  }
   products: {
     index: typeof routes['products.index']
     store: typeof routes['products.store']

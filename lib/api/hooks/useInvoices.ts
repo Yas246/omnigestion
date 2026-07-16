@@ -58,6 +58,7 @@ function mapInvoice(i: InvoiceDto): Invoice {
       productCode: it.productCode,
       quantity: Number(it.quantity),
       unitPrice: Number(it.unitPrice),
+      purchasePrice: Number(it.purchasePrice ?? 0),
       unit: it.unit,
       isWholesale: it.isWholesale,
     })),

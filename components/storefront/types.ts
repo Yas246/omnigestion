@@ -25,6 +25,7 @@ export interface StorefrontConfig {
   template: string
   colors: StorefrontColors
   font: string
+  fontPair?: string
   hero: StorefrontHero
   sections: StorefrontSection[]
   productDisplay: { showPrice: boolean; showStock: boolean; columns: number }

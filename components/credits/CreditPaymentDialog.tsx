@@ -76,14 +76,14 @@ export function CreditPaymentDialog({ open, onOpenChange, credit, onSubmit }: Cr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Enregistrer un paiement</DialogTitle>
           <DialogDescription>
             {credit && (
               <span>
                 Paiement pour {credit.clientName} - Reste à payer :{' '}
-                <span className="font-bold">{formatPrice(credit.remainingAmount)} FCFA</span>
+                <span className="font-bold tabular-nums">{formatPrice(credit.remainingAmount)} FCFA</span>
               </span>
             )}
           </DialogDescription>

@@ -22,7 +22,7 @@ import {
   Check,
   Bell,
 } from "lucide-react";
-import { useTestNotification } from "@/lib/hooks/useTestNotification";
+import { useFCM } from "@/lib/hooks/useFCM";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -33,7 +33,8 @@ export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
-  const { sendTestNotification, loading: testNotifLoading } = useTestNotification();
+  const { requestPermission } = useFCM();
+  const [testNotifLoading] = [false];
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -99,8 +100,8 @@ export function Header({ onMenuClick }: HeaderProps) {
               variant="outline"
               size="icon"
               onClick={() => {
-                console.log('[Header] Clic sur bouton test notification');
-                sendTestNotification();
+                console.log('[Header] Clic sur bouton notification');
+                requestPermission();
               }}
               disabled={testNotifLoading}
               className="shrink-0 hover:border-primary/50 hover:bg-primary/5"
@@ -171,8 +172,8 @@ export function Header({ onMenuClick }: HeaderProps) {
                 variant="ghost"
                 className="relative h-10 w-10 rounded-full hover:bg-primary/10 transition-colors"
               >
-                <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                  <AvatarFallback className="bg-linear-to-br from-primary to-primary/80 text-primary-foreground font-semibold">
+                <Avatar className="h-10 w-10 ring-1 ring-border">
+                  <AvatarFallback className="bg-muted text-foreground font-medium">
                     {getUserInitials()}
                   </AvatarFallback>
                 </Avatar>

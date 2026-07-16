@@ -20,7 +20,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, Pencil, Trash2, Search, Plus } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { MoreHorizontal, Pencil, Trash2, Search, Plus, Users } from 'lucide-react';
 import { PermissionGate } from '@/components/auth';
 import { ClientDialog } from './ClientDialog';
 import { useDebounce } from '@/lib/hooks/useDebounce';
@@ -133,7 +134,7 @@ export function ClientsTable({
               <TableHead>Téléphone</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Statut</TableHead>
-              <TableHead className="w-[70px]"></TableHead>
+              <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -145,8 +146,12 @@ export function ClientsTable({
               </TableRow>
             ) : filteredClients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                  {debouncedSearchQuery ? 'Aucun client trouvé' : 'Aucun client. Créez votre premier client.'}
+                <TableCell colSpan={6} className="h-24">
+                  <EmptyState
+                    icon={<Users className="h-5 w-5" />}
+                    title={debouncedSearchQuery ? 'Aucun client trouvé' : 'Aucun client'}
+                    description={debouncedSearchQuery ? 'Essayez d\'ajuster votre recherche.' : 'Créez votre premier client pour commencer.'}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -158,7 +163,7 @@ export function ClientsTable({
                   <TableCell className="text-muted-foreground">{client.email || '-'}</TableCell>
                   <TableCell>
                     {client.isActive ? (
-                      <Badge variant="default" className="bg-green-500 hover:bg-green-600">Actif</Badge>
+                      <Badge variant="success">Actif</Badge>
                     ) : (
                       <Badge variant="secondary">Inactif</Badge>
                     )}

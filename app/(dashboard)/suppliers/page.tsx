@@ -8,7 +8,9 @@ import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, DollarSign, Calendar, Package, User, Edit, Trash2 } from 'lucide-react';
+import { Loader2, Plus, DollarSign, Calendar, Package, User, Edit, Trash2, Users, Wallet, ShoppingBag } from 'lucide-react';
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from '@/components/ui/empty-state';
 import { useSuppliersRealtime, useSuppliers } from '@/lib/api/hooks/useSuppliers';
 import { useSupplierCreditsRealtime, useSupplierCredits } from '@/lib/api/hooks/useSupplierCredits';
 import { usePurchasesRealtime } from '@/lib/api/hooks/usePurchases';
@@ -33,7 +35,6 @@ export default function SuppliersPage() {
   const router = useRouter();
   const { canAccessModule, getFirstAccessiblePage } = usePermissions();
 
-  // NOUVEAUX hooks React Query + onSnapshot pour temps réel
   const { suppliers, isLoading: suppliersLoading } = useSuppliersRealtime();
   const { credits, isLoading: creditsLoading } = useSupplierCreditsRealtime();
   const { purchases, isLoading: purchasesLoading } = usePurchasesRealtime();
@@ -68,20 +69,20 @@ export default function SuppliersPage() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, { label: string; variant: any }> = {
-      active: { label: 'En cours', variant: 'default' },
-      partial: { label: 'En cours', variant: 'default' }, // Même affichage que active
-      paid: { label: 'Payé', variant: 'outline' },
+      active: { label: 'En cours', variant: 'info' },
+      partial: { label: 'En cours', variant: 'warning' }, // Partiel = warning
+      paid: { label: 'Payé', variant: 'success' },
       overdue: { label: 'En retard', variant: 'destructive' },
-      cancelled: { label: 'Annulé', variant: 'outline' },
+      cancelled: { label: 'Annulé', variant: 'destructive' },
     };
     return labels[status] || { label: status, variant: 'outline' };
   };
 
   const getPurchaseStatusLabel = (status: string) => {
     const labels: Record<string, { label: string; variant: any }> = {
-      paid: { label: 'Payé', variant: 'outline' },
+      paid: { label: 'Payé', variant: 'success' },
       active: { label: 'Non payé', variant: 'destructive' },
-      partial: { label: 'Partiel', variant: 'default' },
+      partial: { label: 'Partiel', variant: 'warning' },
     };
     return labels[status] || { label: status, variant: 'outline' };
   };
@@ -141,7 +142,6 @@ export default function SuppliersPage() {
       setShowPaymentDialog(false);
       setSelectedCredit(null);
       toast.success('Paiement enregistré avec succès');
-      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch (error: any) {
       console.error('Erreur lors du paiement:', error);
       toast.error('Erreur lors de l\'enregistrement du paiement');
@@ -154,7 +154,6 @@ export default function SuppliersPage() {
       await createSupplier(data);
       setShowSupplierDialog(false);
       toast.success('Fournisseur créé avec succès');
-      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch (error: any) {
       console.error('Erreur lors de la création:', error);
       toast.error('Erreur lors de la création du fournisseur');
@@ -170,7 +169,6 @@ export default function SuppliersPage() {
       setShowEditDialog(false);
       setSelectedSupplier(null);
       toast.success('Fournisseur modifié avec succès');
-      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch (error: any) {
       console.error('Erreur lors de la modification:', error);
       toast.error('Erreur lors de la modification du fournisseur');
@@ -187,7 +185,6 @@ export default function SuppliersPage() {
     try {
       await deleteSupplier(supplierId);
       toast.success('Fournisseur supprimé avec succès');
-      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch (error: any) {
       console.error('Erreur lors de la suppression:', error);
       toast.error('Erreur lors de la suppression du fournisseur');
@@ -202,28 +199,24 @@ export default function SuppliersPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Fournisseurs</h1>
-          <p className="text-muted-foreground">
-            Gérez vos fournisseurs et vos achats
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <PermissionGate module="suppliers" action="create">
-            <Button variant="outline" onClick={() => setShowSupplierDialog(true)}>
-              <User className="h-4 w-4 mr-2" />
-              Nouveau fournisseur
-            </Button>
-          </PermissionGate>
-          <PermissionGate module="suppliers" action="purchase">
-            <Button onClick={() => setShowPurchaseDialog(true)}>
-              <Package className="h-4 w-4 mr-2" />
-              Nouvel achat
-            </Button>
-          </PermissionGate>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Stock & achats"
+        title="Fournisseurs"
+        description="Gérez vos fournisseurs et vos achats"
+      >
+        <PermissionGate module="suppliers" action="create">
+          <Button variant="outline" onClick={() => setShowSupplierDialog(true)}>
+            <User className="h-4 w-4 mr-2" />
+            Nouveau fournisseur
+          </Button>
+        </PermissionGate>
+        <PermissionGate module="suppliers" action="purchase">
+          <Button onClick={() => setShowPurchaseDialog(true)}>
+            <Package className="h-4 w-4 mr-2" />
+            Nouvel achat
+          </Button>
+        </PermissionGate>
+      </PageHeader>
 
       {/* Onglets */}
       <div className="flex gap-2 border-b">
@@ -272,17 +265,19 @@ export default function SuppliersPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : suppliers.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Aucun fournisseur. Ajoutez votre premier fournisseur.
-                </p>
-                <PermissionGate module="suppliers" action="create">
-                  <Button onClick={() => setShowSupplierDialog(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Ajouter un fournisseur
-                  </Button>
-                </PermissionGate>
-              </div>
+              <EmptyState
+                icon={<Users className="h-5 w-5" />}
+                title="Aucun fournisseur"
+                description="Ajoutez votre premier fournisseur pour commencer."
+                action={
+                  <PermissionGate module="suppliers" action="create">
+                    <Button onClick={() => setShowSupplierDialog(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Ajouter un fournisseur
+                    </Button>
+                  </PermissionGate>
+                }
+              />
             ) : (
               <div className="space-y-3">
                 {suppliers.map((supplier) => (
@@ -297,7 +292,7 @@ export default function SuppliersPage() {
                           <Badge variant="outline">{supplier.code}</Badge>
                         )}
                         {supplier.isActive ? (
-                          <Badge variant="default">Actif</Badge>
+                          <Badge variant="success">Actif</Badge>
                         ) : (
                           <Badge variant="secondary">Inactif</Badge>
                         )}
@@ -418,9 +413,11 @@ export default function SuppliersPage() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : filteredCredits.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Aucun crédit trouvé
-                </p>
+                <EmptyState
+                  icon={<Wallet className="h-5 w-5" />}
+                  title={debouncedSearchQuery ? 'Aucun crédit trouvé' : 'Aucun crédit fournisseur'}
+                  description={debouncedSearchQuery ? 'Essayez d\'ajuster votre recherche ou vos filtres.' : 'Les crédits fournisseurs apparaîtront ici.'}
+                />
               ) : (
                 <div className="space-y-3">
                   {filteredCredits.map((credit) => (
@@ -440,14 +437,14 @@ export default function SuppliersPage() {
                             {getStatusLabel(credit.status).label}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                          <span className="text-muted-foreground tabular-nums">
                             Total : {formatPrice(credit.amount || 0)} FCFA
                           </span>
-                          <span className="text-[oklch(0.65_0.12_145)]">
+                          <span className="text-[oklch(0.65_0.12_145)] tabular-nums">
                             Payé : {formatPrice(credit.amountPaid || 0)} FCFA
                           </span>
-                          <span className="text-[oklch(0.75_0.15_75)] font-medium">
+                          <span className="text-[oklch(0.75_0.15_75)] font-medium tabular-nums">
                             Reste : {formatPrice(credit.remainingAmount || 0)} FCFA
                           </span>
                           <span className="text-muted-foreground flex items-center gap-1">
@@ -516,9 +513,11 @@ export default function SuppliersPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : filteredPurchases.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Aucun achat trouvé
-              </p>
+              <EmptyState
+                icon={<ShoppingBag className="h-5 w-5" />}
+                title={debouncedSearchQuery ? 'Aucun achat trouvé' : 'Aucun achat'}
+                description={debouncedSearchQuery ? 'Essayez d\'ajuster votre recherche ou vos filtres.' : 'Les achats fournisseurs apparaîtront ici.'}
+              />
             ) : (
               <div className="space-y-3">
                 {filteredPurchases.map((purchase) => (
@@ -536,15 +535,15 @@ export default function SuppliersPage() {
                           {getPurchaseStatusLabel(purchase.status).label}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                        <span className="text-muted-foreground tabular-nums">
                           Total : {formatPrice(purchase.total || 0)} FCFA
                         </span>
-                        <span className="text-[oklch(0.65_0.12_145)]">
+                        <span className="text-[oklch(0.65_0.12_145)] tabular-nums">
                           Payé : {formatPrice(purchase.paidAmount || 0)} FCFA
                         </span>
                         {purchase.remainingAmount > 0 && (
-                          <span className="text-[oklch(0.75_0.15_75)] font-medium">
+                          <span className="text-[oklch(0.75_0.15_75)] font-medium tabular-nums">
                             Reste : {formatPrice(purchase.remainingAmount || 0)} FCFA
                           </span>
                         )}

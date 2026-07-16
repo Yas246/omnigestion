@@ -1,10 +1,11 @@
 'use client';
 
 /**
- * Purchases — API-backed (list only; creation is done from the sales/purchases flow).
+ * Purchases — API-backed.
  *  - usePurchasesRealtime() -> { purchases, isLoading }
+ *  - usePurchases()         -> { createPurchase }
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import type { Purchase } from '@/types';
 
@@ -55,4 +56,21 @@ export function usePurchasesRealtime() {
     },
   });
   return { purchases: q.data ?? [], isLoading: q.isLoading, error: q.error as Error | null };
+}
+
+export function usePurchases() {
+  const qc = useQueryClient();
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => api.post('/purchases', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['purchases'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      qc.invalidateQueries({ queryKey: ['cash-registers'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+  return {
+    createPurchase: (data: any) => createMutation.mutateAsync(data),
+  };
 }

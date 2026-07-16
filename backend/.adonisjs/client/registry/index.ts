@@ -222,6 +222,30 @@ const routes = {
     tokens: [{"old":"/api/v1/warehouses/:id","type":0,"val":"api","end":""},{"old":"/api/v1/warehouses/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/warehouses/:id","type":0,"val":"warehouses","end":""},{"old":"/api/v1/warehouses/:id","type":1,"val":"id","end":""}],
     types: placeholder as Registry['warehouses.destroy']['types'],
   },
+  'ai_reports.index': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/ai-reports',
+    tokens: [{"old":"/api/v1/ai-reports","type":0,"val":"api","end":""},{"old":"/api/v1/ai-reports","type":0,"val":"v1","end":""},{"old":"/api/v1/ai-reports","type":0,"val":"ai-reports","end":""}],
+    types: placeholder as Registry['ai_reports.index']['types'],
+  },
+  'ai_reports.store': {
+    methods: ["POST"],
+    pattern: '/api/v1/ai-reports',
+    tokens: [{"old":"/api/v1/ai-reports","type":0,"val":"api","end":""},{"old":"/api/v1/ai-reports","type":0,"val":"v1","end":""},{"old":"/api/v1/ai-reports","type":0,"val":"ai-reports","end":""}],
+    types: placeholder as Registry['ai_reports.store']['types'],
+  },
+  'ai_reports.show': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/ai-reports/:id',
+    tokens: [{"old":"/api/v1/ai-reports/:id","type":0,"val":"api","end":""},{"old":"/api/v1/ai-reports/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/ai-reports/:id","type":0,"val":"ai-reports","end":""},{"old":"/api/v1/ai-reports/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['ai_reports.show']['types'],
+  },
+  'ai_reports.destroy': {
+    methods: ["DELETE"],
+    pattern: '/api/v1/ai-reports/:id',
+    tokens: [{"old":"/api/v1/ai-reports/:id","type":0,"val":"api","end":""},{"old":"/api/v1/ai-reports/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/ai-reports/:id","type":0,"val":"ai-reports","end":""},{"old":"/api/v1/ai-reports/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['ai_reports.destroy']['types'],
+  },
   'products.index': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/products',

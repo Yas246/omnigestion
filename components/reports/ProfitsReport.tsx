@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useInvoicesRealtime } from '@/lib/api/hooks/useInvoices';
 import { useClientCreditsRealtime } from '@/lib/api/hooks/useClientCredits';
 import { getRecognizedProfits, buildInvoicePaymentsMap } from '@/lib/utils/profitCalculation';
@@ -231,8 +232,8 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
       {
         label: 'Marge brute (FCFA)',
         data: Object.values(salesByDay).map(d => d.margin),
-        borderColor: 'rgb(34, 197, 94)',
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderColor: 'oklch(0.65 0.12 145)',
+        backgroundColor: 'oklch(0.65 0.12 145 / 0.15)',
         fill: true,
         tension: 0.4,
       },
@@ -247,9 +248,9 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
         label: 'Marge brute (FCFA)',
         data: topProducts.map(p => p.margin),
         backgroundColor: topProducts.map(p =>
-          p.marginRate >= 30 ? 'rgba(34, 197, 94, 0.8)' :
-          p.marginRate >= 15 ? 'rgba(249, 115, 22, 0.8)' :
-          'rgba(239, 68, 68, 0.8)'
+          p.marginRate >= 30 ? 'oklch(0.65 0.12 145 / 0.8)' :
+          p.marginRate >= 15 ? 'oklch(0.75 0.15 75 / 0.8)' :
+          'oklch(0.58 0.22 25 / 0.8)'
         ),
       },
     ],
@@ -264,8 +265,16 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
       },
     },
     scales: {
+      x: {
+        ticks: { color: 'oklch(0.52 0.02 50)', font: { size: 11 } },
+        grid: { color: 'oklch(0.90 0.01 85)' },
+        border: { display: false },
+      },
       y: {
         beginAtZero: true,
+        ticks: { color: 'oklch(0.52 0.02 50)', font: { size: 11 } },
+        grid: { color: 'oklch(0.90 0.01 85)' },
+        border: { display: false },
       },
     },
   };
@@ -336,13 +345,14 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
             <CardDescription>Marge brute par jour</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-75">
               {Object.keys(salesByDay).length > 0 ? (
                 <Line data={marginChartData} options={chartOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune donnée pour cette période
-                </p>
+                <EmptyState
+                  icon={<TrendingUp className="h-5 w-5" />}
+                  title="Aucune donnée pour cette période"
+                />
               )}
             </div>
           </CardContent>
@@ -355,13 +365,14 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
             <CardDescription>Marge brute par produit</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-75">
               {topProducts.length > 0 ? (
                 <Bar data={profitabilityChartData} options={chartOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune donnée
-                </p>
+                <EmptyState
+                  icon={<TrendingUp className="h-5 w-5" />}
+                  title="Aucune donnée"
+                />
               )}
             </div>
           </CardContent>
@@ -387,20 +398,20 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
                 key: 'revenue',
                 header: 'CA (FCFA)',
                 className: 'text-right',
-                render: (product) => formatPrice(product.revenue),
+                render: (product) => <span className="tabular-nums">{formatPrice(product.revenue)}</span>,
               },
               {
                 key: 'cost',
                 header: 'Coût (FCFA)',
                 className: 'text-right',
-                render: (product) => formatPrice(product.cost),
+                render: (product) => <span className="tabular-nums">{formatPrice(product.cost)}</span>,
               },
               {
                 key: 'margin',
                 header: 'Marge (FCFA)',
                 className: 'text-right',
                 render: (product) => (
-                  <span className={`font-semibold ${product.margin >= 0 ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
+                  <span className={`font-semibold tabular-nums ${product.margin >= 0 ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
                     {formatPrice(product.margin)}
                   </span>
                 ),
@@ -410,7 +421,7 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
                 header: 'Taux',
                 className: 'text-right',
                 render: (product) => (
-                  <span className={`font-semibold ${
+                  <span className={`font-semibold tabular-nums ${
                     product.marginRate >= 30 ? 'text-[oklch(0.65_0.12_145)]' :
                     product.marginRate >= 15 ? 'text-[oklch(0.75_0.15_75)]' :
                     'text-[oklch(0.58_0.22_25)]'

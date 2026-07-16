@@ -15,6 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
   Table,
   TableBody,
   TableCell,
@@ -34,6 +42,7 @@ import {
   XCircle,
   X,
   History,
+  MoreHorizontal,
 } from "lucide-react";
 import { PermissionGate } from "@/components/auth";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -166,16 +175,13 @@ export function ProductsTable({
         );
       case "low":
         return (
-          <Badge
-            variant="outline"
-            className="gap-1 border-orange-500 text-orange-500"
-          >
+          <Badge variant="warning" className="gap-1">
             <AlertCircle className="h-3 w-3" />
             Stock faible
           </Badge>
         );
       default:
-        return <Badge variant="default">En stock</Badge>;
+        return <Badge variant="success" className="gap-1">En stock</Badge>;
     }
   };
 
@@ -187,6 +193,78 @@ export function ProductsTable({
       maximumFractionDigits: 0,
     }).format(price);
   };
+
+  // Actions produit réutilisées par la cellule table (desktop) et la carte (mobile).
+  // - compact (desktop) : bouton vert « + » + kebab, alignés à droite.
+  // - full (mobile)     : bouton vert « Approvisionner » pleine largeur + kebab (zéro vide).
+  const renderActions = (product: Product, variant: "compact" | "full" = "compact") => (
+    <div className={variant === "full" ? "flex items-center gap-2" : "flex items-center justify-end gap-1"}>
+      <PermissionGate module="stock" action="restock">
+        {onRestock && (
+          <Button
+            variant="ghost"
+            size={variant === "full" ? "default" : "icon"}
+            onClick={() => onRestock(product)}
+            title="Approvisionner"
+            className={
+              variant === "full"
+                ? "flex-1 gap-2 bg-[oklch(0.55_0.15_145)] text-white hover:bg-[oklch(0.48_0.15_145)]"
+                : "rounded-lg bg-[oklch(0.65_0.12_145)]/15 text-[oklch(0.42_0.11_145)] hover:bg-[oklch(0.65_0.12_145)]/25 dark:bg-[oklch(0.65_0.12_145)]/20 dark:text-[oklch(0.80_0.14_145)] dark:hover:bg-[oklch(0.65_0.12_145)]/30"
+            }
+          >
+            <Plus className="h-4 w-4" />
+            {variant === "full" && <span>Approvisionner</span>}
+          </Button>
+        )}
+      </PermissionGate>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" title="Plus d’actions" className="shrink-0">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <PermissionGate module="stock" action="update">
+            {onEdit && (
+              <DropdownMenuItem onClick={() => onEdit(product)}>
+                <Edit className="mr-2 h-4 w-4" /> Modifier
+              </DropdownMenuItem>
+            )}
+          </PermissionGate>
+          <PermissionGate module="stock" action="loss">
+            {onRecordLoss && (
+              <DropdownMenuItem onClick={() => onRecordLoss(product)}>
+                <XCircle className="mr-2 h-4 w-4" /> Enregistrer une perte
+              </DropdownMenuItem>
+            )}
+          </PermissionGate>
+          <PermissionGate module="stock" action="transfer">
+            {onTransfer && (
+              <DropdownMenuItem onClick={() => onTransfer(product)}>
+                <ArrowRight className="mr-2 h-4 w-4" /> Transférer
+              </DropdownMenuItem>
+            )}
+          </PermissionGate>
+          {onViewHistory && (
+            <DropdownMenuItem onClick={() => onViewHistory(product)}>
+              <History className="mr-2 h-4 w-4" /> Historique
+            </DropdownMenuItem>
+          )}
+          <PermissionGate module="stock" action="delete">
+            {onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(product.id)}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer
+                </DropdownMenuItem>
+              </>
+            )}
+          </PermissionGate>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -250,8 +328,8 @@ export function ProductsTable({
         </div>
       </div>
 
-      {/* Tableau */}
-      <div className="rounded-md border">
+      {/* Tableau — desktop only */}
+      <div className="hidden overflow-hidden rounded-xl border bg-card lg:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -319,85 +397,67 @@ export function ProductsTable({
                   <TableCell>
                     {getStatusBadge(product.status, product.isActive ?? true)}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <PermissionGate module="stock" action="restock">
-                        {onRestock && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onRestock(product)}
-                            title="Approvisionner"
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </PermissionGate>
-                      <PermissionGate module="stock" action="loss">
-                        {onRecordLoss && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onRecordLoss(product)}
-                            title="Enregistrer une perte"
-                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </PermissionGate>
-                      <PermissionGate module="stock" action="transfer">
-                        {onTransfer && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onTransfer(product)}
-                            title="Transférer du stock"
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </PermissionGate>
-                      <PermissionGate module="stock" action="update">
-                        {onEdit && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onEdit(product)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </PermissionGate>
-                      {onViewHistory && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onViewHistory(product)}
-                          title="Historique des mouvements"
-                        >
-                          <History className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <PermissionGate module="stock" action="delete">
-                        {onDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onDelete(product.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        )}
-                      </PermissionGate>
-                    </div>
-                  </TableCell>
+                  <TableCell className="text-right">{renderActions(product)}</TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Vue mobile — cartes produits */}
+      <div className="space-y-3 lg:hidden">
+        {loading && filteredProducts.length === 0 ? (
+          <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
+            Chargement...
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="rounded-xl border bg-card">
+            <EmptyState
+              icon={<Package className="h-5 w-5" />}
+              title={
+                searchTerm
+                  ? "Aucun produit trouvé"
+                  : selectedStatus !== "all"
+                    ? "Aucun produit avec ce statut"
+                    : selectedWarehouse
+                      ? "Aucun produit dans ce dépôt"
+                      : "Aucun produit"
+              }
+              description="Créez votre premier produit pour commencer."
+            />
+          </div>
+        ) : (
+          filteredProducts.map((product) => (
+            <div key={product.id} className="space-y-3 rounded-xl border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{product.name}</p>
+                  {product.code && <p className="text-xs text-muted-foreground">{product.code}</p>}
+                </div>
+                {getStatusBadge(product.status, product.isActive ?? true)}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Stock</p>
+                  <p className="font-medium tabular-nums">
+                    {getDisplayStock(product)}
+                    {product.unit ? ` ${product.unit}` : ""}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Vente</p>
+                  <p className="font-medium tabular-nums">{formatPrice(product.retailPrice)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Achat</p>
+                  <p className="font-medium tabular-nums">{formatPrice(product.purchasePrice)}</p>
+                </div>
+              </div>
+              <div className="border-t pt-3">{renderActions(product, "full")}</div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Charger plus de produits depuis Firestore */}

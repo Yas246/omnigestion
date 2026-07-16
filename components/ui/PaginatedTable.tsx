@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Table,
   TableBody,
@@ -54,80 +55,72 @@ export function PaginatedTable({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-md border overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {columns.map((column) => (
-                <TableHead key={column.key} className={column.className}>
-                  {column.header}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {currentData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center text-sm text-muted-foreground">
-                  {emptyMessage}
-                </TableCell>
+    <div className="space-y-3">
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="[&_tr]:border-b [&_tr]:bg-muted/40">
+              <TableRow className="hover:bg-transparent">
+                {columns.map((column) => (
+                  <TableHead key={column.key} className={column.className}>
+                    {column.header}
+                  </TableHead>
+                ))}
               </TableRow>
-            ) : (
-              currentData.map((row, rowIndex) => (
-                <TableRow key={row.id || rowIndex}>
-                  {columns.map((column) => (
-                    <TableCell key={column.key} className={column.className}>
-                      {column.render ? column.render(row, rowIndex) : row[column.key]}
-                    </TableCell>
-                  ))}
+            </TableHeader>
+            <TableBody>
+              {currentData.length === 0 ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={columns.length} className="p-0">
+                    <EmptyState title={emptyMessage} />
+                  </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                currentData.map((row, rowIndex) => (
+                  <TableRow key={row.id || rowIndex}>
+                    {columns.map((column) => (
+                      <TableCell key={column.key} className={column.className}>
+                        {column.render ? column.render(row, rowIndex) : row[column.key]}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {data.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Afficher:</span>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="hidden sm:inline">Lignes&nbsp;:</span>
             <div className="flex gap-1">
               {pageSizeOptions.map((size) => (
                 <Button
                   key={size}
                   variant={pageSize === size ? 'default' : 'outline'}
-                  size="sm"
+                  size="xs"
                   onClick={() => handlePageSizeChange(size)}
                 >
                   {size}
                 </Button>
               ))}
             </div>
-            <span className="text-sm text-muted-foreground">
-              {startIndex + 1}-{Math.min(endIndex, data.length)} sur {data.length}
+            <span className="tabular-nums">
+              {startIndex + 1}–{Math.min(endIndex, data.length)} sur {data.length}
             </span>
           </div>
 
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePreviousPage}
-                disabled={safePage === 1}
-              >
+              <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={safePage === 1}>
                 Précédent
               </Button>
-              <span className="text-sm">
-                Page {safePage} sur {totalPages}
+              <span className="text-sm tabular-nums text-muted-foreground">
+                Page {safePage} / {totalPages}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextPage}
-                disabled={safePage === totalPages}
-              >
+              <Button variant="outline" size="sm" onClick={handleNextPage} disabled={safePage === totalPages}>
                 Suivant
               </Button>
             </div>

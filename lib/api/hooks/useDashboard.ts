@@ -9,7 +9,13 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 
 interface DashboardResponse {
-  today: { revenue: number; invoicesCount: number; profit: number };
+  today: {
+    revenue: number;
+    invoicesCount: number;
+    profit: number;
+    creditsCreated: number;
+    creditsCreatedCount: number;
+  };
   totals: { revenue: number; activeCredits: number; invoices: number; products: number; clients: number; suppliers: number };
   salesLast7Days: Array<{ date: string; revenue: number }>;
   paymentDistribution: Array<{ method: string | null; revenue: number }>;
@@ -28,6 +34,8 @@ function mapStats(d: DashboardResponse) {
     todayRevenue: d.today.revenue,
     todayInvoicesCount: d.today.invoicesCount,
     todayProfit: d.today.profit,
+    creditsCreatedToday: d.today.creditsCreated,
+    creditsCreatedTodayCount: d.today.creditsCreatedCount,
     activeCredits: d.totals.activeCredits,
     totalRevenue: d.totals.revenue,
     totalInvoicesCount: d.totals.invoices,

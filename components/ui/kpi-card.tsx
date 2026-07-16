@@ -3,67 +3,57 @@ import { cn } from "@/lib/utils"
 
 type KpiVariant = 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 
-const variantStyles: Record<KpiVariant, { background: string; border: string; shadow: string; hover: string; glow: string }> = {
+/**
+ * Atelier KPI card — flat tinted surface, a thin top accent rail, and big
+ * tabular figures. No blur "glow" blobs (the generic AI fingerprint). One
+ * accent color per variant drives the tint, border, rail, icon chip and value.
+ */
+const variantStyles: Record<
+  KpiVariant,
+  { tint: string; border: string; rail: string; icon: string; value: string }
+> = {
   primary: {
-    background: 'bg-linear-to-br from-primary/5 to-primary/10',
-    border: 'border-primary/30',
-    shadow: 'shadow-[0_4px_12px_-2px_rgba(198,120,93,0.2)]',
-    hover: 'hover:shadow-[0_8px_24px_-4px_rgba(198,120,93,0.25)]',
-    glow: 'bg-primary',
+    tint: 'bg-linear-to-br from-primary/[0.05] to-primary/[0.09]',
+    border: 'border-primary/20',
+    rail: 'bg-primary',
+    icon: 'text-primary bg-primary/10',
+    value: 'text-primary',
   },
   success: {
-    background: 'bg-linear-to-br from-[oklch(0.65_0.12_145)]/5 to-[oklch(0.65_0.12_145)]/10',
-    border: 'border-[oklch(0.65_0.12_145)]/30',
-    shadow: 'shadow-[0_4px_12px_-2px_rgba(103,183,120,0.2)]',
-    hover: 'hover:shadow-[0_8px_24px_-4px_rgba(103,183,120,0.25)]',
-    glow: 'bg-[oklch(0.65_0.12_145)]',
+    tint: 'bg-linear-to-br from-[oklch(0.65_0.12_145)]/[0.05] to-[oklch(0.65_0.12_145)]/[0.09]',
+    border: 'border-[oklch(0.65_0.12_145)]/20',
+    rail: 'bg-[oklch(0.65_0.12_145)]',
+    icon: 'text-[oklch(0.65_0.12_145)] bg-[oklch(0.65_0.12_145)]/10',
+    value: 'text-[oklch(0.65_0.12_145)]',
   },
   warning: {
-    background: 'bg-linear-to-br from-[oklch(0.75_0.15_75)]/5 to-[oklch(0.75_0.15_75)]/10',
-    border: 'border-[oklch(0.75_0.15_75)]/30',
-    shadow: 'shadow-[0_4px_12px_-2px_rgba(245,189,73,0.2)]',
-    hover: 'hover:shadow-[0_8px_24px_-4px_rgba(245,189,73,0.25)]',
-    glow: 'bg-[oklch(0.75_0.15_75)]',
+    tint: 'bg-linear-to-br from-[oklch(0.75_0.15_75)]/[0.05] to-[oklch(0.75_0.15_75)]/[0.09]',
+    border: 'border-[oklch(0.75_0.15_75)]/20',
+    rail: 'bg-[oklch(0.75_0.15_75)]',
+    icon: 'text-[oklch(0.75_0.15_75)] bg-[oklch(0.75_0.15_75)]/10',
+    value: 'text-[oklch(0.75_0.15_75)]',
   },
   danger: {
-    background: 'bg-linear-to-br from-destructive/5 to-destructive/10',
-    border: 'border-destructive/30',
-    shadow: 'shadow-[0_4px_12px_-2px_rgba(225,29,72,0.2)]',
-    hover: 'hover:shadow-[0_8px_24px_-4px_rgba(225,29,72,0.25)]',
-    glow: 'bg-destructive',
+    tint: 'bg-linear-to-br from-destructive/[0.05] to-destructive/[0.09]',
+    border: 'border-destructive/20',
+    rail: 'bg-destructive',
+    icon: 'text-destructive bg-destructive/10',
+    value: 'text-destructive',
   },
   info: {
-    background: 'bg-linear-to-br from-[oklch(0.68_0.10_200)]/5 to-[oklch(0.68_0.10_200)]/10',
-    border: 'border-[oklch(0.68_0.10_200)]/30',
-    shadow: 'shadow-[0_4px_12px_-2px_rgba(2,132,199,0.2)]',
-    hover: 'hover:shadow-[0_8px_24px_-4px_rgba(2,132,199,0.25)]',
-    glow: 'bg-[oklch(0.68_0.10_200)]',
+    tint: 'bg-linear-to-br from-[oklch(0.68_0.10_200)]/[0.05] to-[oklch(0.68_0.10_200)]/[0.09]',
+    border: 'border-[oklch(0.68_0.10_200)]/20',
+    rail: 'bg-[oklch(0.68_0.10_200)]',
+    icon: 'text-[oklch(0.68_0.10_200)] bg-[oklch(0.68_0.10_200)]/10',
+    value: 'text-[oklch(0.68_0.10_200)]',
   },
   neutral: {
-    background: 'bg-linear-to-br from-muted/50 to-muted/30',
+    tint: 'bg-muted/40',
     border: 'border-border',
-    shadow: 'shadow-sm',
-    hover: 'hover:shadow-md',
-    glow: 'bg-muted',
+    rail: 'bg-muted-foreground/40',
+    icon: 'text-muted-foreground bg-muted',
+    value: 'text-foreground',
   },
-}
-
-const iconStyles: Record<KpiVariant, string> = {
-  primary: 'text-primary bg-primary/10',
-  success: 'text-[oklch(0.65_0.12_145)] bg-[oklch(0.65_0.12_145)]/10',
-  warning: 'text-[oklch(0.75_0.15_75)] bg-[oklch(0.75_0.15_75)]/10',
-  danger: 'text-destructive bg-destructive/10',
-  info: 'text-[oklch(0.68_0.10_200)] bg-[oklch(0.68_0.10_200)]/10',
-  neutral: 'text-muted-foreground bg-muted/50',
-}
-
-const valueStyles: Record<KpiVariant, string> = {
-  primary: 'text-primary',
-  success: 'text-[oklch(0.65_0.12_145)]',
-  warning: 'text-[oklch(0.75_0.15_75)]',
-  danger: 'text-destructive',
-  info: 'text-[oklch(0.68_0.10_200)]',
-  neutral: 'text-foreground',
 }
 
 interface KpiCardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -77,23 +67,16 @@ export function KpiCard({ variant = 'neutral', className, children, ...props }: 
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl border p-6 transition-all duration-300",
-        styles.background,
+        "relative overflow-hidden rounded-xl border p-6 shadow-sm transition-shadow duration-300 hover:shadow-md",
+        styles.tint,
         styles.border,
-        styles.shadow,
-        styles.hover,
         className
       )}
       {...props}
     >
-      <div className={cn(
-        "absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-40 -translate-y-1/2 translate-x-1/2",
-        styles.glow
-      )} />
-
-      <div className="relative z-10">
-        {children}
-      </div>
+      {/* Top accent rail — the Atelier signature on data cards. */}
+      <span className={cn("absolute inset-x-0 top-0 h-0.5", styles.rail)} aria-hidden />
+      <div className="relative">{children}</div>
     </div>
   )
 }
@@ -105,13 +88,11 @@ interface KpiCardHeaderProps {
 }
 
 export function KpiCardHeader({ title, icon, iconVariant = 'neutral' }: KpiCardHeaderProps) {
+  const styles = variantStyles[iconVariant]
   return (
-    <div className="flex items-center justify-between mb-4">
-      <h3 className="text-sm font-semibold text-foreground/90">{title}</h3>
-      <div className={cn(
-        "flex h-10 w-10 items-center justify-center rounded-lg transition-transform duration-200 hover:scale-110",
-        iconStyles[iconVariant]
-      )}>
+    <div className="mb-4 flex items-center justify-between">
+      <h3 className="text-sm font-medium tracking-tight text-foreground/80">{title}</h3>
+      <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", styles.icon)}>
         {icon}
       </div>
     </div>
@@ -125,19 +106,11 @@ interface KpiCardValueProps {
 }
 
 export function KpiCardValue({ value, label, variant = 'neutral' }: KpiCardValueProps) {
+  const styles = variantStyles[variant]
   return (
     <div>
-      <div className={cn(
-        "text-3xl font-bold tracking-tight",
-        valueStyles[variant]
-      )}>
-        {value}
-      </div>
-      {label && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          {label}
-        </p>
-      )}
+      <div className={cn("nums text-3xl font-semibold tracking-tight", styles.value)}>{value}</div>
+      {label && <p className="mt-1 text-xs text-muted-foreground">{label}</p>}
     </div>
   )
 }

@@ -58,7 +58,7 @@ export function SupplierDialog({ open, onOpenChange, onCreateSupplier, isSubmitt
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nouveau fournisseur</DialogTitle>
           <DialogDescription>

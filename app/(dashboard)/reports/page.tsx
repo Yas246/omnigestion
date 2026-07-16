@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { BarChart3, TrendingUp, Package, DollarSign } from 'lucide-react';
+import { PageHeader } from "@/components/ui/page-header";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ProtectedPage } from '@/components/auth';
@@ -43,7 +44,6 @@ export default function ReportsPage() {
     }
   }, [canAccessModule, getFirstAccessiblePage, router]);
 
-  // React Query + onSnapshot hooks
   const { invoices } = useInvoicesRealtime();
   const { products } = useProductsRealtime();
   const { cashRegisters } = useCashRegisters();
@@ -52,7 +52,6 @@ export default function ReportsPage() {
   // Auth user for store initialization
   const { user } = useAuth();
 
-  // ⚠️ Plus besoin de charger les données - onSnapshot gère tout automatiquement
   // Les données sont mises en cache par React Query entre les navigations
 
   const getPeriodLabel = (periodType: PeriodType) => {
@@ -325,54 +324,50 @@ export default function ReportsPage() {
     <ProtectedPage module="reports" action="read">
       <div className="space-y-6">
         {/* En-tête */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Rapports</h1>
-            <p className="text-muted-foreground">
-              Analyse et statistiques de votre activité
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Select value={period} onValueChange={(v: any) => setPeriod(v)}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Période" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="today">Aujourd'hui</SelectItem>
-                <SelectItem value="week">Cette semaine</SelectItem>
-                <SelectItem value="month">Ce mois</SelectItem>
-                <SelectItem value="year">Cette année</SelectItem>
-                <SelectItem value="custom">Personnalisé</SelectItem>
-              </SelectContent>
-            </Select>
+        <PageHeader
+          eyebrow="Pilotage"
+          title="Rapports"
+          description="Analyse et statistiques de votre activité"
+        >
+          <Select value={period} onValueChange={(v: any) => setPeriod(v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Période" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Aujourd'hui</SelectItem>
+              <SelectItem value="week">Cette semaine</SelectItem>
+              <SelectItem value="month">Ce mois</SelectItem>
+              <SelectItem value="year">Cette année</SelectItem>
+              <SelectItem value="custom">Personnalisé</SelectItem>
+            </SelectContent>
+          </Select>
 
-            {period === 'custom' && (
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={customRange?.from ? format(customRange.from, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => {
-                    const from = e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined;
-                    setCustomRange(prev => ({ from, to: prev?.to }));
-                  }}
-                  className="w-36"
-                />
-                <span className="text-muted-foreground">→</span>
-                <Input
-                  type="date"
-                  value={customRange?.to ? format(customRange.to, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => {
-                    const to = e.target.value ? new Date(e.target.value + 'T23:59:59') : undefined;
-                    setCustomRange(prev => ({ from: prev?.from, to }));
-                  }}
-                  className="w-36"
-                />
-              </div>
-            )}
+          {period === 'custom' && (
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={customRange?.from ? format(customRange.from, 'yyyy-MM-dd') : ''}
+                onChange={(e) => {
+                  const from = e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined;
+                  setCustomRange(prev => ({ from, to: prev?.to }));
+                }}
+                className="w-36"
+              />
+              <span className="text-muted-foreground">→</span>
+              <Input
+                type="date"
+                value={customRange?.to ? format(customRange.to, 'yyyy-MM-dd') : ''}
+                onChange={(e) => {
+                  const to = e.target.value ? new Date(e.target.value + 'T23:59:59') : undefined;
+                  setCustomRange(prev => ({ from: prev?.from, to }));
+                }}
+                className="w-36"
+              />
+            </div>
+          )}
 
-            <ExportButton onExport={handleExport} />
-          </div>
-        </div>
+          <ExportButton onExport={handleExport} />
+        </PageHeader>
 
         {/* Onglets */}
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-6">

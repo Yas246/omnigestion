@@ -21,6 +21,7 @@ import { PermissionGate } from '@/components/auth';
 import { getInvoiceStatusBadge } from '@/lib/utils/invoice-helpers';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { formatPrice } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface InvoiceTableProps {
   invoices: Invoice[];
@@ -93,7 +94,7 @@ export function InvoiceTable({
       case 'card':
         return <Badge variant="outline" className="gap-1">Carte</Badge>;
       case 'credit':
-        return <Badge variant="outline" className="gap-1 border-orange-500 text-orange-500">Crédit</Badge>;
+        return <Badge variant="warning" className="gap-1">Crédit</Badge>;
       default:
         return <Badge variant="secondary">{method}</Badge>;
     }
@@ -152,15 +153,16 @@ export function InvoiceTable({
               </TableRow>
             ) : invoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <FileText className="h-8 w-8 text-muted-foreground/50" />
-                    <p className="text-sm text-muted-foreground">
-                      {searchQuery
+                <TableCell colSpan={7}>
+                  <EmptyState
+                    icon={<FileText className="h-5 w-5" />}
+                    title={searchQuery ? 'Aucune facture trouvée' : 'Aucune facture'}
+                    description={
+                      searchQuery
                         ? 'Aucune facture trouvée pour cette recherche'
-                        : 'Aucune facture. Créez votre première facture pour commencer.'}
-                    </p>
-                  </div>
+                        : 'Créez votre première facture pour commencer.'
+                    }
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -177,9 +179,9 @@ export function InvoiceTable({
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{formatPrice(invoice.total)} FCFA</span>
+                      <span className="font-medium tabular-nums">{formatPrice(invoice.total)} FCFA</span>
                       {invoice.remainingAmount > 0 && invoice.status !== 'cancelled' && (
-                        <span className="text-xs text-orange-600">
+                        <span className="text-xs text-orange-600 tabular-nums">
                           Reste: {formatPrice(invoice.remainingAmount)} FCFA
                         </span>
                       )}

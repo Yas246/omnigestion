@@ -84,11 +84,13 @@ function DashboardContent({
           />
           <div className="fixed inset-y-0 left-0 z-50 w-64 lg:hidden flex flex-col bg-sidebar shadow-lg">
             <div className="flex h-16 items-center justify-between border-b px-6">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-                  O
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <span className="text-lg font-medium" style={{ fontFamily: "var(--font-serif)" }}>O</span>
                 </div>
-                <span className="text-xl font-bold">Omnigestion</span>
+                <span className="text-lg tracking-tight text-foreground" style={{ fontFamily: "var(--font-serif)", fontWeight: 500 }}>
+                  Omnigestion
+                </span>
               </div>
               <Button
                 variant="ghost"

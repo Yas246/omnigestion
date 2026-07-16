@@ -4,8 +4,9 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useProductsRealtime } from '@/lib/api/hooks/useProducts';
-import { Package, AlertTriangle, DollarSign } from 'lucide-react';
+import { Package, AlertTriangle, DollarSign, BarChart3 } from 'lucide-react';
 import { Bar, Pie } from 'react-chartjs-2';
 import { PaginatedTable } from '@/components/ui/PaginatedTable';
 import {
@@ -59,9 +60,9 @@ export function StockReport() {
       {
         data: [stockStats.okStock, stockStats.lowStock, stockStats.outOfStock],
         backgroundColor: [
-          'rgba(34, 197, 94, 0.8)',
-          'rgba(249, 115, 22, 0.8)',
-          'rgba(239, 68, 68, 0.8)',
+          'oklch(0.65 0.12 145 / 0.8)',
+          'oklch(0.75 0.15 75 / 0.8)',
+          'oklch(0.58 0.22 25 / 0.8)',
         ],
       },
     ],
@@ -78,7 +79,7 @@ export function StockReport() {
       {
         label: 'Quantité en stock',
         data: topStock.map(p => p.currentStock || 0),
-        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+        backgroundColor: 'oklch(0.68 0.10 200 / 0.8)',
       },
     ],
   };
@@ -98,7 +99,7 @@ export function StockReport() {
       {
         label: 'Valeur stock (FCFA)',
         data: topValue.map(p => p.value),
-        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+        backgroundColor: 'oklch(0.65 0.12 145 / 0.8)',
       },
     ],
   };
@@ -116,9 +117,18 @@ export function StockReport() {
           minRotation: 0,
           autoSkip: true,
           maxTicksLimit: 10,
+          color: 'oklch(0.52 0.02 50)',
+          font: { size: 11 },
         },
+        grid: { color: 'oklch(0.90 0.01 85)' },
+        border: { display: false },
       },
-      y: { beginAtZero: true },
+      y: {
+        beginAtZero: true,
+        ticks: { color: 'oklch(0.52 0.02 50)', font: { size: 11 } },
+        grid: { color: 'oklch(0.90 0.01 85)' },
+        border: { display: false },
+      },
     },
   };
 
@@ -128,7 +138,12 @@ export function StockReport() {
     plugins: {
       legend: {
         position: 'bottom' as const,
-        labels: { boxWidth: 12, padding: 15 },
+        labels: {
+          boxWidth: 12,
+          padding: 15,
+          color: 'oklch(0.52 0.02 50)',
+          font: { size: 11 },
+        },
       },
     },
   };
@@ -192,7 +207,7 @@ export function StockReport() {
 
       {/* Alertes */}
       {(stockStats.outOfStock > 0 || stockStats.lowStock > 0) && (
-        <Card className="border-orange-500">
+        <Card className="border-[oklch(0.75_0.15_75)]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-[oklch(0.75_0.15_75)]" />
@@ -214,13 +229,14 @@ export function StockReport() {
             <CardDescription>Répartition par statut</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center justify-center">
+            <div className="h-75 flex items-center justify-center">
               {stockStats.totalProducts > 0 ? (
                 <Pie data={statusDistribution} options={pieOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune donnée
-                </p>
+                <EmptyState
+                  icon={<Package className="h-5 w-5" />}
+                  title="Aucune donnée"
+                />
               )}
             </div>
           </CardContent>
@@ -232,13 +248,14 @@ export function StockReport() {
             <CardDescription>Quantités par produit</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-75">
               {topStock.length > 0 ? (
                 <Bar data={topStockChartData} options={chartOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune donnée
-                </p>
+                <EmptyState
+                  icon={<BarChart3 className="h-5 w-5" />}
+                  title="Aucune donnée"
+                />
               )}
             </div>
           </CardContent>
@@ -250,13 +267,14 @@ export function StockReport() {
             <CardDescription>Produits les plus valorisés</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[200px] sm:h-[250px] md:h-[300px] w-full overflow-x-auto">
+            <div className="h-50 sm:h-62.5 md:h-75 w-full overflow-x-auto">
               {topValue.length > 0 ? (
                 <Bar data={topValueChartData} options={chartOptions} />
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aucune donnée
-                </p>
+                <EmptyState
+                  icon={<DollarSign className="h-5 w-5" />}
+                  title="Aucune donnée"
+                />
               )}
             </div>
           </CardContent>
@@ -290,20 +308,20 @@ export function StockReport() {
                 header: 'Stock',
                 className: 'text-right',
                 render: (product) => (
-                  <span className="font-medium">{product.currentStock || 0} {product.unit}</span>
+                  <span className="font-medium tabular-nums">{product.currentStock || 0} {product.unit}</span>
                 ),
               },
               {
                 key: 'alertThreshold',
                 header: 'Seuil alerte',
                 className: 'text-right',
-                render: (product) => `${product.alertThreshold || 0} ${product.unit}`,
+                render: (product) => <span className="tabular-nums">{product.alertThreshold || 0} {product.unit}</span>,
               },
               {
                 key: 'purchasePrice',
                 header: 'Prix achat',
                 className: 'text-right',
-                render: (product) => `${formatPrice(product.purchasePrice || 0)} FCFA`,
+                render: (product) => <span className="tabular-nums">{formatPrice(product.purchasePrice || 0)} FCFA</span>,
               },
               {
                 key: 'value',
@@ -311,7 +329,7 @@ export function StockReport() {
                 className: 'text-right',
                 render: (product) => {
                   const value = (product.currentStock || 0) * (product.purchasePrice || 0);
-                  return <span className="font-medium">{formatPrice(value)} FCFA</span>;
+                  return <span className="font-medium tabular-nums">{formatPrice(value)} FCFA</span>;
                 },
               },
               {
@@ -326,8 +344,8 @@ export function StockReport() {
                     <Badge
                       variant={
                         status === 'out' ? 'destructive' :
-                        status === 'low' ? 'default' :
-                        'outline'
+                        status === 'low' ? 'warning' :
+                        'success'
                       }
                     >
                       {status === 'out' ? 'Rupture' :

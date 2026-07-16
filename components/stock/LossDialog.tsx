@@ -119,7 +119,7 @@ export function LossDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-screen overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Enregistrer une perte</DialogTitle>
           <DialogDescription>
@@ -146,7 +146,7 @@ export function LossDialog({
                         <span className="text-muted-foreground">
                           {warehouse.name} {warehouse.isMain ? '(Principal)' : ''}
                         </span>
-                        <Badge variant={stock > 0 ? "default" : "secondary"} className="text-xs">
+                        <Badge variant={stock > 0 ? "success" : "secondary"} className="text-xs tabular-nums">
                           {stock} {product.unit}
                         </Badge>
                       </div>
@@ -194,7 +194,7 @@ export function LossDialog({
                   </Select>
                   {warehouseId && (
                     <FormDescription>
-                      Stock disponible : <span className="font-semibold">{currentStock} {product.unit}</span>
+                      Stock disponible : <span className="font-semibold tabular-nums">{currentStock} {product.unit}</span>
                     </FormDescription>
                   )}
                   <FormMessage />
@@ -217,7 +217,7 @@ export function LossDialog({
                         placeholder="1"
                         value={field.value}
                         onChange={field.onChange}
-                        className={isValidQuantity ? '' : 'border-red-500'}
+                        className={isValidQuantity ? '' : 'border-destructive'}
                       />
                       <span className="text-sm text-muted-foreground">{product.unit}</span>
                     </div>
@@ -225,12 +225,12 @@ export function LossDialog({
                   {warehouseId && quantity > 0 && (
                     <FormDescription>
                       {isValidQuantity ? (
-                        <span className="text-green-600">
-                          Nouveau stock : {newStock} {product.unit}
+                        <span>
+                          Nouveau stock : <span className="tabular-nums">{newStock}</span> {product.unit}
                         </span>
                       ) : (
-                        <span className="text-red-600">
-                          Stock insuffisant (max: {currentStock})
+                        <span className="text-destructive">
+                          Stock insuffisant (max: <span className="tabular-nums">{currentStock}</span>)
                         </span>
                       )}
                     </FormDescription>
@@ -244,19 +244,19 @@ export function LossDialog({
             {selectedWarehouse && quantity > 0 && (
               <div className={`rounded-lg border p-3 ${
                 isValidQuantity
-                  ? 'bg-orange-50 border-orange-200'
-                  : 'bg-red-50 border-red-200'
+                  ? 'bg-muted/40 border-border'
+                  : 'border-destructive/30 bg-destructive/5'
               }`}>
                 <p className="text-sm font-medium mb-1 flex items-center gap-2">
-                  <XCircle className={`h-4 w-4 ${isValidQuantity ? 'text-orange-600' : 'text-red-600'}`} />
+                  <XCircle className={`h-4 w-4 ${isValidQuantity ? 'text-muted-foreground' : 'text-destructive'}`} />
                   Récapitulatif de la perte
                 </p>
-                <div className={`text-sm ${isValidQuantity ? 'text-orange-700' : 'text-red-700'}`}>
+                <div className={`text-sm ${isValidQuantity ? 'text-muted-foreground' : 'text-destructive'}`}>
                   <p>Dépôt : {selectedWarehouse.name}</p>
-                  <p>Stock actuel : {currentStock} {product.unit}</p>
-                  <p>Perte : -{quantity} {product.unit}</p>
-                  <p className="font-semibold mt-1">
-                    Nouveau stock : {newStock} {product.unit}
+                  <p>Stock actuel : <span className="tabular-nums">{currentStock}</span> {product.unit}</p>
+                  <p>Perte : -<span className="tabular-nums">{quantity}</span> {product.unit}</p>
+                  <p className="font-semibold text-foreground mt-1">
+                    Nouveau stock : <span className="tabular-nums">{newStock}</span> {product.unit}
                   </p>
                 </div>
               </div>

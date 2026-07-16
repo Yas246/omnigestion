@@ -59,18 +59,22 @@ export default function SelectCompanyPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 py-8">
       <div className="w-full max-w-2xl">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xl">
-              O
+        <div className="mb-8 text-center">
+          <div className="mb-4 flex justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <span className="text-xl font-medium" style={{ fontFamily: "var(--font-serif)" }}>
+                O
+              </span>
             </div>
           </div>
-          <h1 className="text-3xl font-bold mb-2">
+          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-eyebrow text-muted-foreground/70">
+            Sélection
+          </p>
+          <h1 className="mb-2 text-2xl font-semibold tracking-tight sm:text-3xl">
             Bienvenue, {user?.displayName || user?.email} !
           </h1>
-          <p className="text-muted-foreground">
-            Vous avez accès à plusieurs entreprises. Sélectionnez celle que vous
-            souhaitez gérer :
+          <p className="text-sm text-muted-foreground">
+            Vous avez accès à plusieurs entreprises. Sélectionnez celle que vous souhaitez gérer.
           </p>
         </div>
 
@@ -78,8 +82,8 @@ export default function SelectCompanyPage() {
           {companies.map((company) => (
             <Card
               key={company.id}
-              className={`cursor-pointer transition-all hover:shadow-lg ${
-                selectedId === company.id ? "ring-2 ring-primary" : ""
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                selectedId === company.id ? "border-primary bg-primary/5" : ""
               }`}
               onClick={() => setSelectedId(company.id)}
             >

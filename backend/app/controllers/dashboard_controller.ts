@@ -44,6 +44,21 @@ export default class DashboardController {
       .first()
     const todayInvoicesCount = Number(todayCountRow?.c ?? 0)
 
+    // --- CREDITS CREATED TODAY (business date = today, non-cancelled) ---
+    // The "Crédits du jour" KPI shows credits granted today — not the all-time
+    // outstanding total. Filtered by the credit's business `date`, mirroring how
+    // revenue uses `sale_date`. Cancelled credits are excluded (voided).
+    const creditsTodayRow = await db
+      .from('client_credits')
+      .where('tenant_id', tenantId)
+      .where('company_id', companyId)
+      .where('status', '!=', 'cancelled')
+      .whereBetween('date', [startOfDay, endOfDay])
+      .select(db.raw('COALESCE(SUM(amount), 0) as total'), db.raw('COUNT(*) as c'))
+      .first()
+    const creditsCreatedToday = Number((creditsTodayRow as any)?.total ?? 0)
+    const creditsCreatedTodayCount = Number((creditsTodayRow as any)?.c ?? 0)
+
     // --- ALL-TIME encaissé ---
     const allTimeInv = await invScope(db.from('invoices')).sum('paid_amount as total').first()
     const allTimeCredits = await payScope(db.from('client_credit_payments')).sum('amount as total').first()
@@ -142,7 +157,13 @@ export default class DashboardController {
       .select('id', 'invoice_number', 'client_name', 'total', 'status', 'sale_date')
 
     return {
-      today: { revenue: todayRevenue, invoicesCount: todayInvoicesCount, profit: todayProfit },
+      today: {
+        revenue: todayRevenue,
+        invoicesCount: todayInvoicesCount,
+        profit: todayProfit,
+        creditsCreated: creditsCreatedToday,
+        creditsCreatedCount: creditsCreatedTodayCount,
+      },
       totals: {
         revenue: totalRevenue,
         activeCredits: Number(activeCreditsRow?.total ?? 0),

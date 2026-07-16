@@ -12,7 +12,7 @@ import { Calendar, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useSuppliersRealtime } from '@/lib/api/hooks/useSuppliers';
-import { useSupplierCredits } from '@/lib/hooks/useSupplierCredits';
+import { useSupplierCredits } from '@/lib/api/hooks/useSupplierCredits';
 import { toast } from 'sonner';
 
 interface ManualSupplierCreditDialogProps {
@@ -82,7 +82,7 @@ export function ManualSupplierCreditDialog({ open, onOpenChange }: ManualSupplie
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nouveau crédit fournisseur</DialogTitle>
         </DialogHeader>

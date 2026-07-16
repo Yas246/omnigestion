@@ -124,7 +124,7 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, cashReg
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nouveau mouvement de caisse</DialogTitle>
           <DialogDescription>

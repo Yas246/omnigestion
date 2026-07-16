@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, Plus, ArrowUpCircle, ArrowDownCircle, ArrowRightCircle, DollarSign, Pencil, Trash2, MoreVertical, AlertTriangle } from 'lucide-react';
+import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from '@/lib/auth-context';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PermissionGate } from '@/components/auth';
@@ -41,7 +43,6 @@ import { formatPrice } from '@/lib/utils';
 export default function CashPage() {
   const router = useRouter();
 
-  // NOUVEAUX hooks React Query + onSnapshot pour temps réel
   const { cashRegisters, isLoading: registersLoading } = useCashRegistersRealtime();
   const {
     movements,
@@ -73,8 +74,6 @@ export default function CashPage() {
   const [editingCashRegister, setEditingCashRegister] = useState<CashRegister | null>(null);
   const [deletingCashRegister, setDeletingCashRegister] = useState<CashRegister | null>(null);
 
-  // NOTE: Plus besoin d'initialiser le store manuellement - onSnapshot gère ça automatiquement
-  // NOTE: Plus besoin de fetchMovements - onSnapshot synchronise tout automatiquement
 
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
@@ -188,7 +187,6 @@ export default function CashPage() {
       await deleteCashRegister(deletingCashRegister.id);
       toast.success('Caisse supprimée avec succès');
       setDeletingCashRegister(null);
-      // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
     } catch {
       toast.error('Erreur lors de la suppression de la caisse');
     }
@@ -197,20 +195,18 @@ export default function CashPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Caisse</h1>
-          <p className="text-muted-foreground">
-            Gestion des caisses et des mouvements de trésorerie
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Trésorerie"
+        title="Caisse"
+        description="Gestion des caisses et des mouvements de trésorerie"
+      >
         <PermissionGate module="cash" action="create">
           <Button onClick={() => setShowMovementDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nouveau mouvement
           </Button>
         </PermissionGate>
-      </div>
+      </PageHeader>
 
       {/* Statistiques globales */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -279,7 +275,11 @@ export default function CashPage() {
           </CardHeader>
           <CardContent>
             {cashRegisters.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Aucune caisse configurée</p>
+              <EmptyState
+                icon={<DollarSign className="h-5 w-5" />}
+                title="Aucune caisse configurée"
+                description="Créez votre première caisse pour suivre votre trésorerie"
+              />
             ) : (
               <div className="space-y-3">
                 {cashRegisters.map((cr) => (
@@ -295,7 +295,7 @@ export default function CashPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p className="font-bold">{formatPrice(cr.currentBalance || 0)} FCFA</p>
+                        <p className="font-bold tabular-nums">{formatPrice(cr.currentBalance || 0)} FCFA</p>
                         {cr.isMain && (
                           <Badge variant="outline" className="text-xs">Principale</Badge>
                         )}
@@ -353,7 +353,11 @@ export default function CashPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : movements.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Aucun mouvement</p>
+              <EmptyState
+                icon={<ArrowRightCircle className="h-5 w-5" />}
+                title="Aucun mouvement"
+                description="Les entrées et sorties de caisse apparaîtront ici"
+              />
             ) : (
               <>
                 <div className="space-y-3 max-h-100 overflow-y-auto">
@@ -373,10 +377,10 @@ export default function CashPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`font-semibold ${isIn ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
+                          <span className={`font-semibold tabular-nums ${isIn ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
                             {isIn ? '+' : '-'}{formatPrice(movement.amount)} FCFA
                           </span>
-                          <Badge variant={isIn ? 'default' : 'destructive'} className="text-xs">
+                          <Badge variant={isIn ? 'success' : 'destructive'} className="text-xs">
                             {isIn ? 'Entrée' : 'Sortie'}
                           </Badge>
                         </div>
@@ -420,7 +424,6 @@ export default function CashPage() {
         cashRegisterId={selectedCashRegister}
         cashRegisters={cashRegisters}
         onSuccess={() => {
-          // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
           toast.success('Mouvement enregistré avec succès');
         }}
       />
@@ -434,7 +437,6 @@ export default function CashPage() {
         }}
         cashRegister={editingCashRegister}
         onSuccess={() => {
-          // NOTE: Plus besoin de recharger - onSnapshot met à jour automatiquement
           toast.success(editingCashRegister ? 'Caisse modifiée avec succès' : 'Caisse créée avec succès');
         }}
       />

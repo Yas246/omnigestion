@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useStorefront } from '@/lib/api/hooks/useStorefront';
 import { useProductsRealtime } from '@/lib/api/hooks/useProducts';
 import { StorefrontRenderer } from '@/components/storefront/StorefrontRenderer';
+import { FONT_PAIRS, DEFAULT_FONT_SENTINEL } from '@/components/storefront/font-pairs';
 import type { StorefrontConfig, StorefrontProduct, StorefrontCompany } from '@/components/storefront/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +15,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, ExternalLink, Save, Rocket, Palette, Layout, Maximize2, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Loader2, ExternalLink, Save, Rocket, Palette, Layout, Maximize2, X, ChevronUp, ChevronDown, Type } from 'lucide-react';
 
 const TEMPLATES = [
-  { id: 'minimal', name: 'Minimal', description: 'Épuré, galerie éditoriale' },
-  { id: 'boutique', name: 'Boutique', description: 'Plein écran, image-led' },
+  { id: 'minimal', name: 'Minimal', description: 'Galerie — index texte, minimalisme absolu' },
+  { id: 'boutique', name: 'Boutique', description: 'Lookbook — magazine de mode, plein écran' },
+  { id: 'marche', name: 'Marché', description: 'Chaleureux — cartes douces, coup de cœur' },
+  { id: 'studio', name: 'Studio', description: 'Atelier — sombre, cinématique, rail horizontal' },
 ];
 
 const SECTION_LABELS: Record<string, string> = {
@@ -242,6 +245,32 @@ export function StorefrontTab() {
             </CardContent>
           </Card>
 
+          {/* Font pairing selector */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Type className="h-4 w-4" /> Polices
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={draft.fontPair || DEFAULT_FONT_SENTINEL}
+                onValueChange={(v) => update({ fontPair: v === DEFAULT_FONT_SENTINEL ? undefined : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Par défaut du template" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={DEFAULT_FONT_SENTINEL}>Par défaut ({TEMPLATES.find(t => t.id === draft.template)?.name})</SelectItem>
+                  {Object.entries(FONT_PAIRS).map(([key, pair]) => (
+                    <SelectItem key={key} value={key}>{pair.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-2 text-xs text-muted-foreground">Surcharge les polices du template.</p>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Bannière (Hero)</CardTitle>
@@ -342,7 +371,7 @@ export function StorefrontTab() {
                 <Label className="text-xs">Texte du footer</Label>
                 <Textarea
                   rows={2}
-                  value={draft.footer.text}
+                  value={draft.footer.text || ''}
                   onChange={(e) => update({ footer: { ...draft.footer, text: e.target.value } })}
                   placeholder="Conditions, mention légale…"
                 />

@@ -133,7 +133,7 @@ export function TransferDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-screen overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Transférer du stock</DialogTitle>
           <DialogDescription>
@@ -160,7 +160,7 @@ export function TransferDialog({
                         <span className="text-muted-foreground">
                           {warehouse.name} {warehouse.isMain ? '(Principal)' : ''}
                         </span>
-                        <Badge variant={stock > 0 ? "default" : "secondary"} className="text-xs">
+                        <Badge variant={stock > 0 ? "success" : "secondary"} className="text-xs tabular-nums">
                           {stock} {product.unit}
                         </Badge>
                       </div>
@@ -168,7 +168,7 @@ export function TransferDialog({
                   })}
                   <div className="flex items-center justify-between text-xs pt-1 border-t mt-1">
                     <span className="font-medium">Total</span>
-                    <Badge variant="outline" className="font-semibold">
+                    <Badge variant="outline" className="font-semibold tabular-nums">
                       {Object.values(stockByWarehouse).reduce((sum, qty) => sum + qty, 0)} {product.unit}
                     </Badge>
                   </div>
@@ -216,7 +216,7 @@ export function TransferDialog({
                   </Select>
                   {fromWarehouseId && (
                     <FormDescription>
-                      Stock disponible : <span className="font-semibold">{availableStock} {product.unit}</span>
+                      Stock disponible : <span className="font-semibold tabular-nums">{availableStock}</span> {product.unit}
                     </FormDescription>
                   )}
                   <FormMessage />
@@ -264,10 +264,10 @@ export function TransferDialog({
                   </Select>
                   {toWarehouseId && (
                     <FormDescription>
-                      Stock actuel : <span className="font-semibold">{destinationStock} {product.unit}</span>
+                      Stock actuel : <span className="font-semibold tabular-nums">{destinationStock}</span> {product.unit}
                       {destinationStock > 0 && (
                         <span className="text-muted-foreground">
-                          {' '}→ après transfert : {destinationStock + quantity} {product.unit}
+                          {' '}→ après transfert : <span className="tabular-nums">{destinationStock + quantity}</span> {product.unit}
                         </span>
                       )}
                     </FormDescription>
@@ -292,14 +292,14 @@ export function TransferDialog({
                         placeholder="1"
                         value={field.value}
                         onChange={field.onChange}
-                        className={isValidQuantity ? '' : 'border-orange-500'}
+                        className={isValidQuantity ? '' : 'border-destructive'}
                       />
                       <span className="text-sm text-muted-foreground">{product.unit}</span>
                     </div>
                   </FormControl>
                   {fromWarehouseId && (
                     <FormDescription>
-                      Stock disponible : {availableStock} {product.unit}
+                      Stock disponible : <span className="tabular-nums">{availableStock}</span> {product.unit}
                     </FormDescription>
                   )}
                   <FormMessage />
@@ -317,12 +317,12 @@ export function TransferDialog({
                   <span>{toWarehouse.name}</span>
                 </div>
                 <div className="mt-2 text-center">
-                  <span className={`text-lg font-semibold ${isValidQuantity ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`text-lg font-semibold tabular-nums ${isValidQuantity ? 'text-foreground' : 'text-destructive'}`}>
                     {quantity} {product.unit}
                   </span>
                   {!isValidQuantity && (
-                    <p className="text-xs text-red-600 mt-1">
-                      Stock insuffisant (max: {availableStock})
+                    <p className="text-xs text-destructive mt-1">
+                      Stock insuffisant (max: <span className="tabular-nums">{availableStock}</span>)
                     </p>
                   )}
                 </div>

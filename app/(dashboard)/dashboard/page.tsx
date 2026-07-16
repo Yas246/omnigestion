@@ -12,6 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KpiCard, KpiCardHeader, KpiCardValue } from "@/components/ui/kpi-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Loader2,
   Package,
@@ -19,6 +21,7 @@ import {
   Receipt,
   DollarSign,
   AlertTriangle,
+  Settings,
 } from "lucide-react";
 import { useDashboard } from "@/lib/api/hooks/useDashboard";
 import { usePermissions } from "@/lib/hooks/usePermissions";
@@ -40,6 +43,7 @@ import {
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 import { formatPrice } from "@/lib/utils";
+import { getInvoiceStatusBadge } from "@/lib/utils/invoice-helpers";
 import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
 
 // Enregistrer les composants Chart.js au niveau du module (avant tout render)
@@ -107,13 +111,16 @@ export default function DashboardPage() {
 
   // Préparer les données pour les graphiques
   const salesChartData = {
-    labels: stats.salesLast7Days.map((d) => d.date),
+    labels: stats.salesLast7Days.map((d) => {
+      const dt = new Date(d.date);
+      return isNaN(dt.getTime()) ? d.date : format(dt, "dd/MM", { locale: fr });
+    }),
     datasets: [
       {
         label: "Chiffre d'affaires",
         data: stats.salesLast7Days.map((d) => d.revenue),
-        borderColor: "oklch(0.62 0.14 35)",
-        backgroundColor: "oklch(0.62 0.14 35 / 0.15)",
+        borderColor: "oklch(0.55 0.20 280)",
+        backgroundColor: "oklch(0.55 0.20 280 / 0.15)",
         fill: true,
         tension: 0.4,
       },
@@ -150,7 +157,7 @@ export default function DashboardPage() {
       {
         label: "Quantité vendue",
         data: stats.topProducts.map((p) => p.totalQuantity),
-        backgroundColor: "oklch(0.65 0.12 145 / 0.85)",
+        backgroundColor: "oklch(0.55 0.20 280 / 0.85)",
         borderRadius: 4,
       },
     ],
@@ -167,6 +174,14 @@ export default function DashboardPage() {
     scales: {
       y: {
         beginAtZero: true,
+        grid: { color: "oklch(0.90 0.01 85)" },
+        ticks: { color: "oklch(0.52 0.02 50)", font: { size: 11 } },
+        border: { display: false },
+      },
+      x: {
+        grid: { display: false },
+        ticks: { color: "oklch(0.52 0.02 50)", font: { size: 11 } },
+        border: { display: false },
       },
     },
   };
@@ -174,15 +189,13 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
-          <p className="text-muted-foreground">
-            Vue d&apos;ensemble de votre activité
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Pilotage"
+        title="Tableau de bord"
+        description="Vue d'ensemble de votre activité"
+      >
         <DashboardDatePicker date={selectedDate} onDateChange={setSelectedDate} />
-      </div>
+      </PageHeader>
 
       {/* Statistiques du jour */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -201,13 +214,13 @@ export default function DashboardPage() {
 
         <KpiCard variant="warning">
           <KpiCardHeader
-            title="Crédits actifs"
+            title="Crédits du jour"
             icon={<Receipt className="h-5 w-5" />}
             iconVariant="warning"
           />
           <KpiCardValue
-            value={`${formatPrice(stats.activeCredits)} ${currency}`}
-            label="Crédits créés aujourd'hui"
+            value={`${formatPrice(stats.creditsCreatedToday)} ${currency}`}
+            label={`${stats.creditsCreatedTodayCount} crédit(s) créé(s)`}
             variant="warning"
           />
         </KpiCard>
@@ -228,7 +241,7 @@ export default function DashboardPage() {
 
       {/* Alertes de stock */}
       {(stats.lowStockProducts > 0 || stats.outOfStockProducts > 0) && (
-        <Card className="border-orange-500">
+        <Card className="border-orange-500/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-orange-600" />
@@ -245,7 +258,7 @@ export default function DashboardPage() {
               {stats.lowStockProducts > 0 && (
                 <Badge
                   variant="outline"
-                  className="text-sm px-3 py-1 border-orange-500 text-orange-600"
+                  className="text-sm px-3 py-1 border-orange-500/40 text-orange-700"
                 >
                   {stats.lowStockProducts} produit(s) stock bas
                 </Badge>
@@ -269,7 +282,7 @@ export default function DashboardPage() {
             <CardDescription>Évolution du chiffre d&apos;affaires</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-75">
               <Line data={salesChartData} options={chartOptions} />
             </div>
           </CardContent>
@@ -282,7 +295,7 @@ export default function DashboardPage() {
             <CardDescription>Par mode de paiement</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center justify-center">
+            <div className="h-75 flex items-center justify-center">
               <Doughnut
                 data={paymentChartData}
                 options={{
@@ -313,7 +326,7 @@ export default function DashboardPage() {
             <CardDescription>Les plus vendus</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[250px]">
+            <div className="h-62.5">
               <Bar data={topProductsChartData} options={chartOptions} />
             </div>
           </CardContent>
@@ -326,11 +339,12 @@ export default function DashboardPage() {
             <CardDescription>Transactions récentes</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3 max-h-[250px] overflow-y-auto">
+            <div className="space-y-3 max-h-62.5 overflow-y-auto">
               {stats.recentInvoices.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Aucune facture
-                </p>
+                <EmptyState
+                  title="Aucune facture"
+                  description="Les dernières ventes apparaîtront ici dès qu'elles seront enregistrées."
+                />
               ) : (
                 stats.recentInvoices.map((invoice) => (
                   <div
@@ -355,26 +369,7 @@ export default function DashboardPage() {
                         })}
                       </span>
                     </div>
-                    <Badge
-                      variant={
-                        invoice.status === "paid"
-                          ? "default"
-                          : invoice.status === "validated"
-                            ? "outline"
-                            : invoice.status === "draft"
-                              ? "secondary"
-                              : "destructive"
-                      }
-                      className="ml-2"
-                    >
-                      {invoice.status === "paid"
-                        ? "Payée"
-                        : invoice.status === "validated"
-                          ? "Validée"
-                          : invoice.status === "draft"
-                            ? "Brouillon"
-                            : "Annulée"}
-                    </Badge>
+                    <span className="ml-2">{getInvoiceStatusBadge(invoice.status)}</span>
                   </div>
                 ))
               )}
@@ -447,61 +442,33 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Navigation rapide */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <Link href="/sales" className="group">
-          <KpiCard variant="primary" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
-            <div className="flex flex-col items-center justify-center gap-3">
-              <Receipt className="h-8 w-8 text-[oklch(0.62_0.14_35)] transition-transform duration-200 group-hover:scale-110" />
-              <span className="text-sm font-medium">Ventes</span>
-            </div>
-          </KpiCard>
-        </Link>
-
-        <Link href="/stock" className="group">
-          <KpiCard variant="info" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
-            <div className="flex flex-col items-center justify-center gap-3">
-              <Package className="h-8 w-8 text-[oklch(0.58_0.18_200)] transition-transform duration-200 group-hover:scale-110" />
-              <span className="text-sm font-medium">Stock</span>
-            </div>
-          </KpiCard>
-        </Link>
-
-        <Link href="/clients" className="group">
-          <KpiCard variant="warning" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
-            <div className="flex flex-col items-center justify-center gap-3">
-              <Users className="h-8 w-8 text-[oklch(0.75_0.15_75)] transition-transform duration-200 group-hover:scale-110" />
-              <span className="text-sm font-medium">Clients</span>
-            </div>
-          </KpiCard>
-        </Link>
-
-        <Link href="/suppliers" className="group">
-          <KpiCard variant="success" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
-            <div className="flex flex-col items-center justify-center gap-3">
-              <Package className="h-8 w-8 text-[oklch(0.65_0.12_145)] transition-transform duration-200 group-hover:scale-110" />
-              <span className="text-sm font-medium">Fournisseurs</span>
-            </div>
-          </KpiCard>
-        </Link>
-
-        <Link href="/cash" className="group">
-          <KpiCard variant="primary" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
-            <div className="flex flex-col items-center justify-center gap-3">
-              <DollarSign className="h-8 w-8 text-[oklch(0.62_0.14_35)] transition-transform duration-200 group-hover:scale-110" />
-              <span className="text-sm font-medium">Caisse</span>
-            </div>
-          </KpiCard>
-        </Link>
-
-        <Link href="/settings" className="group">
-          <KpiCard variant="neutral" className="cursor-pointer transition-all duration-200 hover:-translate-y-1">
-            <div className="flex flex-col items-center justify-center gap-3">
-              <AlertTriangle className="h-8 w-8 text-muted-foreground transition-transform duration-200 group-hover:scale-110" />
-              <span className="text-sm font-medium">Paramètres</span>
-            </div>
-          </KpiCard>
-        </Link>
+      {/* Accès rapide */}
+      <div>
+        <p className="mb-3 text-[11px] font-medium uppercase tracking-eyebrow text-muted-foreground/70">
+          Accès rapide
+        </p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {(
+            [
+              { href: "/sales", icon: Receipt, label: "Ventes" },
+              { href: "/stock", icon: Package, label: "Stock" },
+              { href: "/clients", icon: Users, label: "Clients" },
+              { href: "/suppliers", icon: Package, label: "Fournisseurs" },
+              { href: "/cash", icon: DollarSign, label: "Caisse" },
+              { href: "/settings", icon: Settings, label: "Réglages" },
+            ] as const
+          ).map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className="group">
+                <div className="flex cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border bg-card p-5 text-center shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md">
+                  <Icon className="h-6 w-6 text-primary transition-transform duration-200 group-hover:scale-110" />
+                  <span className="text-sm font-medium text-foreground/80">{item.label}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

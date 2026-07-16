@@ -4,11 +4,18 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Storefront typography tokens — named so templates avoid arbitrary values. */
+@theme {
+  --tracking-eyebrow: 0.25em;
+  --tracking-stamp: 0.35em;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-fraunces);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,93 +56,93 @@
 
 :root {
   --radius: 0.625rem;
-  /* Fond chaud et accueillant */
-  --background: oklch(0.98 0.005 85);
-  --foreground: oklch(0.25 0.015 50);
-  /* Cartes avec subtilité */
+  /* Mode clair : slate neutre. Chrome gris-ardoise très clair, sans chaleur terracotta. */
+  --background: oklch(0.985 0.003 264);
+  --foreground: oklch(0.22 0.006 264);
+  /* Cartes — blanc pur pour ressortir sur le fond slate. */
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.25 0.015 50);
+  --card-foreground: oklch(0.22 0.006 264);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.25 0.015 50);
-  /* Primaire terracotta raffiné */
-  --primary: oklch(0.62 0.14 35);
-  --primary-foreground: oklch(0.98 0.005 85);
-  /* Secondaire vert sauge */
-  --secondary: oklch(0.94 0.03 145);
-  --secondary-foreground: oklch(0.28 0.04 145);
-  /* Muted plus chaleureux */
-  --muted: oklch(0.96 0.01 85);
-  --muted-foreground: oklch(0.52 0.02 50);
-  /* Accent pour hover */
-  --accent: oklch(0.94 0.04 35);
-  --accent-foreground: oklch(0.28 0.06 35);
+  --popover-foreground: oklch(0.22 0.006 264);
+  /* Primary indigo — accent de marque sur chrome slate (fini le terracotta). */
+  --primary: oklch(0.55 0.20 280);
+  --primary-foreground: oklch(0.985 0.003 264);
+  /* Secondaire — surface neutre. */
+  --secondary: oklch(0.965 0.004 264);
+  --secondary-foreground: oklch(0.26 0.006 264);
+  /* Muted */
+  --muted: oklch(0.965 0.004 264);
+  --muted-foreground: oklch(0.52 0.008 264);
+  /* Accent (surfaces au survol) — neutre. */
+  --accent: oklch(0.96 0.005 264);
+  --accent-foreground: oklch(0.22 0.006 264);
   /* Destructive rouge corail */
   --destructive: oklch(0.58 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
-  /* Bordures subtiles */
-  --border: oklch(0.90 0.01 85);
-  --input: oklch(0.92 0.01 85);
-  --ring: oklch(0.62 0.14 35);
-  /* Charts cohérents avec la palette */
-  --chart-1: oklch(0.62 0.14 35);
+  /* Bordures subtiles neutres */
+  --border: oklch(0.91 0.004 264);
+  --input: oklch(0.92 0.004 264);
+  --ring: oklch(0.55 0.20 280);
+  /* Charts — série principale indigo, autres teintes sémantiques. */
+  --chart-1: oklch(0.55 0.20 280);
   --chart-2: oklch(0.65 0.12 145);
   --chart-3: oklch(0.75 0.15 75);
   --chart-4: oklch(0.58 0.18 25);
   --chart-5: oklch(0.68 0.10 200);
-  /* Sidebar chaleureuse */
-  --sidebar: oklch(0.97 0.008 85);
-  --sidebar-foreground: oklch(0.28 0.02 50);
-  --sidebar-primary: oklch(0.62 0.14 35);
-  --sidebar-primary-foreground: oklch(0.98 0.005 85);
-  --sidebar-accent: oklch(0.92 0.025 35);
-  --sidebar-accent-foreground: oklch(0.28 0.06 35);
-  --sidebar-border: oklch(0.88 0.01 85);
-  --sidebar-ring: oklch(0.62 0.14 35);
+  /* Sidebar slate */
+  --sidebar: oklch(0.975 0.003 264);
+  --sidebar-foreground: oklch(0.26 0.006 264);
+  --sidebar-primary: oklch(0.55 0.20 280);
+  --sidebar-primary-foreground: oklch(0.985 0.003 264);
+  --sidebar-accent: oklch(0.96 0.005 264);
+  --sidebar-accent-foreground: oklch(0.22 0.006 264);
+  --sidebar-border: oklch(0.90 0.004 264);
+  --sidebar-ring: oklch(0.55 0.20 280);
 }
 
 .dark {
-  /* Fond sombre chaud */
-  --background: oklch(0.14 0.01 50);
-  --foreground: oklch(0.95 0.005 85);
-  /* Cartes */
-  --card: oklch(0.18 0.012 50);
-  --card-foreground: oklch(0.95 0.005 85);
-  --popover: oklch(0.18 0.012 50);
-  --popover-foreground: oklch(0.95 0.005 85);
-  /* Primaire terracotta plus lumineux en dark */
-  --primary: oklch(0.68 0.16 35);
-  --primary-foreground: oklch(0.98 0.005 85);
-  /* Secondaire vert sauge assombri */
-  --secondary: oklch(0.25 0.04 145);
-  --secondary-foreground: oklch(0.92 0.01 145);
+  /* Fond sombre neutre (slate). */
+  --background: oklch(0.165 0.004 264);
+  --foreground: oklch(0.96 0.002 264);
+  /* Cartes / popovers — un cran plus clair que le fond pour la profondeur. */
+  --card: oklch(0.205 0.005 264);
+  --card-foreground: oklch(0.96 0.002 264);
+  --popover: oklch(0.205 0.005 264);
+  --popover-foreground: oklch(0.96 0.002 264);
+  /* Primary indigo (accent marque) — texte clair dessus. */
+  --primary: oklch(0.65 0.18 280);
+  --primary-foreground: oklch(0.985 0.003 264);
+  /* Secondaire — surface neutre. */
+  --secondary: oklch(0.245 0.006 264);
+  --secondary-foreground: oklch(0.92 0.003 264);
   /* Muted */
-  --muted: oklch(0.22 0.02 50);
-  --muted-foreground: oklch(0.65 0.01 50);
-  /* Accent */
-  --accent: oklch(0.28 0.05 35);
-  --accent-foreground: oklch(0.95 0.005 85);
-  /* Destructive */
-  --destructive: oklch(0.65 0.24 25);
+  --muted: oklch(0.225 0.006 264);
+  --muted-foreground: oklch(0.67 0.008 264);
+  /* Accent (surfaces au survol) — neutre. */
+  --accent: oklch(0.245 0.008 264);
+  --accent-foreground: oklch(0.96 0.002 264);
+  /* Destructive — rouge corail. */
+  --destructive: oklch(0.62 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
-  /* Bordures */
-  --border: oklch(0.25 0.02 50);
-  --input: oklch(0.28 0.025 50);
-  --ring: oklch(0.68 0.16 35);
-  /* Charts dark mode */
-  --chart-1: oklch(0.68 0.16 35);
-  --chart-2: oklch(0.62 0.14 145);
-  --chart-3: oklch(0.72 0.18 75);
+  /* Bordures — neutres, subtiles. */
+  --border: oklch(0.27 0.006 264);
+  --input: oklch(0.245 0.006 264);
+  --ring: oklch(0.65 0.18 280);
+  /* Charts — série principale indigo, autres teintes sémantiques. */
+  --chart-1: oklch(0.65 0.18 280);
+  --chart-2: oklch(0.70 0.13 145);
+  --chart-3: oklch(0.75 0.16 75);
   --chart-4: oklch(0.65 0.22 25);
-  --chart-5: oklch(0.58 0.12 200);
-  /* Sidebar */
-  --sidebar: oklch(0.18 0.012 50);
-  --sidebar-foreground: oklch(0.90 0.008 85);
-  --sidebar-primary: oklch(0.68 0.16 35);
-  --sidebar-primary-foreground: oklch(0.98 0.005 85);
-  --sidebar-accent: oklch(0.28 0.05 35);
-  --sidebar-accent-foreground: oklch(0.95 0.005 85);
-  --sidebar-border: oklch(0.25 0.02 50);
-  --sidebar-ring: oklch(0.68 0.16 35);
+  --chart-5: oklch(0.70 0.13 230);
+  /* Sidebar — slate, légèrement plus sombre que le fond. */
+  --sidebar: oklch(0.19 0.005 264);
+  --sidebar-foreground: oklch(0.90 0.004 264);
+  --sidebar-primary: oklch(0.65 0.18 280);
+  --sidebar-primary-foreground: oklch(0.985 0.003 264);
+  --sidebar-accent: oklch(0.245 0.008 264);
+  --sidebar-accent-foreground: oklch(0.96 0.002 264);
+  --sidebar-border: oklch(0.26 0.006 264);
+  --sidebar-ring: oklch(0.65 0.18 280);
 }
 
 @layer base {
@@ -144,9 +151,38 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Faint warm "top light" → paper feel, premium, not flat. */
+    background-image: radial-gradient(
+      140% 90% at 50% -10%,
+      color-mix(in srgb, var(--primary) 4%, transparent) 0%,
+      transparent 45%
+    );
+    background-attachment: fixed;
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Dark : top-light neutre (foreground) au lieu du terracotta — reste slate et cohérent. */
+  .dark body {
+    background-image: radial-gradient(
+      140% 90% at 50% -10%,
+      color-mix(in srgb, var(--foreground) 3%, transparent) 0%,
+      transparent 45%
+    );
+  }
+
+  /* Atelier identity: editorial serif headings across the app. */
+  h1, h2, h3 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.015em;
+    font-optical-sizing: auto;
+  }
+
+  /* Tabular figures for any data figure tagged explicitly. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 
   /* Subtle animations for interactive elements */
@@ -158,4 +194,36 @@
   .card-hover {
     @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5;
   }
+}
+
+/* ── Storefront (site vitrine) — bespoke motion utilities ──
+   These belong to the public vitrine templates only. */
+@keyframes storefront-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.storefront-marquee {
+  animation: storefront-marquee 38s linear infinite;
+  will-change: transform;
+}
+.storefront-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Thin, tasteful scrollbar for the Studio film-reel rail. */
+.storefront-rail {
+  scrollbar-width: thin;
+}
+.storefront-rail::-webkit-scrollbar {
+  height: 5px;
+}
+.storefront-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+.storefront-rail::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 9999px;
+}
+.storefront-rail::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, currentColor 32%, transparent);
 }

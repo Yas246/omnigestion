@@ -120,7 +120,7 @@ export function StockTransferModal({
                     <span className="font-medium">{product.productName}</span>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Requis : <span className="font-semibold text-foreground">{product.requiredQuantity}</span>
+                    Requis : <span className="font-semibold text-foreground tabular-nums">{product.requiredQuantity}</span>
                   </div>
                 </div>
 
@@ -128,15 +128,15 @@ export function StockTransferModal({
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
                     <div className="text-muted-foreground">Stock dépôt principal</div>
-                    <div className="font-semibold text-red-600">{product.availableInPrimary}</div>
+                    <div className="font-semibold text-red-600 tabular-nums">{product.availableInPrimary}</div>
                   </div>
                   <div>
                     <div className="text-muted-foreground">Manquant</div>
-                    <div className="font-semibold text-orange-600">{product.missingQuantity}</div>
+                    <div className="font-semibold text-orange-600 tabular-nums">{product.missingQuantity}</div>
                   </div>
                   <div>
                     <div className="text-muted-foreground">Disponible ailleurs</div>
-                    <div className="font-semibold text-green-600">
+                    <div className="font-semibold text-green-600 tabular-nums">
                       {product.availableInOtherWarehouses.reduce((sum, w) => sum + w.availableQuantity, 0)}
                     </div>
                   </div>
@@ -189,7 +189,7 @@ export function StockTransferModal({
                       <label className="text-sm text-muted-foreground mb-1 block">
                         Quantité
                       </label>
-                      <div className="font-semibold text-lg">
+                      <div className="font-semibold text-lg tabular-nums">
                         {transfer.quantity || product.missingQuantity}
                       </div>
                     </div>

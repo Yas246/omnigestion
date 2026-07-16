@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Plus, Package, AlertTriangle, Upload, RefreshCw, DollarSign } from 'lucide-react';
+import { PageHeader } from "@/components/ui/page-header";
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function StockPage() {
@@ -326,31 +327,27 @@ export default function StockPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Stock</h1>
-          <p className="text-muted-foreground">
-            Gérez vos produits et vos niveaux de stock
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleRefreshWarehouseQuantities}
-            disabled={isRefreshing || isLoading}
-            title="Actualiser les produits et les mouvements depuis l'API"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Actualiser
+      <PageHeader
+        eyebrow="Stock & achats"
+        title="Stock"
+        description="Gérez vos produits et vos niveaux de stock"
+      >
+        <Button
+          variant="outline"
+          onClick={handleRefreshWarehouseQuantities}
+          disabled={isRefreshing || isLoading}
+          title="Actualiser les produits et les mouvements depuis l'API"
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Actualiser
+        </Button>
+        <PermissionGate module="stock" action="create">
+          <Button onClick={handleOpenDialog}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nouveau produit
           </Button>
-          <PermissionGate module="stock" action="create">
-            <Button onClick={handleOpenDialog}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nouveau produit
-            </Button>
-          </PermissionGate>
-        </div>
-      </div>
+        </PermissionGate>
+      </PageHeader>
 
       {/* Statistiques */}
       <div className="grid gap-4 md:grid-cols-5">
@@ -550,7 +547,6 @@ export default function StockPage() {
         open={isImportModalOpen}
         onOpenChange={setIsImportModalOpen}
         onImportComplete={() => {
-          // Les KPI se mettront à jour automatiquement via onSnapshot
         }}
       />
 

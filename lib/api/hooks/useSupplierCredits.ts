@@ -71,9 +71,17 @@ export function useSupplierCredits() {
       qc.invalidateQueries({ queryKey: ['suppliers'] });
     },
   });
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => api.post('/supplier-credits', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ['suppliers'] });
+    },
+  });
 
   return {
     addPayment: (creditId: string, input: { amount: number; paymentMode?: string; notes?: string }) =>
       payMutation.mutateAsync({ creditId, input }),
+    createCredit: (data: any) => createMutation.mutateAsync(data),
   };
 }

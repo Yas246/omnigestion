@@ -53,6 +53,8 @@ export default class PublicStoreController {
       company: {
         id: company.id,
         name: company.name,
+        slogan: company.slogan,
+        description: company.description,
         logoUrl: company.logoUrl,
         bannerUrl: company.bannerUrl,
         phone: company.phone,

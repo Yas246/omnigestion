@@ -14,18 +14,55 @@ import {
   Settings,
   CreditCard,
   TrendingUp,
+  Sparkles,
 } from "lucide-react";
 
-const allNavigation = [
-  { name: "Tableau de bord", href: "/", icon: LayoutDashboard, module: "dashboard" },
-  { name: "Ventes", href: "/sales", icon: ShoppingCart, module: "sales" },
-  { name: "Stock", href: "/stock", icon: Package, module: "stock" },
-  { name: "Caisse", href: "/cash", icon: Wallet, module: "cash" },
-  { name: "Crédits Clients", href: "/credits/clients", icon: CreditCard, module: "credits" },
-  { name: "Fournisseurs", href: "/suppliers", icon: User, module: "suppliers" },
-  { name: "Rapports", href: "/reports", icon: TrendingUp, module: "reports" },
-  { name: "Clientèle", href: "/clients", icon: Users, module: "clients" },
-  { name: "Paramètres", href: "/settings", icon: Settings, module: "settings" },
+type NavItem = { name: string; href: string; icon: any; module: string };
+
+/**
+ * Atelier navigation.
+ * - "Tableau de bord" stands alone at the top (no section eyebrow).
+ * - "Rapports" + "Analyse IA" sit together in a bottom "Analyses" section.
+ * A group is hidden when none of its items are permitted.
+ */
+const STANDALONE: NavItem = {
+  name: "Tableau de bord",
+  href: "/",
+  icon: LayoutDashboard,
+  module: "dashboard",
+};
+
+const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  {
+    label: "Commercial",
+    items: [
+      { name: "Ventes", href: "/sales", icon: ShoppingCart, module: "sales" },
+      { name: "Clientèle", href: "/clients", icon: Users, module: "clients" },
+      { name: "Crédits clients", href: "/credits/clients", icon: CreditCard, module: "credits" },
+    ],
+  },
+  {
+    label: "Stock & achats",
+    items: [
+      { name: "Stock", href: "/stock", icon: Package, module: "stock" },
+      { name: "Fournisseurs", href: "/suppliers", icon: User, module: "suppliers" },
+    ],
+  },
+  {
+    label: "Trésorerie",
+    items: [{ name: "Caisse", href: "/cash", icon: Wallet, module: "cash" }],
+  },
+  {
+    label: "Analyses",
+    items: [
+      { name: "Rapports", href: "/reports", icon: TrendingUp, module: "reports" },
+      { name: "Analyse IA", href: "/analyse-ia", icon: Sparkles, module: "reports" },
+    ],
+  },
+  {
+    label: "Système",
+    items: [{ name: "Paramètres", href: "/settings", icon: Settings, module: "settings" }],
+  },
 ];
 
 interface SidebarProps {
@@ -37,79 +74,97 @@ export function Sidebar({ showLogo = true, onMobileMenuClose }: SidebarProps) {
   const pathname = usePathname();
   const { isAdmin, canAccessModule, getFirstAccessiblePage } = usePermissions();
 
-  // Filtrer la navigation en fonction des permissions
-  const navigation = allNavigation.filter((item) => {
-    // Les admins ont accès à tout
-    if (isAdmin) return true;
-    // Vérifier les permissions pour tous les modules, y compris le dashboard
-    return canAccessModule(item.module);
-  });
+  const isVisible = (item: NavItem) => isAdmin || canAccessModule(item.module);
+  const isActive = (href: string) =>
+    pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
 
   const handleNavClick = () => {
-    // Close mobile menu after navigation
     onMobileMenuClose?.();
   };
 
-  // Rediriger le logo vers la première page accessible
   const logoHref = getFirstAccessiblePage();
+
+  const renderItem = (item: NavItem) => {
+    const active = isActive(item.href);
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.name}
+        href={item.href}
+        onClick={handleNavClick}
+        className={cn(
+          "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+          active
+            ? "bg-primary/10 font-medium text-foreground"
+            : "text-foreground/70 hover:bg-accent hover:text-foreground",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
+            active ? "opacity-100" : "opacity-0",
+          )}
+        />
+        <Icon
+          className={cn(
+            "h-4.5 w-4.5 shrink-0 transition-colors",
+            active ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+          )}
+        />
+        <span>{item.name}</span>
+      </Link>
+    );
+  };
 
   return (
     <>
-      {/* Logo - only show if enabled */}
+      {/* Wordmark */}
       {showLogo && (
-        <div className="flex h-16 items-center border-b px-6 bg-linear-to-r from-primary/5 to-transparent">
-          <Link href={logoHref} className="flex items-center gap-2" onClick={handleNavClick}>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground font-bold shadow-sm">
-              O
+        <div className="flex h-16 items-center border-b px-6">
+          <Link href={logoHref} className="flex items-center gap-2.5" onClick={handleNavClick}>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <span className="text-lg font-medium" style={{ fontFamily: "var(--font-serif)" }}>
+                O
+              </span>
             </div>
-            <span className="text-xl font-bold bg-linear-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-              Omnigestion
-            </span>
+            <div className="leading-none">
+              <span
+                className="block text-lg tracking-tight text-foreground"
+                style={{ fontFamily: "var(--font-serif)", fontWeight: 500 }}
+              >
+                Omnigestion
+              </span>
+              <span className="mt-0.5 block text-[10px] uppercase tracking-widest text-muted-foreground/70">
+                Gestion d’entreprise
+              </span>
+            </div>
           </Link>
         </div>
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-        {navigation.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          const Icon = item.icon;
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {/* Tableau de bord — standalone, no eyebrow */}
+        {isVisible(STANDALONE) && <div className="mb-5">{renderItem(STANDALONE)}</div>}
 
+        {NAV_GROUPS.map((group) => {
+          const items = group.items.filter(isVisible);
+          if (items.length === 0) return null;
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={handleNavClick}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 relative group",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-foreground hover:bg-accent hover:pl-4",
-              )}
-            >
-              <Icon className={cn(
-                "h-5 w-5 transition-transform duration-200",
-                !isActive && "group-hover:scale-110"
-              )} />
-              <span className={cn(
-                "transition-opacity duration-200",
-                isActive && "font-semibold"
-              )}>
-                {item.name}
-              </span>
-              {!isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 bg-primary rounded-r-full opacity-0 group-hover:h-4 group-hover:opacity-100 transition-all duration-200" />
-              )}
-            </Link>
+            <div key={group.label} className="mb-5">
+              <p className="mb-1 px-3 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/60">
+                {group.label}
+              </p>
+              <div className="space-y-0.5">{items.map(renderItem)}</div>
+            </div>
           );
         })}
       </nav>
 
       {/* Footer */}
-      <div className="border-t p-4 bg-linear-to-t from-primary/5 to-transparent">
-        <p className="text-xs text-center text-muted-foreground">
-          Omnigestion v1.0.0
+      <div className="border-t px-6 py-4">
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50">
+          Omnigestion · v1.0
         </p>
       </div>
     </>

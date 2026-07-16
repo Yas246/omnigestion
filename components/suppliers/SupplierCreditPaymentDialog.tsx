@@ -74,14 +74,14 @@ export function SupplierCreditPaymentDialog({ open, onOpenChange, credit, onSubm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Payer un fournisseur</DialogTitle>
           <DialogDescription>
             {credit && (
               <span>
                 Paiement à {credit.supplierName} - Reste à payer :{' '}
-                <span className="font-bold">{formatPrice(credit.remainingAmount)} FCFA</span>
+                <span className="font-bold tabular-nums">{formatPrice(credit.remainingAmount)} FCFA</span>
               </span>
             )}
           </DialogDescription>

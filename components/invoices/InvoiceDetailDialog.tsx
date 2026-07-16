@@ -249,15 +249,15 @@ export function InvoiceDetailDialog({
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center tabular-nums">
                         {item.quantity} {item.unit}
                       </TableCell>
                       {showUnitPrice && (
-                        <TableCell className="text-right">
+                        <TableCell className="text-right tabular-nums">
                           {formatPrice(item.unitPrice)} FCFA
                         </TableCell>
                       )}
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-right font-medium tabular-nums">
                         {formatPrice(item.total)} FCFA
                       </TableCell>
                     </TableRow>
@@ -272,36 +272,36 @@ export function InvoiceDetailDialog({
             <div className="w-64 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Sous-total:</span>
-                <span>{formatPrice(invoice.subtotal)} FCFA</span>
+                <span className="tabular-nums">{formatPrice(invoice.subtotal)} FCFA</span>
               </div>
               {showTax && invoice.taxRate > 0 && (
                 <div className="flex justify-between text-sm">
                   <span>TVA ({invoice.taxRate}%):</span>
-                  <span>{formatPrice(invoice.taxAmount)} FCFA</span>
+                  <span className="tabular-nums">{formatPrice(invoice.taxAmount)} FCFA</span>
                 </div>
               )}
               {invoice.discount > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Remise:</span>
-                  <span>-{formatPrice(invoice.discount)} FCFA</span>
+                  <span className="tabular-nums">-{formatPrice(invoice.discount)} FCFA</span>
                 </div>
               )}
               <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <span>Total:</span>
-                <span>{formatPrice(invoice.total)} FCFA</span>
+                <span className="tabular-nums">{formatPrice(invoice.total)} FCFA</span>
               </div>
               {invoice.paidAmount > 0 && (
                 <>
                   <Separator />
                   <div className="flex justify-between text-sm">
                     <span>Montant payé:</span>
-                    <span className="text-green-600">{formatPrice(invoice.paidAmount)} FCFA</span>
+                    <span className="text-green-600 tabular-nums">{formatPrice(invoice.paidAmount)} FCFA</span>
                   </div>
                   {invoice.remainingAmount > 0 && (
                     <div className="flex justify-between text-sm font-medium text-orange-600">
                       <span>Reste à payer:</span>
-                      <span>{formatPrice(invoice.remainingAmount)} FCFA</span>
+                      <span className="tabular-nums">{formatPrice(invoice.remainingAmount)} FCFA</span>
                     </div>
                   )}
                 </>
