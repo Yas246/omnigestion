@@ -574,7 +574,6 @@ export function UsersTab() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="employee">Employé</SelectItem>
-                          <SelectItem value="admin">Administrateur</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
