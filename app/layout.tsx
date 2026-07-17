@@ -17,11 +17,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-/** Atelier identity — editorial serif for headings/wordmark. */
+/** Atelier identity — editorial serif (variable font: one file, all weights). */
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useInvoicesRealtime, useInvoices as useInvoicesHelpers } from '@/lib/api/hooks/useInvoices';
+import { useProductsRealtime } from '@/lib/api/hooks/useProducts';
 import { useClientCreditsRealtime } from '@/lib/api/hooks/useClientCredits';
 import { useAuth } from '@/lib/auth-context';
 import { useSettings } from '@/lib/api/hooks/useSettings';
@@ -67,6 +68,9 @@ export default function SalesPage() {
   } = useInvoicesHelpers();
 
   const { credits, payments } = useClientCreditsRealtime();
+  // Catalogue produits (mis en cache par React Query) — utilisé pour le
+  // pré-check stock avant facturation, sans refetch dédié.
+  const { products } = useProductsRealtime();
   const { user } = useAuth();
   const { company, settings } = useSettings();
   const { canCreateSale, canDeleteSale, canAccessModule, getFirstAccessiblePage } = usePermissions();
@@ -99,7 +103,7 @@ export default function SalesPage() {
     try {
       // 1. Vérifier le stock avant création
       const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
-      const stockCheck = await checkStockBeforeInvoice(data.items, primaryWarehouseId);
+      const stockCheck = await checkStockBeforeInvoice(data.items, primaryWarehouseId, products);
 
       // 2. Si des produits nécessitent un transfert, afficher la modale
       if (stockCheck.productsNeedingTransfer.length > 0) {
@@ -212,7 +216,7 @@ export default function SalesPage() {
       // 1. Vérifier le stock des nouveaux items (le backend update reverrouille
       //    la dispo au moment du apply — ce pré-check est une aide UX).
       const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
-      const stockCheck = await checkStockBeforeInvoice(data.items, primaryWarehouseId);
+      const stockCheck = await checkStockBeforeInvoice(data.items, primaryWarehouseId, products);
 
       // 2. Si des produits nécessitent un transfert, afficher la modale
       if (stockCheck.productsNeedingTransfer.length > 0) {

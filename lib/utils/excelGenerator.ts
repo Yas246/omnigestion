@@ -1,10 +1,12 @@
-import * as XLSX from 'xlsx';
 import type { Product } from '@/types';
 
 /**
  * Exporte les produits vers un fichier Excel
  */
-export function exportProductsToExcel(products: Product[]): void {
+export async function exportProductsToExcel(products: Product[]): Promise<void> {
+  // Chargement paresseux de xlsx (~700 Ko) : uniquement lors d'un export.
+  const XLSX = await import('xlsx');
+
   // Préparer les données pour l'export
   const data = products.map((product) => ({
     'Produit': product.name || '',
@@ -56,7 +58,10 @@ export function exportProductsToExcel(products: Product[]): void {
 /**
  * Exporte les produits vers un fichier CSV
  */
-export function exportProductsToCSV(products: Product[]): void {
+export async function exportProductsToCSV(products: Product[]): Promise<void> {
+  // Chargement paresseux de xlsx (~700 Ko) : uniquement lors d'un export.
+  const XLSX = await import('xlsx');
+
   // Préparer les données pour l'export
   const data = products.map((product) => ({
     'Produit': product.name || '',

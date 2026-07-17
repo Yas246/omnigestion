@@ -36,6 +36,12 @@ const routes = {
     tokens: [{"old":"/api/v1/public/store/:slug","type":0,"val":"api","end":""},{"old":"/api/v1/public/store/:slug","type":0,"val":"v1","end":""},{"old":"/api/v1/public/store/:slug","type":0,"val":"public","end":""},{"old":"/api/v1/public/store/:slug","type":0,"val":"store","end":""},{"old":"/api/v1/public/store/:slug","type":1,"val":"slug","end":""}],
     types: placeholder as Registry['public_store.show']['types'],
   },
+  'public_store.show_product': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/public/store/:slug/product/:productId',
+    tokens: [{"old":"/api/v1/public/store/:slug/product/:productId","type":0,"val":"api","end":""},{"old":"/api/v1/public/store/:slug/product/:productId","type":0,"val":"v1","end":""},{"old":"/api/v1/public/store/:slug/product/:productId","type":0,"val":"public","end":""},{"old":"/api/v1/public/store/:slug/product/:productId","type":0,"val":"store","end":""},{"old":"/api/v1/public/store/:slug/product/:productId","type":1,"val":"slug","end":""},{"old":"/api/v1/public/store/:slug/product/:productId","type":0,"val":"product","end":""},{"old":"/api/v1/public/store/:slug/product/:productId","type":1,"val":"productId","end":""}],
+    types: placeholder as Registry['public_store.show_product']['types'],
+  },
   'store_auth.signup': {
     methods: ["POST"],
     pattern: '/api/v1/public/auth/signup',

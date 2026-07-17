@@ -127,6 +127,11 @@ next-env.d.ts
 *.md
 !README.md
 
+# Stray logs / client data at the repo root
+/log.md
+/newlog.md
+*.xlsx
+
 # Misc
 *.pem
 *.pid

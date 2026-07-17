@@ -5,6 +5,12 @@ import type { Authenticators } from '@adonisjs/auth/types'
 /**
  * Auth middleware is used authenticate HTTP requests and deny
  * access to unauthenticated users.
+ *
+ * Token expiry: access tokens are issued with a 30-day `expiresAt` (see
+ * AccessTokensController / NewAccountController). The DbAccessTokensProvider's
+ * verify path already rejects expired tokens (`accessToken.isExpired()` → null
+ * → auth fails) inside `authenticateUsing`, so expired tokens are denied here
+ * without any extra check. The `auth_access_tokens.expires_at` column backs it.
  */
 export default class AuthMiddleware {
   async handle(

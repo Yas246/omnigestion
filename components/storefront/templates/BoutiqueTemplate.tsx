@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { mediaUrl } from '@/lib/api/client';
 import type { StorefrontCompany, StorefrontConfig, StorefrontProduct } from '../types';
 import { ProductCard } from '../ProductCard';
@@ -50,8 +51,14 @@ export function BoutiqueTemplate({
       {config.hero.enabled && (
         <section className="relative flex min-h-dvh items-center overflow-hidden">
           {heroImg ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={heroImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <Image
+              src={heroImg}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           ) : (
             <div
               className="absolute inset-0"
@@ -169,7 +176,13 @@ export function BoutiqueTemplate({
                     {aboutText}
                   </p>
                   {company.logoUrl && (
-                    <img src={mediaUrl(company.logoUrl) ?? ''} alt={company.name} className="mx-auto mt-10 h-10 object-contain opacity-70" />
+                    <Image
+                      src={mediaUrl(company.logoUrl) ?? ''}
+                      alt={company.name}
+                      width={120}
+                      height={40}
+                      className="mx-auto mt-10 h-10 w-auto object-contain opacity-70"
+                    />
                   )}
                 </div>
               </section>

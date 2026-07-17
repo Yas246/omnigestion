@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { mediaUrl } from '@/lib/api/client';
 import type { StorefrontProduct } from './types';
 
@@ -24,10 +25,16 @@ export function ProductCard({
 }) {
   const img = mediaUrl(product.mainImageUrl);
   const accent = { color: 'var(--store-accent)' } as React.CSSProperties;
+  // First card in a grid is prioritized so the LCP image loads eagerly.
+  const priority = (index ?? 0) === 0;
 
   /**
    * Image, or an elegant monogram placeholder tinted with the brand palette —
    * never a bare "Pas d'image".
+   *
+   * Uses next/image with `fill` so we don't need to know the pixel dimensions
+   * of remote media; the parent container carries the aspect ratio and the
+   * image covers it (object-cover) exactly like the previous <img>.
    */
   const Visual = ({
     ratio,
@@ -39,12 +46,16 @@ export function ProductCard({
     monogramWeight?: number;
   }) =>
     img ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={img}
-        alt={product.name}
-        className={`h-full w-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105 ${ratio} ${rounded}`}
-      />
+      <div className={`relative ${ratio} ${rounded}`}>
+        <Image
+          src={img}
+          alt={product.name}
+          fill
+          sizes="(max-width: 768px) 50vw, 25vw"
+          priority={priority}
+          className={`h-full w-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105 ${rounded}`}
+        />
+      </div>
     ) : (
       <div
         className={`flex h-full w-full items-center justify-center ${ratio} ${rounded}`}

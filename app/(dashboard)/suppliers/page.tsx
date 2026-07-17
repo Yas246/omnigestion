@@ -26,6 +26,7 @@ import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { formatPrice } from '@/lib/utils';
+import { getCreditStatusLabel } from '@/lib/utils/status';
 
 type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
 type PurchaseStatusFilter = 'all' | 'paid' | 'active' | 'partial';
@@ -66,17 +67,6 @@ export default function SuppliersPage() {
   const [showManualCreditDialog, setShowManualCreditDialog] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, { label: string; variant: any }> = {
-      active: { label: 'En cours', variant: 'info' },
-      partial: { label: 'En cours', variant: 'warning' }, // Partiel = warning
-      paid: { label: 'Payé', variant: 'success' },
-      overdue: { label: 'En retard', variant: 'destructive' },
-      cancelled: { label: 'Annulé', variant: 'destructive' },
-    };
-    return labels[status] || { label: status, variant: 'outline' };
-  };
 
   const getPurchaseStatusLabel = (status: string) => {
     const labels: Record<string, { label: string; variant: any }> = {
@@ -433,8 +423,8 @@ export default function SuppliersPage() {
                               Achat {credit.invoiceNumber}
                             </span>
                           )}
-                          <Badge variant={getStatusLabel(credit.status).variant}>
-                            {getStatusLabel(credit.status).label}
+                          <Badge variant={getCreditStatusLabel(credit.status).variant}>
+                            {getCreditStatusLabel(credit.status).label}
                           </Badge>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">

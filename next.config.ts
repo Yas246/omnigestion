@@ -34,7 +34,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://res.cloudinary.com https://firebasestorage.googleapis.com",
-      `connect-src 'self' ${API_ORIGIN} https://api.deepseek.com https://*.googleapis.com https://*.firebaseio.com https://firebasestorage.googleapis.com https://securetoken.google.com https://www.googleapis.com https://fcm.googleapis.com https://res.cloudinary.com https://omnigestion.vercel.app`,
+      `connect-src 'self' ${API_ORIGIN} https://api.deepseek.com https://*.googleapis.com https://fcm.googleapis.com https://res.cloudinary.com https://omnigestion.vercel.app`,
       "frame-src 'none'",
       "object-src 'none'",
       "base-uri 'self'",
@@ -50,11 +50,34 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  images: {
+    // BYO-media app: images may come from Cloudinary, Firebase, the AdonisJS
+    // backend, or localhost in dev. The wildcard keeps storefront renders from
+    // breaking regardless of the merchant's media origin.
+    remotePatterns: [
+      { protocol: "https", hostname: "res.cloudinary.com" },
+      { protocol: "http", hostname: "localhost" },
+      { protocol: "https", hostname: "**" },
+    ],
+  },
+  // Enable gzip/brotli HTTP compression explicitly (Next defaults to true).
+  compress: true,
   async headers() {
     return [
       {
         source: "/(.*)",
         headers: securityHeaders,
+      },
+      {
+        // Long-lived immutable caching for static image/font assets.
+        source: "/:path*/:file(\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?))",
+        locale: false,
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
       },
     ];
   },

@@ -9,7 +9,7 @@ const item = vine.object({
 export const createPurchaseValidator = vine.create({
   supplierId: vine.number().withoutDecimals().min(1).optional(),
   supplierName: vine.string().trim().maxLength(150).optional(),
-  items: vine.array(item).minLength(1),
+  items: vine.array(item).minLength(1).maxLength(200),
   warehouseId: vine.number().withoutDecimals().min(1).optional(),
   paymentMethod: vine.enum(['cash', 'bank', 'mobile', 'credit']).optional(),
   paidAmount: vine.number().withoutDecimals().min(0).optional(),

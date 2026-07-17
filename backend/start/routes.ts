@@ -37,8 +37,12 @@ router
     // Public auth routes
     router
       .group(() => {
-        router.post('signup', [controllers.NewAccount, 'store'])
-        router.post('login', [controllers.AccessTokens, 'store'])
+        router
+          .post('signup', [controllers.NewAccount, 'store'])
+          .use(middleware.throttle({ rate: 3, period: 60 }))
+        router
+          .post('login', [controllers.AccessTokens, 'store'])
+          .use(middleware.throttle({ rate: 5, period: 60 }))
       })
       .prefix('auth')
       .as('auth')
@@ -55,9 +59,16 @@ router
 
     // Public storefront (no auth — resolved by company slug)
     router.get('public/store/:slug', [PublicStoreController, 'show'])
-        router.post('public/auth/signup', [StoreAuthController, 'signup'])
-        router.post('public/auth/login', [StoreAuthController, 'login'])
-        router.post('public/store/:slug/checkout', [PublicCommerceController, 'checkout'])
+        router.get('public/store/:slug/product/:productId', [PublicStoreController, 'showProduct'])
+        router
+          .post('public/auth/signup', [StoreAuthController, 'signup'])
+          .use(middleware.throttle({ rate: 3, period: 60 }))
+        router
+          .post('public/auth/login', [StoreAuthController, 'login'])
+          .use(middleware.throttle({ rate: 5, period: 60 }))
+        router
+          .post('public/store/:slug/checkout', [PublicCommerceController, 'checkout'])
+          .use(middleware.throttle({ rate: 10, period: 60 }))
         router.get('public/store/:slug/product/:productId/reviews', [PublicCommerceController, 'reviews'])
         router.post('public/store/:slug/product/:productId/reviews', [PublicCommerceController, 'addReview'])
 

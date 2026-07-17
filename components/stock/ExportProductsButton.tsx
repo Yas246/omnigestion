@@ -53,7 +53,7 @@ export function ExportProductsButton() {
         return;
       }
 
-      exportProductsToExcel(allProducts);
+      await exportProductsToExcel(allProducts);
       toast.success(`${allProducts.length} produit(s) exporté(s) en Excel`);
     } catch (error) {
       console.error('Erreur lors de l\'export Excel:', error);
@@ -78,7 +78,7 @@ export function ExportProductsButton() {
         return;
       }
 
-      exportProductsToCSV(allProducts);
+      await exportProductsToCSV(allProducts);
       toast.success(`${allProducts.length} produit(s) exporté(s) en CSV`);
     } catch (error) {
       console.error('Erreur lors de l\'export CSV:', error);

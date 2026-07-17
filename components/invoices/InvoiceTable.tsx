@@ -37,6 +37,10 @@ interface InvoiceTableProps {
   totalLoaded?: number;
 }
 
+// Nombre de lignes rendues initialement côté client. Au-delà, l'utilisateur
+// étend la liste via le bouton "Charger plus" (distinct du onLoadMore serveur).
+const CLIENT_PAGE_SIZE = 50;
+
 export function InvoiceTable({
   invoices,
   loading = false,
@@ -52,6 +56,7 @@ export function InvoiceTable({
 }: InvoiceTableProps) {
   const [searchTerm, setSearchTerm] = useState(searchQuery);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [visibleCount, setVisibleCount] = useState(CLIENT_PAGE_SIZE);
 
   // Debouncing de 300ms pour la recherche
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -72,10 +77,12 @@ export function InvoiceTable({
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
+    setVisibleCount(CLIENT_PAGE_SIZE);
   };
 
   const handleStatusFilter = (status: string) => {
     setSelectedStatus(status);
+    setVisibleCount(CLIENT_PAGE_SIZE);
     if (onFilterByStatus) {
       onFilterByStatus(status === 'all' ? null : status);
     }
@@ -166,7 +173,7 @@ export function InvoiceTable({
                 </TableCell>
               </TableRow>
             ) : (
-              invoices.map((invoice) => (
+              invoices.slice(0, visibleCount).map((invoice) => (
                 <TableRow key={invoice.id}>
                   <TableCell>
                     <span className="font-medium">{invoice.invoiceNumber}</span>
@@ -237,6 +244,18 @@ export function InvoiceTable({
           </TableBody>
         </Table>
       </div>
+
+      {/* Étendre la liste côté client (au-delà de 50 lignes rendues) */}
+      {invoices.length > visibleCount && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount((c) => c + CLIENT_PAGE_SIZE)}
+          >
+            Charger plus ({invoices.length - visibleCount} restantes)
+          </Button>
+        </div>
+      )}
 
       {/* Charger plus de factures depuis Firestore */}
       {hasMore && onLoadMore && (

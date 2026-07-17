@@ -11,13 +11,17 @@ import type { HttpContext } from '@adonisjs/core/http'
  * 404 if the slug doesn't exist or the store is disabled.
  */
 export default class PublicStoreController {
-  async show(ctx: HttpContext) {
-    const slug = ctx.params.slug as string
+  /**
+   * Resolve the enabled company by its store_slug, then load the published
+   * storefront config + published products (with their image gallery).
+   * Shared by `show` (whole store) and `showProduct` (single product).
+   */
+  private async loadPublishedStore(slug: string) {
     const company = await Company.query()
       .where('store_slug', slug)
       .where('store_enabled', true)
       .first()
-    if (!company) return ctx.response.notFound({ message: 'Boutique introuvable ou désactivée' })
+    if (!company) return null
 
     const sf = await Storefront.query().where('company_id', company.id).first()
     const config = StorefrontService.withDefaults(sf?.publishedConfig ?? null)
@@ -66,5 +70,26 @@ export default class PublicStoreController {
       config,
       products: productsJson,
     }
+  }
+
+  async show(ctx: HttpContext) {
+    const data = await this.loadPublishedStore(ctx.params.slug as string)
+    if (!data) return ctx.response.notFound({ message: 'Boutique introuvable ou désactivée' })
+    return data
+  }
+
+  /**
+   * Single published product within a published store. Same slug → company
+   * resolution as `show`, then the product is picked out by id. 404 if the
+   * store is disabled, the slug is unknown, or the product isn't published.
+   */
+  async showProduct(ctx: HttpContext) {
+    const data = await this.loadPublishedStore(ctx.params.slug as string)
+    if (!data) return ctx.response.notFound({ message: 'Boutique introuvable ou désactivée' })
+
+    const product = data.products.find((p) => String(p.id) === String(ctx.params.productId))
+    if (!product) return ctx.response.notFound({ message: 'Produit introuvable' })
+
+    return { company: data.company, config: data.config, product }
   }
 }

@@ -33,7 +33,8 @@ export default class NewAccountController {
       return { user: owner, company: createdCompany }
     })
 
-    const token = await User.accessTokens.create(user)
+    // 30-day expiry — see AccessTokensController for rationale.
+    const token = await User.accessTokens.create(user, ['*'], { expiresIn: '30d' })
 
     return {
       user: {

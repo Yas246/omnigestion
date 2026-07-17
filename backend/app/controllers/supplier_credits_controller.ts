@@ -10,7 +10,7 @@ export default class SupplierCreditsController {
     const status = ctx.request.input('status') as string | undefined
     let query = SupplierCredit.forContext(ctx)
     if (status) query = query.where('status', status)
-    const credits = await query.orderBy('createdAt', 'desc')
+    const credits = await query.orderBy('createdAt', 'desc').limit(500)
     return credits.map((c) => c.toJSON())
   }
 

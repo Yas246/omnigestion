@@ -28,6 +28,7 @@ import { usePermissions } from "@/lib/hooks/usePermissions";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -41,7 +42,6 @@ import {
   Legend,
   Filler,
 } from "chart.js";
-import { Line, Bar, Doughnut } from "react-chartjs-2";
 import { formatPrice } from "@/lib/utils";
 import { getInvoiceStatusBadge } from "@/lib/utils/invoice-helpers";
 import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
@@ -58,6 +58,21 @@ ChartJS.register(
   Tooltip,
   Legend,
   Filler,
+);
+
+// Charts are heavy — load react-chartjs-2 client-side only, after hydration.
+// The ChartJS.register calls above stay eager (cheap global registrations).
+const Line = dynamic(() => import("react-chartjs-2").then((m) => m.Line), {
+  ssr: false,
+  loading: () => null,
+});
+const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), {
+  ssr: false,
+  loading: () => null,
+});
+const Doughnut = dynamic(
+  () => import("react-chartjs-2").then((m) => m.Doughnut),
+  { ssr: false, loading: () => null }
 );
 
 export default function DashboardPage() {

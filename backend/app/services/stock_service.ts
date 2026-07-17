@@ -143,38 +143,41 @@ export const StockService = {
       }
 
       const { userId, userName } = userOf(ctx)
-      await trx.table('stock_movements').insert({
-        tenant_id: tenantId,
-        company_id: companyId,
-        product_id: input.productId,
-        warehouse_id: input.fromWarehouseId,
-        type: 'transfer',
-        quantity: -input.quantity,
-        reason: input.reason ?? null,
-        reference_type: 'transfer',
-        reference_id: null,
-        user_id: userId,
-        user_name: userName,
-        quantity_before: fromBefore,
-        quantity_after: fromBefore - input.quantity,
-        created_at: now(),
-      })
-      await trx.table('stock_movements').insert({
-        tenant_id: tenantId,
-        company_id: companyId,
-        product_id: input.productId,
-        warehouse_id: input.toWarehouseId,
-        type: 'transfer',
-        quantity: input.quantity,
-        reason: input.reason ?? null,
-        reference_type: 'transfer',
-        reference_id: null,
-        user_id: userId,
-        user_name: userName,
-        quantity_before: toBefore,
-        quantity_after: toBefore + input.quantity,
-        created_at: now(),
-      })
+      // Two-sided transfer logged in a single multi-row insert (1 query, not 2).
+      await trx.table('stock_movements').insert([
+        {
+          tenant_id: tenantId,
+          company_id: companyId,
+          product_id: input.productId,
+          warehouse_id: input.fromWarehouseId,
+          type: 'transfer',
+          quantity: -input.quantity,
+          reason: input.reason ?? null,
+          reference_type: 'transfer',
+          reference_id: null,
+          user_id: userId,
+          user_name: userName,
+          quantity_before: fromBefore,
+          quantity_after: fromBefore - input.quantity,
+          created_at: now(),
+        },
+        {
+          tenant_id: tenantId,
+          company_id: companyId,
+          product_id: input.productId,
+          warehouse_id: input.toWarehouseId,
+          type: 'transfer',
+          quantity: input.quantity,
+          reason: input.reason ?? null,
+          reference_type: 'transfer',
+          reference_id: null,
+          user_id: userId,
+          user_name: userName,
+          quantity_before: toBefore,
+          quantity_after: toBefore + input.quantity,
+          created_at: now(),
+        },
+      ])
 
       await this.recomputeProduct(trx, tenantId, companyId, input.productId)
       return {
@@ -249,7 +252,12 @@ export const StockService = {
     })
   },
 
-  /** Recompute product.current_stock + status from product_stock_locations. */
+  /**
+   * Recompute product.current_stock + status from product_stock_locations.
+   * Uses the proven 3-query approach (SUM + threshold + UPDATE) — the raw
+   * single-UPDATE version silently updated 0 rows in some cases (same class
+   * of trx.raw() binding bug as the bulk applyItems CASE WHEN).
+   */
   async recomputeProduct(trx: any, tenantId: number, companyId: number, productId: number) {
     const sumRow = await trx
       .from('product_stock_locations')

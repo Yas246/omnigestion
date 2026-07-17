@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCashRegistersRealtime } from '@/lib/api/hooks/useCashRegisters';
 import { useCashMovementsRealtime } from '@/lib/api/hooks/useCashMovements';
 import { DollarSign, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
-import { Bar } from 'react-chartjs-2';
+import dynamic from 'next/dynamic';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -32,6 +32,12 @@ ChartJS.register(
   Tooltip,
   Legend,
 );
+
+// Charts are heavy — load react-chartjs-2 client-side only, after hydration.
+const Bar = dynamic(() => import('react-chartjs-2').then((m) => m.Bar), {
+  ssr: false,
+  loading: () => null,
+});
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 

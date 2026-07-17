@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { mediaUrl } from '@/lib/api/client';
 import type { StorefrontCompany, StorefrontConfig, StorefrontProduct } from '../types';
 import { ProductCard } from '../ProductCard';
@@ -35,7 +36,15 @@ export function StudioTemplate({
       <header className="border-b" style={hairline}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5 sm:px-10">
           <div className="flex items-center gap-3">
-            {company.logoUrl && <img src={mediaUrl(company.logoUrl) ?? ''} alt={company.name} className="h-7 w-7 object-contain" />}
+            {company.logoUrl && (
+              <Image
+                src={mediaUrl(company.logoUrl) ?? ''}
+                alt={company.name}
+                width={28}
+                height={28}
+                className="h-7 w-7 object-contain"
+              />
+            )}
             <span className="text-xl tracking-tight" style={{ ...disp, fontWeight: 700 }}>{company.name}</span>
           </div>
           <span className="text-xs uppercase tracking-widest opacity-50" style={mono}>

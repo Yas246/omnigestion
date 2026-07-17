@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { toast } from 'sonner';
 import { mediaUrl } from '@/lib/api/client';
 import { useCart } from '@/lib/storefront/cart-context';
@@ -72,11 +73,18 @@ export function ProductDetail({ product, company, config, slug, allProducts = []
           </Link>
 
           {/* Full-width portrait image */}
-          <div className="overflow-hidden rounded-sm" style={softSurface}>
+          <div className="relative aspect-3/4 overflow-hidden rounded-sm" style={softSurface}>
             {img ? (
-              <img src={img} alt={product.name} className="aspect-3/4 h-full w-full object-cover" />
+              <Image
+                src={img}
+                alt={product.name}
+                fill
+                priority
+                sizes="(max-width: 672px) 100vw, 672px"
+                className="h-full w-full object-cover"
+              />
             ) : (
-              <div className="flex aspect-3/4 h-full w-full items-center justify-center text-9xl" style={{ ...italic, color: 'color-mix(in srgb, var(--store-text) 20%, transparent)' }}>
+              <div className="flex h-full w-full items-center justify-center text-9xl" style={{ ...italic, color: 'color-mix(in srgb, var(--store-text) 20%, transparent)' }}>
                 {product.name.charAt(0)}
               </div>
             )}
@@ -132,11 +140,18 @@ export function ProductDetail({ product, company, config, slug, allProducts = []
           </Link>
 
           {/* Big image */}
-          <div className="overflow-hidden rounded-3xl" style={softSurface}>
+          <div className="relative aspect-4/3 overflow-hidden rounded-3xl" style={softSurface}>
             {img ? (
-              <img src={img} alt={product.name} className="aspect-4/3 h-full w-full object-cover" />
+              <Image
+                src={img}
+                alt={product.name}
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 768px"
+                className="h-full w-full object-cover"
+              />
             ) : (
-              <div className="flex aspect-4/3 h-full w-full items-center justify-center text-9xl" style={{ ...disp, fontWeight: 700, color: 'color-mix(in srgb, var(--store-text) 15%, transparent)' }}>
+              <div className="flex h-full w-full items-center justify-center text-9xl" style={{ ...disp, fontWeight: 700, color: 'color-mix(in srgb, var(--store-text) 15%, transparent)' }}>
                 {product.name.charAt(0)}
               </div>
             )}
@@ -204,11 +219,18 @@ export function ProductDetail({ product, company, config, slug, allProducts = []
 
           <div className="grid gap-8 md:grid-cols-[3fr_2fr] md:gap-12">
             {/* Image plate */}
-            <div className="overflow-hidden rounded-md" style={softSurface}>
+            <div className="relative aspect-square overflow-hidden rounded-md" style={softSurface}>
               {img ? (
-                <img src={img} alt={product.name} className="aspect-square h-full w-full object-cover" />
+                <Image
+                  src={img}
+                  alt={product.name}
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 60vw"
+                  className="h-full w-full object-cover"
+                />
               ) : (
-                <div className="flex aspect-square h-full w-full items-center justify-center text-9xl" style={{ ...disp, fontWeight: 800, color: 'color-mix(in srgb, var(--store-text) 12%, transparent)' }}>
+                <div className="flex h-full w-full items-center justify-center text-9xl" style={{ ...disp, fontWeight: 800, color: 'color-mix(in srgb, var(--store-text) 12%, transparent)' }}>
                   {product.name.charAt(0)}
                 </div>
               )}
@@ -265,9 +287,16 @@ export function ProductDetail({ product, company, config, slug, allProducts = []
         </Link>
 
         <div className="grid gap-10 md:grid-cols-2">
-          <div className="aspect-square overflow-hidden" style={softSurface}>
+          <div className="relative aspect-square overflow-hidden" style={softSurface}>
             {img ? (
-              <img src={img} alt={product.name} className="h-full w-full object-cover" />
+              <Image
+                src={img}
+                alt={product.name}
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="h-full w-full object-cover"
+              />
             ) : (
               <div className="flex h-full w-full items-center justify-center" style={{ background: 'linear-gradient(140deg, color-mix(in srgb, var(--store-primary) 16%, var(--store-bg)), color-mix(in srgb, var(--store-accent) 10%, var(--store-bg)))' }}>
                 <span className="text-9xl" style={{ ...disp, fontWeight: 300, color: 'color-mix(in srgb, var(--store-text) 22%, transparent)' }}>{product.name.charAt(0)}</span>

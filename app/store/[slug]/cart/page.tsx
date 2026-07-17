@@ -7,6 +7,7 @@ import { BuyerAuthModal } from '@/components/storefront/BuyerAuthModal';
 import { API_ORIGIN } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import { Trash2, Minus, Plus, ArrowLeft, ShoppingCart, Check, Loader2 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { mediaUrl } from '@/lib/api/client';
@@ -41,11 +42,17 @@ function CartLine({
 
   const thumb = (
     <div
-      className={`h-14 w-14 shrink-0 overflow-hidden sm:h-16 sm:w-16 ${isMarche ? 'rounded-2xl' : isStudio ? 'rounded-md' : 'rounded-sm'}`}
+      className={`relative h-14 w-14 shrink-0 overflow-hidden sm:h-16 sm:w-16 ${isMarche ? 'rounded-2xl' : isStudio ? 'rounded-md' : 'rounded-sm'}`}
       style={{ backgroundColor: 'color-mix(in srgb, var(--store-text) 5%, transparent)' }}
     >
       {mediaUrl(item.image) ? (
-        <img src={mediaUrl(item.image) ?? ''} alt={item.name} className="h-full w-full object-cover" />
+        <Image
+          src={mediaUrl(item.image) ?? ''}
+          alt={item.name}
+          fill
+          sizes="64px"
+          className="h-full w-full object-cover"
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center text-xl font-bold opacity-20 sm:text-2xl" style={isBoutique ? italic : disp}>
           {item.name.charAt(0)}
@@ -169,6 +176,13 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [config, setConfig] = useState<StorefrontConfig | null>(null);
 
+  // Auto-close auth modal when buyer logs in (the old onSuccess pattern had a
+  // stale-closure bug: handleCheckout re-checked `buyer` which was still null
+  // in the captured closure → re-opened the modal).
+  useEffect(() => {
+    if (buyer && authOpen) setAuthOpen(false);
+  }, [buyer, authOpen]);
+
   // Fetch storefront config for theming
   useEffect(() => {
     fetch(`${API_ORIGIN}/api/v1/public/store/${slug}`)
@@ -273,7 +287,7 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
 
   return (
     <div style={{ ...themeStyle, backgroundColor: `color-mix(in srgb, ${bg} 97%, ${text} 3%)`, color: text, fontFamily: bodyFont }} className={`${allFontsClass} min-h-screen`}>
-      <BuyerAuthModal open={authOpen} onOpenChange={setAuthOpen} onSuccess={handleCheckout} />
+      <BuyerAuthModal open={authOpen} onOpenChange={setAuthOpen} />
       <div className="mx-auto max-w-3xl px-4 py-8">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">

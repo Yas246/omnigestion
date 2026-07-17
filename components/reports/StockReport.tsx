@@ -7,7 +7,7 @@ import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useProductsRealtime } from '@/lib/api/hooks/useProducts';
 import { Package, AlertTriangle, DollarSign, BarChart3 } from 'lucide-react';
-import { Bar, Pie } from 'react-chartjs-2';
+import dynamic from 'next/dynamic';
 import { PaginatedTable } from '@/components/ui/PaginatedTable';
 import {
   Chart as ChartJS,
@@ -30,6 +30,16 @@ ChartJS.register(
   Tooltip,
   Legend,
 );
+
+// Charts are heavy — load react-chartjs-2 client-side only, after hydration.
+const Bar = dynamic(() => import('react-chartjs-2').then((m) => m.Bar), {
+  ssr: false,
+  loading: () => null,
+});
+const Pie = dynamic(() => import('react-chartjs-2').then((m) => m.Pie), {
+  ssr: false,
+  loading: () => null,
+});
 
 export function StockReport() {
   const { products: rawProducts, isLoading } = useProductsRealtime();

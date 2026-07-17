@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import type { Client } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -54,7 +54,7 @@ export function ClientsTable({
   // Debouncing de 300ms pour la recherche
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  const filteredClients = clients.filter((client) => {
+  const filteredClients = useMemo(() => clients.filter((client) => {
     // Ne filtrer que si la recherche est vide ou a minimum 3 caractères
     if (debouncedSearchQuery.length > 0 && debouncedSearchQuery.length < 3) {
       return false; // Masquer tous les résultats si moins de 3 caractères
@@ -67,7 +67,7 @@ export function ClientsTable({
       client.phone?.includes(debouncedSearchQuery) ||
       client.code?.toLowerCase().includes(searchLower)
     );
-  });
+  }), [clients, debouncedSearchQuery]);
 
   const handleCreate = async (data: any) => {
     if (!onCreate) return;

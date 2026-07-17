@@ -18,7 +18,7 @@ const paymentFields = {
 export const createInvoiceValidator = vine.create({
   clientId: vine.number().withoutDecimals().min(1).optional(),
   clientName: vine.string().trim().maxLength(150).optional(),
-  items: vine.array(item).minLength(1),
+  items: vine.array(item).minLength(1).maxLength(200),
   warehouseId: vine.number().withoutDecimals().min(1).optional(),
   paymentMethod: vine.enum(['cash', 'bank', 'mobile', 'credit']).optional(),
   paidAmount: vine.number().withoutDecimals().min(0).optional(),
@@ -33,7 +33,7 @@ export const createInvoiceValidator = vine.create({
 export const updateInvoiceValidator = vine.create({
   clientId: vine.number().withoutDecimals().min(1).optional(),
   clientName: vine.string().trim().maxLength(150).optional(),
-  items: vine.array(item).minLength(1),
+  items: vine.array(item).minLength(1).maxLength(200),
   paymentMethod: vine.enum(['cash', 'bank', 'mobile', 'credit']).optional(),
   paidAmount: vine.number().withoutDecimals().min(0).optional(),
   discount: vine.number().withoutDecimals().min(0).optional(),

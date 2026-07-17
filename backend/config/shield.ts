@@ -28,7 +28,10 @@ const shieldConfig = defineConfig({
    */
   csrf: {
     /**
-     * Enable CSRF token verification for state-changing requests.
+     * Disabled: the API is 100% Bearer-token stateless (Authorization header,
+     * no session cookies for auth). CSRF targets cookie-based auth, which we
+     * don't use. Enabling it here would break the frontend (it doesn't send
+     * XSRF tokens). Safe to leave off as long as auth remains token-based.
      */
     enabled: false,
 

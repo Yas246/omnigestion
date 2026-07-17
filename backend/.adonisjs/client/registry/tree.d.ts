@@ -20,6 +20,7 @@ export interface ApiDefinition {
   }
   publicStore: {
     show: typeof routes['public_store.show']
+    showProduct: typeof routes['public_store.show_product']
   }
   storeAuth: {
     signup: typeof routes['store_auth.signup']

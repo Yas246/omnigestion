@@ -183,7 +183,7 @@ export default function ReportsPage() {
     };
 
     if (exportFormat === 'excel') {
-      exportToExcel(exportData);
+      await exportToExcel(exportData);
     } else {
       exportToCSV(exportData);
     }
@@ -235,7 +235,7 @@ export default function ReportsPage() {
     };
 
     if (exportFormat === 'excel') {
-      exportToExcel(exportData);
+      await exportToExcel(exportData);
     } else {
       exportToCSV(exportData);
     }
@@ -269,7 +269,7 @@ export default function ReportsPage() {
     };
 
     if (exportFormat === 'excel') {
-      exportToExcel(exportData);
+      await exportToExcel(exportData);
     } else {
       exportToCSV(exportData);
     }
@@ -296,7 +296,7 @@ export default function ReportsPage() {
     };
 
     if (exportFormat === 'excel') {
-      exportToExcel(exportData);
+      await exportToExcel(exportData);
     } else {
       exportToCSV(exportData);
     }

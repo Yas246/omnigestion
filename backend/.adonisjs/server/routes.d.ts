@@ -9,6 +9,7 @@ export type ScannedRoutes = {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
     'public_store.show': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_store.show_product': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'store_auth.signup': { paramsTuple?: []; params?: {} }
     'store_auth.login': { paramsTuple?: []; params?: {} }
     'public_commerce.checkout': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
@@ -87,6 +88,7 @@ export type ScannedRoutes = {
   GET: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'public_store.show': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_store.show_product': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
@@ -122,6 +124,7 @@ export type ScannedRoutes = {
   HEAD: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'public_store.show': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_store.show_product': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }

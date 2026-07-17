@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
@@ -12,26 +12,31 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-interface PaginatedTableProps {
-  data: any[];
-  columns: {
-    key: string;
-    header: string;
-    className?: string;
-    render?: (row: any, index: number) => React.ReactNode;
-  }[];
+interface Column<T> {
+  key: string;
+  header: string;
+  className?: string;
+  render?: (row: T, index: number) => React.ReactNode;
+}
+
+interface PaginatedTableProps<T> {
+  data: T[];
+  columns: Column<T>[];
+  /** Custom React key for each row. Falls back to row.id then the row index. */
+  getRowKey?: (row: T, index: number) => string;
   initialPageSize?: number;
   pageSizeOptions?: number[];
   emptyMessage?: string;
 }
 
-export function PaginatedTable({
+export function PaginatedTable<T>({
   data,
   columns,
+  getRowKey,
   initialPageSize = 50,
   pageSizeOptions = [25, 50, 100, 200],
   emptyMessage = 'Aucune donnée disponible',
-}: PaginatedTableProps) {
+}: PaginatedTableProps<T>) {
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -39,7 +44,17 @@ export function PaginatedTable({
   const safePage = Math.min(currentPage, totalPages);
   const startIndex = (safePage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const currentData = data.slice(startIndex, endIndex);
+
+  const currentData = useMemo(
+    () => data.slice(startIndex, endIndex),
+    [data, startIndex, endIndex]
+  );
+
+  const resolveRowKey = (row: T, index: number) => {
+    if (getRowKey) return getRowKey(row, index);
+    const maybeId = (row as any)?.id;
+    return maybeId != null ? String(maybeId) : String(index);
+  };
 
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
@@ -77,10 +92,10 @@ export function PaginatedTable({
                 </TableRow>
               ) : (
                 currentData.map((row, rowIndex) => (
-                  <TableRow key={row.id || rowIndex}>
+                  <TableRow key={resolveRowKey(row, rowIndex)}>
                     {columns.map((column) => (
                       <TableCell key={column.key} className={column.className}>
-                        {column.render ? column.render(row, rowIndex) : row[column.key]}
+                        {column.render ? column.render(row, rowIndex) : (row as any)[column.key]}
                       </TableCell>
                     ))}
                   </TableRow>

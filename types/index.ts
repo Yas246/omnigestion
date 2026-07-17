@@ -173,9 +173,9 @@ export interface Product {
   isActive: boolean;
   published?: boolean;
   mainImageUrl?: string;
-  deletedAt?: Date | any | null;
+  deletedAt?: Date | null;
 
-  // Champs calculés (non stockés dans Firestore)
+  // Champs calculés (non stockés en base)
   warehouseQuantities?: Array<{
     warehouseId: string;
     warehouseName: string;
@@ -183,8 +183,8 @@ export interface Product {
   }>;
   displayQuantity?: number;
 
-  createdAt: Date | any;
-  updatedAt: Date | any;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Stock par dépôt

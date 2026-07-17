@@ -77,6 +77,8 @@ export const CashService = {
       user_name: userName,
       created_at: now(),
     })
+    // Lock the register row so concurrent balance writes serialize (matches transfer/recordMovement).
+    await trx.from('cash_registers').where('id', cashRegisterId).forUpdate().first()
     await trx
       .from('cash_registers')
       .where('id', cashRegisterId)
@@ -121,6 +123,7 @@ export const CashService = {
       user_name: userName,
       created_at: now(),
     })
+    await trx.from('cash_registers').where('id', cashRegisterId).forUpdate().first()
     await trx
       .from('cash_registers')
       .where('id', cashRegisterId)

@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useInvoicesRealtime } from '@/lib/api/hooks/useInvoices';
 import { useClientCreditsRealtime } from '@/lib/api/hooks/useClientCredits';
 import { DollarSign, ShoppingCart, TrendingUp, FileText, LineChart } from 'lucide-react';
-import { Bar, Line, Pie } from 'react-chartjs-2';
+import dynamic from 'next/dynamic';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -38,6 +38,20 @@ ChartJS.register(
   Legend,
   Filler,
 );
+
+// Charts are heavy — load react-chartjs-2 client-side only, after hydration.
+const Bar = dynamic(() => import('react-chartjs-2').then((m) => m.Bar), {
+  ssr: false,
+  loading: () => null,
+});
+const Line = dynamic(() => import('react-chartjs-2').then((m) => m.Line), {
+  ssr: false,
+  loading: () => null,
+});
+const Pie = dynamic(() => import('react-chartjs-2').then((m) => m.Pie), {
+  ssr: false,
+  loading: () => null,
+});
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 
@@ -114,26 +128,27 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
   const avgBasket = totalInvoices > 0 ? totalRevenue / totalInvoices : 0;
   const paidAmount = filteredInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
 
-  // Préparer les données pour les graphiques
-  // Ventes par jour (CA encaissé)
+  // Préparer les données pour les graphiques — clés ISO pour tri chronologique
   const salesByDay = filteredInvoices.reduce((acc, inv) => {
-    const day = format(new Date(inv.date), 'dd/MM');
+    const day = format(new Date(inv.date), 'yyyy-MM-dd');
     acc[day] = (acc[day] || 0) + inv.paidAmount;
     return acc;
   }, {} as Record<string, number>);
 
-  // Ajouter les paiements de crédits au graphique par jour
   filteredCreditPayments.forEach(cp => {
-    const day = format(new Date(cp.createdAt), 'dd/MM');
+    const day = format(new Date(cp.createdAt), 'yyyy-MM-dd');
     salesByDay[day] = (salesByDay[day] || 0) + (cp.amount || 0);
   });
 
+  // Tri chronologique (oldest → newest, gauche → droite)
+  const sortedDayKeys = Object.keys(salesByDay).sort();
+
   const salesChartData = {
-    labels: Object.keys(salesByDay),
+    labels: sortedDayKeys.map(d => format(new Date(d), 'dd/MM', { locale: fr })),
     datasets: [
       {
         label: "Chiffre d'affaires",
-        data: Object.values(salesByDay),
+        data: sortedDayKeys.map(d => salesByDay[d]),
         borderColor: 'oklch(0.55 0.20 280)',
         backgroundColor: 'oklch(0.55 0.20 280 / 0.15)',
         fill: true,

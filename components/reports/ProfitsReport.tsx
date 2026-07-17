@@ -8,7 +8,7 @@ import { useInvoicesRealtime } from '@/lib/api/hooks/useInvoices';
 import { useClientCreditsRealtime } from '@/lib/api/hooks/useClientCredits';
 import { getRecognizedProfits, buildInvoicePaymentsMap } from '@/lib/utils/profitCalculation';
 import { DollarSign, TrendingUp } from 'lucide-react';
-import { Bar, Line } from 'react-chartjs-2';
+import dynamic from 'next/dynamic';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -38,6 +38,16 @@ ChartJS.register(
   Legend,
   Filler,
 );
+
+// Charts are heavy — load react-chartjs-2 client-side only, after hydration.
+const Bar = dynamic(() => import('react-chartjs-2').then((m) => m.Bar), {
+  ssr: false,
+  loading: () => null,
+});
+const Line = dynamic(() => import('react-chartjs-2').then((m) => m.Line), {
+  ssr: false,
+  loading: () => null,
+});
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 
@@ -225,13 +235,18 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
     .sort((a, b) => b.margin - a.margin)
     .slice(0, 10);
 
-  // Graphique marge par jour
+  // Graphique marge par jour — tri chronologique (dd/MM → month×100+day)
+  const sortedDayKeys = Object.keys(salesByDay).sort((a, b) => {
+    const [da, ma] = a.split('/').map(Number)
+    const [db, mb] = b.split('/').map(Number)
+    return (ma * 100 + da) - (mb * 100 + db)
+  })
   const marginChartData = {
-    labels: Object.keys(salesByDay),
+    labels: sortedDayKeys,
     datasets: [
       {
         label: 'Marge brute (FCFA)',
-        data: Object.values(salesByDay).map(d => d.margin),
+        data: sortedDayKeys.map(k => salesByDay[k].margin),
         borderColor: 'oklch(0.65 0.12 145)',
         backgroundColor: 'oklch(0.65 0.12 145 / 0.15)',
         fill: true,

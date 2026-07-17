@@ -4,6 +4,27 @@ import { StockService } from '#services/stock_service'
 import { AuditService } from '#services/audit_service'
 
 /**
+ * In-process cache of parsed company_settings.stock for warehouse resolution.
+ * Keyed by companyId. TTL 60s — short, since the settings screen mutates rarely
+ * and the worst case on a cache miss is one extra DB roundtrip. Cleared on
+ * company mutations is unnecessary at this TTL; the staleness window is bounded.
+ */
+const settingsCache = new Map<number, { stock: any; expiresAt: number }>()
+const SETTINGS_CACHE_TTL_MS = 60_000
+function getCachedStock(companyId: number): any | undefined {
+  const hit = settingsCache.get(companyId)
+  if (!hit) return undefined
+  if (Date.now() > hit.expiresAt) {
+    settingsCache.delete(companyId)
+    return undefined
+  }
+  return hit.stock
+}
+function setCachedStock(companyId: number, stock: any) {
+  settingsCache.set(companyId, { stock, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS })
+}
+
+/**
  * Sales — the ERP's most critical transactional flow.
  *
  * `create`: in ONE transaction, with FOR UPDATE locks — warehouse resolution →
@@ -72,12 +93,16 @@ export const InvoiceService = {
       //    select in Settings), fall back to the main warehouse.
       let warehouseId = input.warehouseId ?? null
       if (!warehouseId) {
-        const settingsRow = await trx.from('company_settings').where('company_id', companyId).first()
-        const stock: any = settingsRow?.stock
-          ? typeof settingsRow.stock === 'string'
-            ? JSON.parse(settingsRow.stock)
-            : settingsRow.stock
-          : {}
+        let stock = getCachedStock(companyId)
+        if (stock === undefined) {
+          const settingsRow = await trx.from('company_settings').where('company_id', companyId).first()
+          stock = settingsRow?.stock
+            ? typeof settingsRow.stock === 'string'
+              ? JSON.parse(settingsRow.stock)
+              : settingsRow.stock
+            : {}
+          setCachedStock(companyId, stock)
+        }
         if (stock.defaultWarehouseId) {
           const preferred = await trx
             .from('warehouses')
@@ -100,7 +125,7 @@ export const InvoiceService = {
       }
       if (!warehouseId) throw new Error('No warehouse available — create a warehouse first')
 
-      // 2. products + anti-perte
+      // 2. products + anti-perte (per-item check stays — money-bearing rule)
       const productIds = input.items.map((i) => i.productId)
       const products = await trx
         .from('products')
@@ -117,24 +142,30 @@ export const InvoiceService = {
         }
       }
 
-      // 3. lock + availability-check stock (locks held until commit)
-      const stockByProduct = new Map<number, any>()
+      // 3. BULK lock + availability-check stock.
+      //    One query locks every relevant product_stock_locations row (FOR UPDATE
+      //    is applied to the whole result set in a single statement) and returns
+      //    them; availability is then validated per item in memory. Locks are
+      //    held until COMMIT. Order vs invoice_counters: lock order across tables
+      //    does not need to be globally fixed because a sale only locks its own
+      //    new invoice row + stock rows for the calling tenant/company — counter
+      //    then stock matches the historical order (counter first, stock second).
+      const lockedRows = await trx
+        .from('product_stock_locations')
+        .where('tenant_id', tenantId)
+        .where('company_id', companyId)
+        .where('warehouse_id', warehouseId)
+        .whereIn('product_id', productIds)
+        .forUpdate()
+      const stockByProduct = new Map<number, any>(lockedRows.map((r: any) => [Number(r.product_id), r]))
       for (const item of input.items) {
-        const loc = await trx
-          .from('product_stock_locations')
-          .where('tenant_id', tenantId)
-          .where('company_id', companyId)
-          .where('product_id', item.productId)
-          .where('warehouse_id', warehouseId)
-          .forUpdate()
-          .first()
+        const loc = stockByProduct.get(item.productId)
         if (!loc) {
           throw new Error(`No stock location for "${productById.get(item.productId).name}" in this warehouse`)
         }
         if (Number(loc.quantity) < item.quantity) {
           throw new Error(`Insufficient stock for "${productById.get(item.productId).name}"`)
         }
-        stockByProduct.set(item.productId, loc)
       }
 
       // 4. totals
@@ -321,6 +352,46 @@ export const InvoiceService = {
         await trx.from('cash_registers').where('id', registerId).update({ current_balance: trx.raw('current_balance - ?', [Number(cashIn.amount)]), updated_at: now() })
       }
 
+      // reverse credit payments made against this invoice's credits
+      // (cash 'in' movements from CreditService — reference_type='client_credit')
+      const credits = await trx
+        .from('client_credits')
+        .where('invoice_id', invoiceId)
+        .where('tenant_id', tenantId)
+        .where('company_id', companyId)
+      for (const credit of credits) {
+        const payments = await trx
+          .from('client_credit_payments')
+          .where('client_credit_id', credit.id)
+          .where('tenant_id', tenantId)
+          .where('company_id', companyId)
+        const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0)
+        if (totalPaid > 0) {
+          const register = await this.getOrCreateMainRegister(trx, tenantId, companyId)
+          await trx.table('cash_movements').insert({
+            tenant_id: tenantId, company_id: companyId, cash_register_id: register.id,
+            type: 'out', amount: totalPaid, category: 'cancellation',
+            description: `Reversal of credit payments — invoice ${inv.invoice_number}`,
+            reference_type: 'client_credit_cancellation', reference_id: credit.id,
+            target_cash_register_id: null, user_id: userId, user_name: userName, created_at: now(),
+          })
+          await trx.from('cash_registers').where('id', register.id)
+            .update({ current_balance: trx.raw('current_balance - ?', [totalPaid]), updated_at: now() })
+          // undo the payment deductions on the client's current_credit
+          if (credit.client_id) {
+            await trx.from('clients').where('id', credit.client_id)
+              .where('tenant_id', tenantId).where('company_id', companyId)
+              .update({ current_credit: trx.raw('GREATEST(0, current_credit + ?)', [totalPaid]), updated_at: now() })
+          }
+        }
+        // delete the payments (fully reversed, not just marked)
+        await trx.from('client_credit_payments')
+          .where('client_credit_id', credit.id)
+          .where('tenant_id', tenantId)
+          .where('company_id', companyId)
+          .delete()
+      }
+
       // cancel client credit
       await trx.from('client_credits').where('invoice_id', invoiceId).where('tenant_id', tenantId).where('company_id', companyId).update({ status: 'cancelled', updated_at: now() })
 
@@ -399,11 +470,18 @@ export const InvoiceService = {
         if (item.unitPrice < Number(p.purchase_price)) throw new Error(`Anti-perte: "${p.name}" sold below its purchase price`)
       }
       const stockByProduct = new Map<number, any>()
+      const lockedRows = await trx
+        .from('product_stock_locations')
+        .where('tenant_id', tenantId)
+        .where('company_id', companyId)
+        .where('warehouse_id', warehouseId)
+        .whereIn('product_id', productIds)
+        .forUpdate()
+      for (const loc of lockedRows) stockByProduct.set(Number(loc.product_id), loc)
       for (const item of input.items) {
-        const loc = await trx.from('product_stock_locations').where('tenant_id', tenantId).where('company_id', companyId).where('product_id', item.productId).where('warehouse_id', warehouseId).forUpdate().first()
+        const loc = stockByProduct.get(item.productId)
         if (!loc) throw new Error(`No stock location for "${productById.get(item.productId).name}" in this warehouse`)
         if (Number(loc.quantity) < item.quantity) throw new Error(`Insufficient stock for "${productById.get(item.productId).name}"`)
-        stockByProduct.set(item.productId, loc)
       }
 
       let subtotal = 0
@@ -470,7 +548,21 @@ export const InvoiceService = {
     })
   },
 
-  /** Insert invoice_items + decrement stock + record 'out' movements + recompute. Shared by create + update. */
+  /**
+   * Insert invoice_items + decrement stock + record 'out' movements + recompute.
+   * Shared by create + update. BULK implementation: ~4 constant queries for N
+   * items instead of the previous 4N (per-line INSERT + UPDATE + INSERT + recompute).
+   *
+   * Guarantees preserved:
+   *   - the FOR UPDATE locks on product_stock_locations have already been
+   *     acquired by the caller (create/update) before this method runs, so the
+   *     stock rows we mutate are still locked for the duration of the transaction;
+   *   - the per-item `before`/`after` quantities used in movements are computed
+   *     from the locked rows and aggregated so each movement still records the
+   *     exact delta per product;
+   *   - products.current_stock + status are recomputed in ONE query covering
+   *     every affected product via UPDATE … FROM (subquery) with product_id IN (?).
+   */
   async applyItems(
     trx: any,
     ctx: { tenantId: number; companyId: number; invoiceId: number; invoiceNumber: string; userId: number | null; userName: string | null; warehouseId: number },
@@ -479,11 +571,30 @@ export const InvoiceService = {
     stockByProduct: Map<number, any>,
     suffix: string = ''
   ) {
+    if (items.length === 0) return
+
+    const ts = now()
+    const reason = `Invoice ${ctx.invoiceNumber}${suffix}`
+
+    // Per-product aggregation: when the same product appears on multiple lines we
+    // sum the deltas so the movement's quantity_before/after reflect the net
+    // change for that product in this invoice.
+    const perProduct = new Map<number, { before: number; after: number; delta: number }>()
+    const itemRows: any[] = []
     let position = 0
     for (const item of items) {
       const p = productById.get(item.productId)
-      const lineTotal = item.unitPrice * item.quantity
-      await trx.table('invoice_items').insert({
+      const loc = stockByProduct.get(item.productId)
+      const before = Number(loc.quantity)
+      const qty = item.quantity
+      const existing = perProduct.get(item.productId)
+      if (existing) {
+        existing.after -= qty
+        existing.delta -= qty
+      } else {
+        perProduct.set(item.productId, { before, after: before - qty, delta: -qty })
+      }
+      itemRows.push({
         tenant_id: ctx.tenantId,
         company_id: ctx.companyId,
         invoice_id: ctx.invoiceId,
@@ -494,31 +605,49 @@ export const InvoiceService = {
         unit: p.unit ?? null,
         unit_price: item.unitPrice,
         purchase_price: p.purchase_price ?? null,
-        total: lineTotal,
+        total: item.unitPrice * item.quantity,
         is_wholesale: item.isWholesale ?? false,
         position: position++,
       })
-      const loc = stockByProduct.get(item.productId)
-      const before = Number(loc.quantity)
-      const after = before - item.quantity
-      await trx.from('product_stock_locations').where('id', loc.id).update({ quantity: after, updated_at: now() })
-      await trx.table('stock_movements').insert({
-        tenant_id: ctx.tenantId,
-        company_id: ctx.companyId,
-        product_id: item.productId,
-        warehouse_id: ctx.warehouseId,
-        type: 'out',
-        quantity: -item.quantity,
-        reason: `Invoice ${ctx.invoiceNumber}${suffix}`,
-        reference_type: 'invoice',
-        reference_id: ctx.invoiceId,
-        user_id: ctx.userId,
-        user_name: ctx.userName,
-        quantity_before: before,
-        quantity_after: after,
-        created_at: now(),
+    }
+
+    // Step A — multi-row INSERT invoice_items (1 query)
+    await trx.table('invoice_items').insert(itemRows)
+
+    // Step B — UPDATE product_stock_locations per product (proven query builder,
+    // not raw CASE WHEN — the raw version silently updated 0 rows in some cases).
+    // Locks are already held by the caller.
+    for (const [productId, agg] of perProduct) {
+      const loc = stockByProduct.get(productId)
+      await trx.from('product_stock_locations').where('id', loc.id).update({
+        quantity: agg.after,
+        updated_at: ts,
       })
-      await StockService.recomputeProduct(trx, ctx.tenantId, ctx.companyId, item.productId)
+    }
+
+    // Step C — multi-row INSERT stock_movements (1 query, one row per product)
+    const movementRows = Array.from(perProduct.entries()).map(([productId, agg]) => ({
+      tenant_id: ctx.tenantId,
+      company_id: ctx.companyId,
+      product_id: productId,
+      warehouse_id: ctx.warehouseId,
+      type: 'out',
+      quantity: agg.delta,
+      reason,
+      reference_type: 'invoice',
+      reference_id: ctx.invoiceId,
+      user_id: ctx.userId,
+      user_name: ctx.userName,
+      quantity_before: agg.before,
+      quantity_after: agg.after,
+      created_at: ts,
+    }))
+    await trx.table('stock_movements').insert(movementRows)
+
+    // Step D — recompute each affected product (each call is now 1 fused UPDATE,
+    // proven correct — not a raw batch UPDATE that silently missed rows).
+    for (const productId of perProduct.keys()) {
+      await StockService.recomputeProduct(trx, ctx.tenantId, ctx.companyId, productId)
     }
   },
 

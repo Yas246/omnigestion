@@ -6,6 +6,7 @@
  *  - useProducts()         -> { createProduct, updateProduct, deleteProduct }
  * Prices are BIGINT -> Number().
  */
+import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import type { Product } from '@/types';
@@ -114,7 +115,7 @@ export function useProducts() {
  */
 export function useProductDisplayStock() {
   const filters = useProductsStore((state: any) => state.filters);
-  const getDisplayStock = (product: any): number => {
+  const getDisplayStock = useCallback((product: any): number => {
     const wq = product.warehouseQuantities;
     if (!wq || wq.length === 0) return Number(product.currentStock) ?? 0;
     if (filters.warehouseId) {
@@ -122,6 +123,6 @@ export function useProductDisplayStock() {
       return found ? Number(found.quantity) : 0;
     }
     return wq.reduce((sum: number, q: any) => sum + Number(q.quantity), 0);
-  };
+  }, [filters.warehouseId]);
   return { getDisplayStock };
 }

@@ -21,8 +21,9 @@ import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { formatPrice } from '@/lib/utils';
+import { getCreditStatusLabel } from '@/lib/utils/status';
 
-type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
+type StatusFilter = 'all' | 'active' | 'cancelled' | 'paid';
 
 export default function CreditsPage() {
   const router = useRouter();
@@ -48,17 +49,6 @@ export default function CreditsPage() {
   // Debouncing de 300ms pour la recherche
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, { label: string; variant: any }> = {
-      active: { label: 'En cours', variant: 'info' },
-      partial: { label: 'En cours', variant: 'warning' }, // Partiel = warning
-      paid: { label: 'Payé', variant: 'success' },
-      overdue: { label: 'En retard', variant: 'warning' },
-      cancelled: { label: 'Annulé', variant: 'destructive' },
-    };
-    return labels[status] || { label: status, variant: 'outline' };
-  };
 
   // Filtrage local optimisé avec useMemo
   const filteredCredits = useMemo(() => {
@@ -178,7 +168,7 @@ export default function CreditsPage() {
                 <SelectContent>
                   <SelectItem value="all">Tous</SelectItem>
                   <SelectItem value="active">En cours</SelectItem>
-                  <SelectItem value="overdue">En retard</SelectItem>
+                  <SelectItem value="cancelled">Annulé</SelectItem>
                   <SelectItem value="paid">Payé</SelectItem>
                 </SelectContent>
               </Select>
@@ -211,8 +201,8 @@ export default function CreditsPage() {
                           Facture {credit.invoiceNumber}
                         </span>
                       )}
-                      <Badge variant={getStatusLabel(credit.status).variant}>
-                        {getStatusLabel(credit.status).label}
+                      <Badge variant={getCreditStatusLabel(credit.status).variant}>
+                        {getCreditStatusLabel(credit.status).label}
                       </Badge>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">

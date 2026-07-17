@@ -48,4 +48,5 @@ export const middleware = router.named({
   auth: () => import('#middleware/auth_middleware'),
   tenancy: () => import('#middleware/tenancy_middleware'),
   permission: () => import('#middleware/permission_middleware'),
+  throttle: () => import('#middleware/throttle_middleware'),
 })

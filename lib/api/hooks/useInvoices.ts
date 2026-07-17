@@ -14,7 +14,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { Invoice, InvoiceItemInput } from '@/types';
+import type { Invoice, InvoiceItemInput, Product } from '@/types';
 
 interface InvoiceDto {
   id: number;
@@ -58,6 +58,7 @@ function mapInvoice(i: InvoiceDto): Invoice {
       productCode: it.productCode,
       quantity: Number(it.quantity),
       unitPrice: Number(it.unitPrice),
+      total: Number(it.total),
       purchasePrice: Number(it.purchasePrice ?? 0),
       unit: it.unit,
       isWholesale: it.isWholesale,
@@ -171,23 +172,25 @@ export function useInvoices() {
      * Pre-check: for each item, is there enough stock in the sale warehouse?
      * Returns the items in deficit + candidate source depots (other depots
      * holding stock), shaped for <StockTransferModal>.
+     *
+     * The caller must pass the products array (the sales page already has it
+     * loaded via useProductsRealtime, cached by React Query). We no longer
+     * refetch /products here.
      */
     checkStockBeforeInvoice: async (
       items: Array<{ productId: string; quantity: number }>,
-      warehouseId?: string | null
+      warehouseId: string | null | undefined,
+      products: Product[]
     ): Promise<{ productsNeedingTransfer: ProductNeedingTransfer[] }> => {
       if (!items?.length) return { productsNeedingTransfer: [] };
-      const res = await api.get<{ data: any[] } | any[]>('/products?limit=500');
-      const arr = (Array.isArray(res) ? res : (res as any).data ?? []) as any[];
-      const byId = new Map(arr.map((p: any) => [String(p.id), p]));
+      const byId = new Map(products.map((p) => [String(p.id), p]));
 
       const out: ProductNeedingTransfer[] = [];
       for (const item of items) {
         const pid = String(item.productId);
         const p = byId.get(pid);
         if (!p) continue;
-        const wq: Array<{ warehouseId: string; warehouseName: string; quantity: number }> =
-          p.warehouseQuantities ?? [];
+        const wq = p.warehouseQuantities ?? [];
         const availableInPrimary =
           wq.find((q) => q.warehouseId === String(warehouseId))?.quantity ?? 0;
         if (availableInPrimary >= item.quantity) continue;

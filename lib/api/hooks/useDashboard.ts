@@ -57,10 +57,20 @@ function mapStats(d: DashboardResponse) {
   }
 }
 
-export function useDashboard(_selectedDate?: Date | undefined) {
+export function useDashboard(selectedDate?: Date | undefined) {
+  // Format in LOCAL time (not UTC) — toISOString().slice() shifts the date
+  // by one day in positive timezone offsets (e.g. UTC+1: midnight local =
+  // 23:00 UTC the PREVIOUS day). getFullYear/Month/Date preserve the
+  // calendar day the user actually selected.
+  const dateParam = selectedDate
+    ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+    : null;
   const q = useQuery({
-    queryKey: ['dashboard'] as const,
-    queryFn: async () => mapStats(await api.get<DashboardResponse>('/dashboard')),
+    queryKey: ['dashboard', dateParam ?? 'today'] as const,
+    queryFn: async () => {
+      const qs = dateParam ? `?date=${dateParam}` : ''
+      return mapStats(await api.get<DashboardResponse>(`/dashboard${qs}`))
+    },
   })
   return { stats: q.data ?? null, loading: q.isLoading, error: q.error ? (q.error as Error).message : null }
 }

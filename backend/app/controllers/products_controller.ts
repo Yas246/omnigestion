@@ -9,7 +9,7 @@ import db from '@adonisjs/lucid/services/db'
 export default class ProductsController {
   async index(ctx: HttpContext) {
     const page = Math.max(1, Number(ctx.request.input('page', 1)) || 1)
-    const limit = Math.min(500, Math.max(1, Number(ctx.request.input('limit', 50)) || 50))
+    const limit = Math.min(200, Math.max(1, Number(ctx.request.input('limit', 50)) || 50))
     const search = ctx.request.input('search') as string | undefined
 
     let query = Product.forContext(ctx).whereNull('deleted_at')

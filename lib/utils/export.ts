@@ -1,6 +1,6 @@
-import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { formatMoney } from '@/lib/format';
 
 export interface ExportColumn {
   key: string;
@@ -19,8 +19,11 @@ export interface ExportData {
 /**
  * Export des données en Excel avec formatage
  */
-export function exportToExcel(exportData: ExportData, fileName?: string): void {
+export async function exportToExcel(exportData: ExportData, fileName?: string): Promise<void> {
   const { title, subtitle, columns, data } = exportData;
+
+  // Chargement paresseux de xlsx (~700 Ko) : uniquement lors d'un export Excel.
+  const XLSX = await import('xlsx');
 
   // Préparer les en-têtes
   const headers = columns.map(col => col.header);
@@ -120,7 +123,7 @@ export function exportToCSV(exportData: ExportData, fileName?: string): void {
  */
 export const DataFormatters = {
   currency: (value: number) => value ? new Intl.NumberFormat('fr-FR').format(value) : '0',
-  currencyWithSymbol: (value: number) => value ? `${new Intl.NumberFormat('fr-FR').format(value)} FCFA` : '0 FCFA',
+  currencyWithSymbol: (value: number) => formatMoney(value),
   percent: (value: number, decimals: number = 1) => value ? `${value.toFixed(decimals)}%` : '0%',
   date: (value: Date | string) => {
     if (!value) return '-';

@@ -67,6 +67,18 @@ export interface Registry {
       errorResponse: unknown
     }
   }
+  'public_store.show_product': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/public/store/:slug/product/:productId'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { slug: ParamValue; productId: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
   'store_auth.signup': {
     methods: ["POST"]
     pattern: '/api/v1/public/auth/signup'

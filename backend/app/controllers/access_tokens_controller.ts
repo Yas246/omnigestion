@@ -16,7 +16,10 @@ export default class AccessTokensController {
     const { email, password } = await request.validateUsing(loginValidator)
 
     const user = await User.verifyCredentials(email, password)
-    const token = await User.accessTokens.create(user)
+    // 30-day expiry — the auth_access_tokens table already has an expires_at
+    // column, and the DbAccessTokensProvider auto-rejects expired tokens on
+    // verify. Without an explicit expiresIn the token never expired.
+    const token = await User.accessTokens.create(user, ['*'], { expiresIn: '30d' })
 
     return {
       user: {

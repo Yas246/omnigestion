@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx';
-
 export interface ParsedProduct {
   name: string;
   quantity: number;
@@ -52,13 +50,16 @@ export async function parseProductFile(file: File): Promise<ImportResult> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = e.target?.result;
         if (!data) {
           reject(new Error('Impossible de lire le fichier'));
           return;
         }
+
+        // Chargement paresseux de xlsx (~700 Ko) : uniquement lors du parsing.
+        const XLSX = await import('xlsx');
 
         // Lire le workbook
         const workbook = XLSX.read(data, { type: 'binary' });

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { mediaUrl } from '@/lib/api/client';
 import type { StorefrontCompany, StorefrontConfig, StorefrontProduct } from '../types';
 import { ProductCard } from '../ProductCard';
@@ -46,7 +47,14 @@ export function MarcheTemplate({
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
           <div className="flex items-center gap-3">
             {company.logoUrl && (
-              <img src={mediaUrl(company.logoUrl) ?? ''} alt={company.name} className="h-9 w-9 rounded-xl object-contain" style={softSurface} />
+              <Image
+                src={mediaUrl(company.logoUrl) ?? ''}
+                alt={company.name}
+                width={36}
+                height={36}
+                className="h-9 w-9 rounded-xl object-contain"
+                style={softSurface}
+              />
             )}
             <span className="text-2xl tracking-tight sm:text-3xl" style={{ ...disp, fontWeight: 700 }}>{company.name}</span>
           </div>
@@ -92,11 +100,18 @@ export function MarcheTemplate({
                 className="group overflow-hidden rounded-3xl border p-3 transition-transform duration-500 hover:-translate-y-1"
                 style={{ ...softBorder, backgroundColor: 'var(--store-bg)', boxShadow: '0 30px 60px -40px color-mix(in srgb, var(--store-primary) 50%, transparent)' }}
               >
-                <div className="relative overflow-hidden rounded-2xl" style={softSurface}>
+                <div className="relative aspect-4/3 overflow-hidden rounded-2xl" style={softSurface}>
                   {mediaUrl(featured.mainImageUrl) ? (
-                    <img src={mediaUrl(featured.mainImageUrl) ?? ''} alt={featured.name} className="aspect-4/3 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                    <Image
+                      src={mediaUrl(featured.mainImageUrl) ?? ''}
+                      alt={featured.name}
+                      fill
+                      priority
+                      sizes="(max-width: 1024px) 100vw, 50vw"
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
                   ) : (
-                    <div className="flex aspect-4/3 h-full w-full items-center justify-center text-8xl" style={{ ...disp, fontWeight: 700, color: 'color-mix(in srgb, var(--store-text) 18%, transparent)' }}>
+                    <div className="flex h-full w-full items-center justify-center text-8xl" style={{ ...disp, fontWeight: 700, color: 'color-mix(in srgb, var(--store-text) 18%, transparent)' }}>
                       {featured.name.charAt(0)}
                     </div>
                   )}
