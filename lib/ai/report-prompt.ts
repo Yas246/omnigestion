@@ -17,12 +17,15 @@ function dataBlock(s: ReportSummary): string {
   lines.push(`Devise : ${s.devise}`);
   lines.push("");
   lines.push("VENTES");
-  lines.push(`- CA encaissé : ${fmt(s.ventes.caEncaisse)} ${s.devise}`);
+  lines.push(`- CA vendu (HT) : ${fmt(s.ventes.caVenteHT)} ${s.devise}`);
   lines.push(`- Nombre de ventes : ${s.ventes.nbFactures}`);
   lines.push(`- Panier moyen : ${fmt(s.ventes.panierMoyen)} ${s.devise}`);
+  lines.push(
+    `- Encaissements (cash collecté, dont remboursements de crédits ${fmt(s.ventes.encaisseCredit)} ${s.devise}) : ${fmt(s.ventes.caEncaisse)} ${s.devise}`,
+  );
   if (s.ventes.repartitionPaiement.length) {
     lines.push(
-      "- Répartition des encaissements : " +
+      "- Encaissements par mode : " +
         s.ventes.repartitionPaiement
           .map((p) => `${p.mode} ${fmt(p.montant)}`)
           .join(", "),
@@ -77,6 +80,7 @@ export function buildReportMessages(summary: ReportSummary): DeepSeekMessage[] {
     "Tu reçois des indicateurs agrégés sur une période et tu rédiges un rapport de gestion clair, concret et actionnable. " +
     "Tu écris en français, au format Markdown uniquement. " +
     "Tu cites les chiffres précis (avec séparateur de milliers et la devise), tu mets en évidence ce qui compte, et tu évites tout remplissage ou formule passe-partout. " +
+    "Le CA vendu (HT) est le chiffre d'affaires de la période. Les encaissements (cash collecté) incluent les remboursements de crédits et peuvent donc différer fortement du CA vendu : ne les confonds pas, et base le panier moyen et l'analyse sur le CA vendu. " +
     "Si une donnée vaut 0 ou est absente, tu l'indiques sobrement sans inventer.";
 
   const user =

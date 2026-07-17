@@ -123,7 +123,9 @@ export interface ReportSummary {
   periode: { label: string; name: string; debut: string; fin: string };
   devise: string;
   ventes: {
+    caVenteHT: number;
     caEncaisse: number;
+    encaisseCredit: number;
     nbFactures: number;
     panierMoyen: number;
     repartitionPaiement: Array<{ mode: string; montant: number }>;
@@ -158,12 +160,14 @@ export function compileReportSummary(opts: {
   const inv = invoices.filter((i) => i.status !== 'cancelled' && inPeriod(i.date));
   const cp = creditPayments.filter((c) => inPeriod(c.createdAt));
 
-  // Ventes
+  // Ventes — cash collecté sur la période (paidAmount des factures + paiements de
+  // crédits). ATTENTION : ce n'est PAS le chiffre d'affaires. Les paiements de
+  // crédits sont des remboursements de ventes souvent antérieures (ou de crédits
+  // manuels sans aucune vente) -> caEncaisse peut très fortement différer du CA vendu.
   const paidFromInv = inv.reduce((s, i) => s + Number(i.paidAmount ?? 0), 0);
   const paidFromCredits = cp.reduce((s, c) => s + Number(c.amount ?? 0), 0);
   const caEncaisse = paidFromInv + paidFromCredits;
   const nbFactures = inv.length;
-  const panierMoyen = nbFactures > 0 ? caEncaisse / nbFactures : 0;
 
   const payMap: Record<string, number> = {};
   inv.forEach((i) => {
@@ -178,27 +182,35 @@ export function compileReportSummary(opts: {
     .map(([mode, montant]) => ({ mode: PAYMENT_LABELS[mode] ?? mode, montant }))
     .sort((a, b) => b.montant - a.montant);
 
+  // Ventes — CA vendu HT (valeur réelle des ventes facturées du mois) + coût + tops.
+  // C'est ce caVente HT qui est le CHIFFRE D'AFFAIRES (base facturation), pas caEncaisse.
   const qtyByProduct: Record<string, number> = {};
-  const caByClient: Record<string, number> = {};
+  const venteParClient: Record<string, number> = {};
   let caVente = 0;
   let coutTotal = 0;
   inv.forEach((i) => {
-    caByClient[i.clientName ?? 'Client de passage'] =
-      (caByClient[i.clientName ?? 'Client de passage'] ?? 0) + Number(i.paidAmount ?? 0);
+    let venteInvoice = 0;
     (i.items ?? []).forEach((it: any) => {
       const q = Number(it.quantity ?? 0);
       const pu = Number(it.unitPrice ?? it.price ?? 0);
       const pa = Number(it.purchasePrice ?? 0);
-      qtyByProduct[it.productName ?? 'Produit'] = (qtyByProduct[it.productName ?? 'Produit'] ?? 0) + q;
-      caVente += pu * q;
+      venteInvoice += pu * q;
       coutTotal += pa * q;
+      qtyByProduct[it.productName ?? 'Produit'] = (qtyByProduct[it.productName ?? 'Produit'] ?? 0) + q;
     });
+    caVente += venteInvoice;
+    // Top clients sur la valeur de vente (et non sur le cash paidAmount, qui
+    // ignore les ventes à crédit et attribue à tort les remboursements de crédits).
+    const client = i.clientName ?? 'Client de passage';
+    venteParClient[client] = (venteParClient[client] ?? 0) + venteInvoice;
   });
+  // Panier moyen sur le CA vendu HT (et non sur le cash collecté).
+  const panierMoyen = nbFactures > 0 ? caVente / nbFactures : 0;
   const topProduits = Object.entries(qtyByProduct)
     .map(([nom, quantite]) => ({ nom, quantite }))
     .sort((a, b) => b.quantite - a.quantite)
     .slice(0, 8);
-  const topClients = Object.entries(caByClient)
+  const topClients = Object.entries(venteParClient)
     .map(([nom, ca]) => ({ nom, ca }))
     .sort((a, b) => b.ca - a.ca)
     .slice(0, 8);
@@ -225,7 +237,7 @@ export function compileReportSummary(opts: {
   return {
     periode: { label, name, debut: format(start, 'dd/MM/yyyy'), fin: format(end, 'dd/MM/yyyy') },
     devise: currency,
-    ventes: { caEncaisse, nbFactures, panierMoyen, repartitionPaiement, topProduits, topClients },
+    ventes: { caVenteHT: caVente, caEncaisse, encaisseCredit: paidFromCredits, nbFactures, panierMoyen, repartitionPaiement, topProduits, topClients },
     rentabilite: { caVente, coutTotal, margeTotale, tauxMarge },
     stock: { nbProduitsActifs: actifs.length, valeurStock, ruptures, stockFaible },
     credits: { totalRestantDu, nbCreditsActifs: creditsActifs.length },
