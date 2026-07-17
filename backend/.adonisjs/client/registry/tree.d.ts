@@ -33,6 +33,7 @@ export interface ApiDefinition {
   }
   dashboard: {
     index: typeof routes['dashboard.index']
+    profits: typeof routes['dashboard.profits']
   }
   settings: {
     index: typeof routes['settings.index']

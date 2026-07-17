@@ -12,14 +12,23 @@ import type { HttpContext } from '@adonisjs/core/http'
  * end-to-end on the frontend.)
  */
 export default class AccessTokensController {
-  async store({ request }: HttpContext) {
+  async store({ request, response }: HttpContext) {
     const { email, password } = await request.validateUsing(loginValidator)
 
     const user = await User.verifyCredentials(email, password)
-    // 30-day expiry — the auth_access_tokens table already has an expires_at
-    // column, and the DbAccessTokensProvider auto-rejects expired tokens on
-    // verify. Without an explicit expiresIn the token never expired.
     const token = await User.accessTokens.create(user, ['*'], { expiresIn: '30d' })
+    const tokenValue = token.value!.release()
+
+    // Set HttpOnly cookie so XSS can't steal the token. SameSite=Lax allows
+    // top-level navigations (the browser sends the cookie on the initial HTML
+    // load) while blocking CSRF from cross-origin POSTs. The frontend keeps
+    // credentials:'include' on fetch so the cookie rides every API call.
+    response.cookie('omnigestion_token', tokenValue, {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30, // 30 days — matches expiresIn
+      path: '/',
+    })
 
     return {
       user: {
@@ -29,15 +38,16 @@ export default class AccessTokensController {
         tenantId: user.tenantId,
         isOwner: user.isOwner,
       },
-      token: token.value!.release(),
+      token: tokenValue, // Still returned for backward compat (frontend transition)
     }
   }
 
-  async destroy({ auth }: HttpContext) {
+  async destroy({ auth, response }: HttpContext) {
     const user = auth.getUserOrFail()
     if (user.currentAccessToken) {
       await User.accessTokens.delete(user, user.currentAccessToken.identifier)
     }
+    response.clearCookie('omnigestion_token', { path: '/' })
 
     return { message: 'Logged out successfully' }
   }

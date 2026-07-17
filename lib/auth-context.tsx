@@ -212,6 +212,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     setError(null);
     await authApi.logout();
+    // Clear ALL localStorage auth state — not just the token. If the company_id
+    // persists, the next login of a DIFFERENT user sends a stale X-Company-Id
+    // header → tenancy middleware 403 "No access to this company".
+    setToken(null);
+    setCompanyId(null);
     setUser(null);
     setCompanies([]);
     setCurrentCompany(null);

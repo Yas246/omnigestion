@@ -1,5 +1,6 @@
 import db from '@adonisjs/lucid/services/db'
 import type { HttpContext } from '@adonisjs/core/http'
+import { ProfitService } from '#services/profit_service'
 
 /**
  * Dashboard — read-only SQL aggregates, all scoped to the current tenant+company.
@@ -186,5 +187,24 @@ export default class DashboardController {
         date: r.sale_date,
       })),
     }
+  }
+
+  /**
+   * Profit report for a period — cost-recovery algorithm (source of truth backend).
+   * Accepts ?from=yyyy-MM-dd&to=yyyy-MM-dd, defaults to current month.
+   */
+  async profits(ctx: HttpContext) {
+    const now = new Date()
+    const fromParam = ctx.request.input('from') as string | undefined
+    const toParam = ctx.request.input('to') as string | undefined
+
+    const start = fromParam
+      ? new Date(fromParam + 'T00:00:00')
+      : new Date(now.getFullYear(), now.getMonth(), 1)
+    const end = toParam
+      ? new Date(toParam + 'T23:59:59.999')
+      : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+
+    return ProfitService.getReport(ctx, start, end)
   }
 }

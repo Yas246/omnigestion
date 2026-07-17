@@ -29,6 +29,7 @@
     "#middleware/*": "./app/middleware/*.js",
     "#transformers/*": "./app/transformers/*.js",
     "#validators/*": "./app/validators/*.js",
+    "#utils/*": "./app/utils/*.js",
     "#providers/*": "./providers/*.js",
     "#policies/*": "./app/policies/*.js",
     "#abilities/*": "./app/abilities/*.js",

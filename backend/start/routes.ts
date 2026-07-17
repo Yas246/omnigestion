@@ -77,6 +77,7 @@ router
       .group(() => {
         // Dashboard (read-only aggregates)
         router.get('dashboard', [DashboardController, 'index'])
+        router.get('reports/profits', [DashboardController, 'profits'])
 
         // Settings (per-company)
         router.get('settings', [SettingsController, 'index'])

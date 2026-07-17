@@ -16,6 +16,7 @@ export type ScannedRoutes = {
     'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'public_commerce.add_review': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
+    'dashboard.profits': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
     'settings.update': { paramsTuple?: []; params?: {} }
     'companies.index': { paramsTuple?: []; params?: {} }
@@ -91,6 +92,7 @@ export type ScannedRoutes = {
     'public_store.show_product': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
+    'dashboard.profits': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
     'companies.index': { paramsTuple?: []; params?: {} }
     'companies.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -127,6 +129,7 @@ export type ScannedRoutes = {
     'public_store.show_product': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
+    'dashboard.profits': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
     'companies.index': { paramsTuple?: []; params?: {} }
     'companies.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

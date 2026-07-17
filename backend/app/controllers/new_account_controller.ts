@@ -13,7 +13,7 @@ import db from '@adonisjs/lucid/services/db'
  * the tenant back entirely (no orphan accounts, no half-seeded company).
  */
 export default class NewAccountController {
-  async store({ request }: HttpContext) {
+  async store({ request, response }: HttpContext) {
     const { fullName, email, password, companyName } = await request.validateUsing(signupValidator)
 
     const { user, company } = await db.transaction(async (trx) => {
@@ -33,8 +33,16 @@ export default class NewAccountController {
       return { user: owner, company: createdCompany }
     })
 
-    // 30-day expiry — see AccessTokensController for rationale.
     const token = await User.accessTokens.create(user, ['*'], { expiresIn: '30d' })
+    const tokenValue = token.value!.release()
+
+    // HttpOnly cookie — see AccessTokensController for rationale.
+    response.cookie('omnigestion_token', tokenValue, {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30,
+      path: '/',
+    })
 
     return {
       user: {
@@ -45,7 +53,7 @@ export default class NewAccountController {
         isOwner: user.isOwner,
       },
       company: { id: company.id, name: company.name, tenantId: company.tenantId },
-      token: token.value!.release(),
+      token: tokenValue,
     }
   }
 }

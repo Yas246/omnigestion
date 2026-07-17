@@ -78,6 +78,12 @@ const routes = {
     tokens: [{"old":"/api/v1/dashboard","type":0,"val":"api","end":""},{"old":"/api/v1/dashboard","type":0,"val":"v1","end":""},{"old":"/api/v1/dashboard","type":0,"val":"dashboard","end":""}],
     types: placeholder as Registry['dashboard.index']['types'],
   },
+  'dashboard.profits': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/reports/profits',
+    tokens: [{"old":"/api/v1/reports/profits","type":0,"val":"api","end":""},{"old":"/api/v1/reports/profits","type":0,"val":"v1","end":""},{"old":"/api/v1/reports/profits","type":0,"val":"reports","end":""},{"old":"/api/v1/reports/profits","type":0,"val":"profits","end":""}],
+    types: placeholder as Registry['dashboard.profits']['types'],
+  },
   'settings.index': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/settings',

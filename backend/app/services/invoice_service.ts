@@ -2,6 +2,7 @@ import db from '@adonisjs/lucid/services/db'
 import type { HttpContext } from '@adonisjs/core/http'
 import { StockService } from '#services/stock_service'
 import { AuditService } from '#services/audit_service'
+import { computeTotals } from '#utils/invoice_totals'
 
 /**
  * In-process cache of parsed company_settings.stock for warehouse resolution.
@@ -168,22 +169,18 @@ export const InvoiceService = {
         }
       }
 
-      // 4. totals
-      let subtotal = 0
-      for (const item of input.items) subtotal += item.unitPrice * item.quantity
+      // 4. totals (delegated to pure computeTotals — single source of truth)
       const discount = input.discount ?? 0
-      const taxable = Math.max(0, subtotal - discount)
       const taxRate = input.taxRate ?? 0
-      const taxAmount = Math.round((taxable * taxRate) / 100)
-      const total = taxable + taxAmount
       const requestedPaid =
         input.paidAmount != null
           ? input.paidAmount
           : input.paymentMethod === 'credit'
             ? 0
-            : total
-      const paidAmount = Math.max(0, Math.min(requestedPaid, total))
-      const remaining = Math.max(0, total - paidAmount)
+            : undefined as any
+      const totals = computeTotals(input.items, input.taxRate ?? 0, input.discount ?? 0, requestedPaid ?? 0)
+      const { subtotal, taxAmount, total, paidAmount, remainingAmount: remaining } = totals
+      const status = totals.status
 
       // 5. atomic invoice number
       const counter = await trx
@@ -206,7 +203,6 @@ export const InvoiceService = {
         })
       }
 
-      const status = remaining === 0 ? 'paid' : 'validated'
 
       // 6. insert invoice
       const [invoiceRow] = await trx
@@ -484,17 +480,11 @@ export const InvoiceService = {
         if (Number(loc.quantity) < item.quantity) throw new Error(`Insufficient stock for "${productById.get(item.productId).name}"`)
       }
 
-      let subtotal = 0
-      for (const item of input.items) subtotal += item.unitPrice * item.quantity
-      const discount = input.discount ?? 0
-      const taxable = Math.max(0, subtotal - discount)
+      const totals = computeTotals(input.items, input.taxRate ?? 0, input.discount ?? 0, input.paidAmount != null ? input.paidAmount : input.paymentMethod === 'credit' ? 0 : 0)
+      const { subtotal, taxAmount, total, paidAmount, remainingAmount: remaining } = totals
+      const status = totals.status
       const taxRate = input.taxRate ?? 0
-      const taxAmount = Math.round((taxable * taxRate) / 100)
-      const total = taxable + taxAmount
-      const requestedPaid = input.paidAmount != null ? input.paidAmount : input.paymentMethod === 'credit' ? 0 : total
-      const paidAmount = Math.max(0, Math.min(requestedPaid, total))
-      const remaining = Math.max(0, total - paidAmount)
-      const status = remaining === 0 ? 'paid' : 'validated'
+      const discount = input.discount ?? 0
       const clientId = input.clientId != null ? input.clientId : inv.client_id ?? null
       const clientName = input.clientName != null ? input.clientName : inv.client_name ?? null
 

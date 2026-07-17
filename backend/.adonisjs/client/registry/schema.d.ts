@@ -151,6 +151,18 @@ export interface Registry {
       errorResponse: unknown
     }
   }
+  'dashboard.profits': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/reports/profits'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
   'settings.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/settings'

@@ -50,7 +50,8 @@ export function getToken(): string | null {
 export function setToken(token: string | null) {
   writeLocal(TOKEN_KEY, token)
   // Sync a presence cookie so the Next.js middleware can do server-side route
-  // protection (the token itself stays in localStorage + Authorization header).
+  // protection. The real token is now in the HttpOnly cookie set by the backend;
+  // this presence cookie just tells the middleware "the user has a session".
   if (typeof document !== 'undefined') {
     document.cookie = token
       ? 'omnigestion-auth=1; path=/; max-age=604800; SameSite=Lax'
@@ -76,7 +77,7 @@ export async function apiFetch<T = any>(path: string, options: RequestInit = {})
   if (token) headers.Authorization = `Bearer ${token}`
   if (companyId) headers['X-Company-Id'] = String(companyId)
 
-  const res = await fetch(`${API_URL}/api/v1${path}`, { ...options, headers })
+  const res = await fetch(`${API_URL}/api/v1${path}`, { ...options, headers, credentials: 'include' })
 
   // 204 No Content
   if (res.status === 204) return null as T
