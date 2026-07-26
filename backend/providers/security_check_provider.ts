@@ -24,11 +24,14 @@ export default class SecurityCheckProvider {
 
     if (nodeEnv !== 'production') return
 
-    const appKey = env.get('APP_KEY')
+    // APP_KEY is declared as Env.schema.secret() in env.ts, so env.get() returns
+    // a Secret wrapper whose String form is "[REDACTED]" (length 10) — that would
+    // always trip the <16 check. Read the RAW value via process.env instead.
+    const appKey = process.env.APP_KEY ?? ''
     const dbPassword = env.get('DB_PASSWORD')
     const problems: string[] = []
 
-    if (!appKey || String(appKey).length < 16) {
+    if (appKey.length < 16) {
       problems.push('APP_KEY is missing or too short — generate a strong secret (node ace generate:key).')
     }
     if (!dbPassword || dbPassword === 'root') {
