@@ -151,7 +151,6 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
         : null;
       if (!defaultWh) defaultWh = whArr.find((w: any) => w.isMain) ?? whArr[0];
       const defaultWarehouseId = defaultWh ? String(defaultWh.id) : null;
-      console.log('[import] warehouse:', defaultWh?.name, 'id:', defaultWarehouseId);
 
       for (const parsedProduct of parsedProducts) {
         if (existingProductNames.has(parsedProduct.name.toLowerCase())) {
@@ -173,7 +172,6 @@ export function ImportProductsModal({ open, onOpenChange, onImportComplete }: Im
           });
 
           const qty = Number(parsedProduct.quantity) || 0;
-          console.log('[import]', parsedProduct.name, 'qty:', qty, 'wh:', defaultWarehouseId, 'pid:', created?.id);
           if (qty > 0 && defaultWarehouseId && created?.id) {
             await api.post('/stock/restock', {
               productId: Number(created.id),

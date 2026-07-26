@@ -2,7 +2,7 @@
  * Auth + company API (AdonisJS backend). Wraps the API client and manages the
  * token / current-company in localStorage. Used by the (rewired) auth context.
  */
-import { api, setToken, setCompanyId } from './client'
+import { api, setAuthed, setCompanyId } from './client'
 import type { Permission, UserRole } from '@/types'
 
 export interface AuthUser {
@@ -40,7 +40,6 @@ export interface Company {
 
 export interface LoginResponse {
   user: AuthUser
-  token: string
 }
 
 export interface RegisterInput {
@@ -54,18 +53,17 @@ export interface RegisterInput {
 export interface RegisterResponse {
   user: AuthUser
   company: Company
-  token: string
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const res = await api.post<LoginResponse>('/auth/login', { email, password })
-  setToken(res.token)
+  setAuthed(true) // presence cookie — the real token is the HttpOnly cookie set by the backend
   return res
 }
 
 export async function register(data: RegisterInput): Promise<RegisterResponse> {
   const res = await api.post<RegisterResponse>('/auth/signup', data)
-  setToken(res.token)
+  setAuthed(true)
   setCompanyId(res.company.id) // new tenant's first company selected by default
   return res
 }
@@ -80,7 +78,7 @@ export async function logout(): Promise<void> {
   } catch {
     // Backend may already be unreachable / token revoked — clear locally regardless.
   }
-  setToken(null)
+  setAuthed(false)
 }
 
 export async function listCompanies(): Promise<Company[]> {

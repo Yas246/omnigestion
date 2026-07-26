@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const { requestPermission } = useFCM();
+  const queryClient = useQueryClient();
   const [testNotifLoading] = [false];
 
   const handleSignOut = async () => {
@@ -53,7 +55,9 @@ export function Header({ onMenuClick }: HeaderProps) {
     setIsSwitching(true);
     try {
       await switchCompany(companyId);
-      window.location.reload(); // Recharger pour appliquer le changement
+      // All company-scoped data is now stale — invalidate every query so the new
+      // company's data refetches, without a full page reload.
+      await queryClient.invalidateQueries();
     } catch (error) {
       console.error("Erreur lors du changement d'entreprise:", error);
       setIsSwitching(false);
@@ -100,7 +104,6 @@ export function Header({ onMenuClick }: HeaderProps) {
               variant="outline"
               size="icon"
               onClick={() => {
-                console.log('[Header] Clic sur bouton notification');
                 requestPermission();
               }}
               disabled={testNotifLoading}

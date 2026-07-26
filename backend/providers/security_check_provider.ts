@@ -10,7 +10,19 @@ export default class SecurityCheckProvider {
   constructor(protected app: ApplicationService) {}
 
   async boot() {
-    if (env.get('NODE_ENV') !== 'production') return
+    // Catch the classic "dev .env copied to prod" mistake: a deployment reached
+    // via HTTPS must run in production mode, otherwise CORS opens to all origins
+    // with credentials, cookies are non-Secure, and error stacks leak DB details.
+    const appUrl = String(env.get('APP_URL') ?? '')
+    const nodeEnv = env.get('NODE_ENV')
+    if (appUrl.startsWith('https://') && nodeEnv !== 'production') {
+      console.error(
+        `\n[FATAL] Refusing to boot: APP_URL (${appUrl}) is HTTPS but NODE_ENV=${nodeEnv}. Set NODE_ENV=production in production.\n`,
+      )
+      throw new Error('Insecure production configuration — NODE_ENV must be production when APP_URL is HTTPS.')
+    }
+
+    if (nodeEnv !== 'production') return
 
     const appKey = env.get('APP_KEY')
     const dbPassword = env.get('DB_PASSWORD')

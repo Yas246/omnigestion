@@ -71,9 +71,11 @@ export default class DashboardController {
         .from('client_credits')
         .where('tenant_id', tenantId)
         .where('company_id', companyId)
-        .where('status', '!=', 'cancelled')
+        // "Crédits du jour" = créés aujourd'hui ET encore actifs (non soldés /
+        // payés) — cohérent avec le KPI « crédits actifs » (remaining_amount).
+        .whereIn('status', ['active', 'partial'])
         .whereBetween('date', [startOfDay, endOfDay])
-        .select(db.raw('COALESCE(SUM(amount), 0) as total'), db.raw('COUNT(*) as c'))
+        .select(db.raw('COALESCE(SUM(remaining_amount), 0) as total'), db.raw('COUNT(*) as c'))
         .first(),
       invScope(db.from('invoices')).sum('paid_amount as total').first(),
       payScope(db.from('client_credit_payments')).sum('amount as total').first(),

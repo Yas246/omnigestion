@@ -5,8 +5,7 @@ import Image from 'next/image';
 import { toast } from 'sonner';
 import { mediaUrl } from '@/lib/api/client';
 import { useCart } from '@/lib/storefront/cart-context';
-import { allFontsClass } from './fonts';
-import { resolveFonts } from './font-pairs';
+import { resolveFonts, storefrontFontsClass } from './font-pairs';
 import { ProductReviews } from './ProductReviews';
 import type { StorefrontCompany, StorefrontConfig, StorefrontProduct } from './types';
 import { ArrowLeft, Check, ShoppingBag, Minus, Plus } from 'lucide-react';
@@ -31,6 +30,8 @@ export function ProductDetail({ product, company, config, slug, allProducts = []
   const isMinimal = !isBoutique && !isMarche && !isStudio;
 
   const fonts = resolveFonts(config);
+  // Load ONLY the selected pair's font families, not all 11.
+  const fontsClass = storefrontFontsClass(config);
   const disp = { fontFamily: 'var(--store-font-display)' } as React.CSSProperties;
   const mono = { fontFamily: 'var(--font-plex-mono), ui-monospace, monospace' } as React.CSSProperties;
   const italic = { fontFamily: 'var(--store-font-display)', fontStyle: 'italic' } as React.CSSProperties;
@@ -66,7 +67,7 @@ export function ProductDetail({ product, company, config, slug, allProducts = []
   // ===== BOUTIQUE — editorial spread (centered magazine column) =====
   if (isBoutique) {
     return (
-      <div style={{ ...baseStyle, backgroundColor: config.colors.background, color: config.colors.text }} className={`${allFontsClass} min-h-screen antialiased`}>
+      <div style={{ ...baseStyle, backgroundColor: config.colors.background, color: config.colors.text }} className={`${fontsClass} min-h-screen antialiased`}>
         <div className="mx-auto max-w-2xl px-6 py-10 sm:py-14">
           <Link href={`/store/${slug}`} className="mb-10 inline-flex items-center gap-2 text-base opacity-50 transition-opacity hover:opacity-100" style={italic}>
             <ArrowLeft className="h-4 w-4" /> Retour
@@ -133,7 +134,7 @@ export function ProductDetail({ product, company, config, slug, allProducts = []
   // ===== MARCHÉ — stall card (image top, warm overlapping card below) =====
   if (isMarche) {
     return (
-      <div style={{ ...baseStyle, backgroundColor: config.colors.background, color: config.colors.text }} className={`${allFontsClass} min-h-screen antialiased`}>
+      <div style={{ ...baseStyle, backgroundColor: config.colors.background, color: config.colors.text }} className={`${fontsClass} min-h-screen antialiased`}>
         <div className="mx-auto max-w-3xl px-5 py-6 sm:px-8 sm:py-10">
           <Link href={`/store/${slug}`} className="mb-6 inline-flex items-center gap-2 text-sm font-medium opacity-60 transition-opacity hover:opacity-100">
             <ArrowLeft className="h-4 w-4" /> Retour à l'étal
@@ -211,7 +212,7 @@ export function ProductDetail({ product, company, config, slug, allProducts = []
       ['STOCK', inStock ? `${product.currentStock} en stock` : 'Rupture'],
     ];
     return (
-      <div style={{ ...baseStyle, backgroundColor: config.colors.background, color: config.colors.text }} className={`${allFontsClass} min-h-screen antialiased`}>
+      <div style={{ ...baseStyle, backgroundColor: config.colors.background, color: config.colors.text }} className={`${fontsClass} min-h-screen antialiased`}>
         <div className="mx-auto max-w-5xl px-6 py-8 sm:py-12">
           <Link href={`/store/${slug}`} className="mb-12 inline-flex items-center gap-3 text-xs uppercase tracking-stamp opacity-40 transition-opacity hover:opacity-80" style={mono}>
             <span className="inline-block h-px w-8" style={{ backgroundColor: 'var(--store-accent)' }} /> {company.name}
@@ -280,7 +281,7 @@ export function ProductDetail({ product, company, config, slug, allProducts = []
 
   // ===== MINIMAL — oversized type, text-forward =====
   return (
-    <div style={{ ...baseStyle, backgroundColor: config.colors.background, color: config.colors.text }} className={`${allFontsClass} min-h-screen antialiased`}>
+    <div style={{ ...baseStyle, backgroundColor: config.colors.background, color: config.colors.text }} className={`${fontsClass} min-h-screen antialiased`}>
       <div className="mx-auto max-w-5xl px-6 py-8 sm:px-16 sm:py-12">
         <Link href={`/store/${slug}`} className="mb-16 inline-block text-sm opacity-50 transition-opacity hover:opacity-100" style={disp}>
           ← {company.name}

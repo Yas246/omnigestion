@@ -65,7 +65,6 @@ export function InvoiceDetailDialog({
       // Précharger la page d'impression pour la mettre en cache via prefetch
       const prefetchTimeout = setTimeout(() => {
         const printUrl = `/sales/print/${invoice.id}`;
-        console.log('[InvoiceDetailDialog] Préchargement de la page d\'impression:', printUrl);
 
         // Créer un lien de prefetch dynamique
         const link = document.createElement('link');
@@ -78,7 +77,6 @@ export function InvoiceDetailDialog({
 
         // Nettoyer après le chargement
         link.onload = () => {
-          console.log('[InvoiceDetailDialog] Page d\'impression préchargée avec succès');
           // Garder le lien pour le cache, mais on pourrait le supprimer si voulu
           setTimeout(() => {
             if (link.parentNode) {

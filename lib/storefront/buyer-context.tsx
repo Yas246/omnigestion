@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { API_ORIGIN } from '@/lib/api/client';
 
 interface BuyerAccount {
@@ -84,8 +84,13 @@ export function BuyerProvider({ children }: { children: React.ReactNode }) {
     return { Authorization: `Bearer ${token}` };
   }, [token]);
 
+  const value = useMemo(
+    () => ({ buyer, signup, login, logout, authHeader }),
+    [buyer, signup, login, logout, authHeader],
+  );
+
   return (
-    <BuyerContext.Provider value={{ buyer, signup, login, logout, authHeader }}>
+    <BuyerContext.Provider value={value}>
       {children}
     </BuyerContext.Provider>
   );

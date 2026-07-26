@@ -1,4 +1,5 @@
 import CompanySetting from '#models/company_setting'
+import { invalidateSettingsCache } from '#services/invoice_service'
 import type { HttpContext } from '@adonisjs/core/http'
 
 const DEFAULTS = {
@@ -37,6 +38,9 @@ export default class SettingsController {
     if (data.backup) row.backup = { ...row.backup, ...data.backup }
     if (data.system) row.system = { ...row.system, ...data.system }
     await row.save()
+    // Invalidate the in-process settings cache so the next sale uses the fresh
+    // depot/stock config instead of the stale 60s-cached value.
+    invalidateSettingsCache(companyId)
     return this.format(row)
   }
 

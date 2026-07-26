@@ -21,7 +21,6 @@ export function SWRegistration() {
 
     // Écouter l'événement de mise à jour du SW
     const handleUpdate = () => {
-      console.log('[SWRegistration] Mise à jour disponible');
       // Afficher une notification à l'utilisateur
       if (window.confirm('Une nouvelle version est disponible. Voulez-vous mettre à jour ?')) {
         window.location.reload();

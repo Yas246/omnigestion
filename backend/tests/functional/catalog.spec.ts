@@ -22,7 +22,8 @@ async function signup(client: any, email: string, companyName: string) {
     passwordConfirmation: PASSWORD,
     companyName,
   })
-  return res.body()
+  const cookie = res.cookie('omnigestion_token') as any
+  return { ...res.body(), token: cookie?.value ?? null }
 }
 
 /** Proven header pattern (matches clients.spec.ts). */

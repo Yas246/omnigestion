@@ -65,3 +65,21 @@ export const hanken = Hanken_Grotesk({
 
 /** Apply on the renderer wrapper so templates can use the --font-* variables. */
 export const allFontsClass = `${fraunces.variable} ${manrope.variable} ${cormorant.variable} ${jost.variable} ${archivo.variable} ${dmSans.variable} ${syne.variable} ${plexMono.variable} ${plexSans.variable} ${bricolage.variable} ${hanken.variable}`
+
+/** CSS variable name → next/font variable class. Lets a page load ONLY the
+ *  families the selected pair references (~2-3) instead of all 11 — major LCP
+ *  win on mobile (west-african 3G). See storefrontFontsClass(). */
+export const FONT_VAR_CLASS: Record<string, string> = {
+  '--font-fraunces': fraunces.variable,
+  '--font-manrope': manrope.variable,
+  '--font-cormorant': cormorant.variable,
+  '--font-jost': jost.variable,
+  '--font-bricolage': bricolage.variable,
+  '--font-hanken': hanken.variable,
+  '--font-syne': syne.variable,
+  '--font-plex-sans': plexSans.variable,
+  '--font-archivo': archivo.variable,
+  '--font-dm-sans': dmSans.variable,
+  '--font-plex-mono': plexMono.variable,
+}
+

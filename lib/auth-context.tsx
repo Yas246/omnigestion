@@ -10,9 +10,9 @@
  * access client-side. Token + current company live in localStorage
  * (see lib/api/client).
  */
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from 'react';
 import * as authApi from '@/lib/api/auth';
-import { getToken, setToken, getCompanyId, setCompanyId } from '@/lib/api/client';
+import { isAuthed, setAuthed, getCompanyId, setCompanyId } from '@/lib/api/client';
 import type { AuthUser, Company as ApiCompany } from '@/lib/api/auth';
 import type { User as AppUser, Company, UserRole } from '@/types';
 
@@ -93,23 +93,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * COMPANY. Permissions are company-scoped, so this runs after every company
    * switch (and on login/restore).
    */
-  const resolveCurrentCompany = async (comps: Company[], storedId: number | null): Promise<Company | null> => {
+  const resolveCurrentCompany = useCallback(async (comps: Company[], storedId: number | null): Promise<Company | null> => {
     const current = comps.find((c) => c.id === String(storedId ?? '')) ?? comps[0] ?? null;
     if (current) setCompanyId(Number(current.id));
     return current;
-  };
+  }, []);
 
-  const buildCurrentUser = async (comps: Company[], current: Company | null): Promise<AppUser> => {
+  const buildCurrentUser = useCallback(async (comps: Company[], current: Company | null): Promise<AppUser> => {
     if (current) setCompanyId(Number(current.id));
     const profile = await authApi.fetchProfile();
-    setToken(getToken()); // refresh the route-protection cookie (may have expired)
+    setAuthed(true); // refresh the route-protection presence cookie (may have expired)
     return mapUser(profile, comps, current);
-  };
+  }, []);
 
-  // Restore session on mount if a token is present
+  // Restore session on mount if the presence cookie signals a session. The real
+  // auth check is the fetchProfile call below (the HttpOnly cookie rides the
+  // request); if it 401s, we clear the presence cookie.
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!isAuthed()) {
       setLoading(false);
       return;
     }
@@ -121,8 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentCompany(current);
         setUser(await buildCurrentUser(comps, current));
       } catch (err) {
-        // Invalid/expired token — clear and start clean
-        setToken(null);
+        // Invalid/expired session — clear and start clean
+        setAuthed(false);
         setCompanyId(null);
       } finally {
         setLoading(false);
@@ -131,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     setError(null);
     try {
       await authApi.login(email, password);
@@ -147,9 +148,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(message);
       throw err;
     }
-  };
+  }, [resolveCurrentCompany, buildCurrentUser]);
 
-  const signUp: AuthContextType['signUp'] = async (
+  const signUp: AuthContextType['signUp'] = useCallback(async (
     email, password, companyName, firstName, _lastName, _position, _phone, _businessSector
   ) => {
     setError(null);
@@ -172,9 +173,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(message);
       throw err;
     }
-  };
+  }, [buildCurrentUser]);
 
-  const switchCompany = async (companyId: string) => {
+  const switchCompany = useCallback(async (companyId: string) => {
     const company = companies.find((c) => c.id === companyId);
     if (!company) return;
     setCurrentCompany(company);
@@ -186,9 +187,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       console.error('[AuthContext] switchCompany profile fetch failed:', err);
     }
-  };
+  }, [companies]);
 
-  const createCompany: AuthContextType['createCompany'] = async (companyData) => {
+  const createCompany: AuthContextType['createCompany'] = useCallback(async (companyData) => {
     try {
       const created = await authApi.createCompany({
         name: companyData.name,
@@ -207,38 +208,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(err?.message || 'Erreur lors de la création de l\'entreprise');
       throw err;
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     setError(null);
     await authApi.logout();
-    // Clear ALL localStorage auth state — not just the token. If the company_id
-    // persists, the next login of a DIFFERENT user sends a stale X-Company-Id
-    // header → tenancy middleware 403 "No access to this company".
-    setToken(null);
+    // Clear ALL client-side auth state. If the company_id persists, the next
+    // login of a DIFFERENT user sends a stale X-Company-Id header → tenancy
+    // middleware 403 "No access to this company".
+    setAuthed(false);
     setCompanyId(null);
     setUser(null);
     setCompanies([]);
     setCurrentCompany(null);
-  };
+  }, []);
 
-  const refreshUser = async () => {
-    if (!getToken()) return;
+  const refreshUser = useCallback(async () => {
+    if (!isAuthed()) return;
     try {
       const profile = await authApi.fetchProfile();
       setUser((prev) => (prev ? mapUser(profile, companies, currentCompany) : prev));
     } catch (err: any) {
       console.error('[AuthContext] refresh failed:', err);
     }
-  };
+  }, [companies, currentCompany]);
 
   /**
    * Re-fetch the companies list + refresh currentCompany in state. Call after a
    * company update (e.g. CompanyTab save) so the new values reflect without a
    * page reload — currentCompany is the source for CompanyTab's form.
    */
-  const refreshCompanies = async () => {
-    if (!getToken()) return;
+  const refreshCompanies = useCallback(async () => {
+    if (!isAuthed()) return;
     try {
       const comps = (await authApi.listCompanies()).map(mapCompany);
       setCompanies(comps);
@@ -246,32 +247,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       console.error('[AuthContext] refreshCompanies failed:', err);
     }
-  };
+  }, []);
 
-  const resetPassword = async (_email: string) => {
+  const resetPassword = useCallback(async (_email: string) => {
     // Not yet implemented on the API (no password-reset endpoint). Wire when added.
     setError('La réinitialisation de mot de passe n\'est pas encore disponible sur la nouvelle API.');
     throw new Error('not-implemented');
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      user,
+      companies,
+      currentCompany,
+      loading,
+      error,
+      signIn,
+      signUp,
+      signOut,
+      resetPassword,
+      switchCompany,
+      createCompany,
+      refreshUser,
+      refreshCompanies,
+    }),
+    [user, companies, currentCompany, loading, error, signIn, signUp, signOut, resetPassword, switchCompany, createCompany, refreshUser, refreshCompanies],
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        companies,
-        currentCompany,
-        loading,
-        error,
-        signIn,
-        signUp,
-        signOut,
-        resetPassword,
-        switchCompany,
-        createCompany,
-        refreshUser,
-        refreshCompanies,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,6 @@
 'use client';
 
-import { allFontsClass } from './fonts';
-import { resolveFonts } from './font-pairs';
+import { resolveFonts, storefrontFontsClass } from './font-pairs';
 import { MinimalTemplate } from './templates/MinimalTemplate';
 import { BoutiqueTemplate } from './templates/BoutiqueTemplate';
 import { MarcheTemplate } from './templates/MarcheTemplate';
@@ -31,6 +30,8 @@ export function StorefrontRenderer({ company, config, products }: Props) {
   const isStudio = config.template === 'studio';
 
   const pair = resolveFonts(config);
+  // Load ONLY the selected pair's font families (~2-3), not all 11.
+  const fontsClass = storefrontFontsClass(config);
 
   const style = {
     '--store-primary': primary,
@@ -47,7 +48,7 @@ export function StorefrontRenderer({ company, config, products }: Props) {
   const Template = isBoutique ? BoutiqueTemplate : isMarche ? MarcheTemplate : isStudio ? StudioTemplate : MinimalTemplate;
 
   return (
-    <div style={style} className={`${allFontsClass} min-h-screen antialiased`}>
+    <div style={style} className={`${fontsClass} min-h-screen antialiased`}>
       <Template company={company} config={config} products={products} />
     </div>
   );

@@ -26,6 +26,15 @@ function setCachedStock(companyId: number, stock: any) {
 }
 
 /**
+ * Invalidate the cached company_settings.stock for a company. Call after a
+ * settings update (especially stock.defaultWarehouseId) so the next sale reads
+ * the fresh depot choice instead of the stale 60s-cached one.
+ */
+export function invalidateSettingsCache(companyId: number) {
+  settingsCache.delete(companyId)
+}
+
+/**
  * Sales — the ERP's most critical transactional flow.
  *
  * `create`: in ONE transaction, with FOR UPDATE locks — warehouse resolution →

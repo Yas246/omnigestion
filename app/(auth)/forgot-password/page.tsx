@@ -27,18 +27,14 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[ForgotPassword] Formulaire soumis avec email:', email);
     setIsSubmitting(true);
 
     try {
-      console.log('[ForgotPassword] Appel de resetPassword...');
       await resetPassword(email);
-      console.log('[ForgotPassword] resetPassword réussi, affichage succès');
       setIsSuccess(true);
 
       // Redirection vers login après 5 secondes
       setTimeout(() => {
-        console.log('[ForgotPassword] Redirection vers /login');
         router.push("/login");
       }, 5000);
     } catch (err) {

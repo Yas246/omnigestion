@@ -92,7 +92,6 @@ export default function PrintInvoicePage() {
           // Vérifier que les données ne sont pas trop vieilles (24h max)
           const age = Date.now() - timestamp;
           if (age < 24 * 60 * 60 * 1000) {
-            console.log('[Print] Données chargées depuis sessionStorage (mode hors ligne)');
             setInvoice(cachedInvoice);
             setCompany(cachedCompany);
 

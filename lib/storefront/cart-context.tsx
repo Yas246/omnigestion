@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 export interface CartItem {
   productId: number;
@@ -79,11 +79,21 @@ export function StorefrontCartProvider({
 
   const clear = useCallback(() => setItems([]), []);
 
-  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const count = items.reduce((sum, i) => sum + i.quantity, 0);
+  const { total, count } = useMemo(
+    () => ({
+      total: items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+      count: items.reduce((sum, i) => sum + i.quantity, 0),
+    }),
+    [items],
+  );
+
+  const value = useMemo(
+    () => ({ items, add, remove, updateQty, clear, total, count }),
+    [items, add, remove, updateQty, clear, total, count],
+  );
 
   return (
-    <CartContext.Provider value={{ items, add, remove, updateQty, clear, total, count }}>
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );

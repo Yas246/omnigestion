@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -90,6 +90,96 @@ export default function DashboardPage() {
     }
   }, [hasPermission, getFirstAccessiblePage, router]);
 
+  // Données des graphiques — mémoïsées ET appelées AVANT tout early-return
+  // (Rules of Hooks). Null-safe car stats peut être null pendant le chargement.
+  const salesChartData = useMemo(
+    () => ({
+      labels: (stats?.salesLast7Days ?? []).map((d) => {
+        const dt = new Date(d.date);
+        return isNaN(dt.getTime()) ? d.date : format(dt, "dd/MM", { locale: fr });
+      }),
+      datasets: [
+        {
+          label: "Chiffre d'affaires",
+          data: (stats?.salesLast7Days ?? []).map((d) => d.revenue),
+          borderColor: "oklch(0.55 0.20 280)",
+          backgroundColor: "oklch(0.55 0.20 280 / 0.15)",
+          fill: true,
+          tension: 0.4,
+        },
+      ],
+    }),
+    [stats],
+  );
+
+  const paymentChartData = useMemo(
+    () => ({
+      labels: ["Espèces", "Mobile Money", "Banque", "Crédit"],
+      datasets: [
+        {
+          data: [
+            stats?.paymentDistribution.cash ?? 0,
+            stats?.paymentDistribution.mobile ?? 0,
+            stats?.paymentDistribution.bank ?? 0,
+            stats?.paymentDistribution.credit ?? 0,
+          ],
+          backgroundColor: [
+            "rgba(34, 197, 94, 0.8)",
+            "rgba(249, 115, 22, 0.8)",
+            "rgba(59, 130, 246, 0.8)",
+            "rgba(239, 68, 68, 0.8)",
+          ],
+        },
+      ],
+    }),
+    [stats],
+  );
+
+  const topProductsChartData = useMemo(
+    () => ({
+      labels: (stats?.topProducts ?? []).map((p) =>
+        p.productName.length > 20
+          ? p.productName.substring(0, 20) + "..."
+          : p.productName,
+      ),
+      datasets: [
+        {
+          label: "Quantité vendue",
+          data: (stats?.topProducts ?? []).map((p) => p.totalQuantity),
+          backgroundColor: "oklch(0.55 0.20 280 / 0.85)",
+          borderRadius: 4,
+        },
+      ],
+    }),
+    [stats],
+  );
+
+  const chartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false,
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: "oklch(0.90 0.01 85)" },
+          ticks: { color: "oklch(0.52 0.02 50)", font: { size: 11 } },
+          border: { display: false },
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: "oklch(0.52 0.02 50)", font: { size: 11 } },
+          border: { display: false },
+        },
+      },
+    }),
+    [],
+  );
+
   const currency = "FCFA"; // TODO: Récupérer depuis les paramètres de l'entreprise
 
   // Afficher un message si l'utilisateur n'a pas accès au dashboard
@@ -123,83 +213,6 @@ export default function DashboardPage() {
   const dateLabel = selectedDate
     ? format(selectedDate, "d MMMM yyyy", { locale: fr })
     : "du jour";
-
-  // Préparer les données pour les graphiques
-  const salesChartData = {
-    labels: stats.salesLast7Days.map((d) => {
-      const dt = new Date(d.date);
-      return isNaN(dt.getTime()) ? d.date : format(dt, "dd/MM", { locale: fr });
-    }),
-    datasets: [
-      {
-        label: "Chiffre d'affaires",
-        data: stats.salesLast7Days.map((d) => d.revenue),
-        borderColor: "oklch(0.55 0.20 280)",
-        backgroundColor: "oklch(0.55 0.20 280 / 0.15)",
-        fill: true,
-        tension: 0.4,
-      },
-    ],
-  };
-
-  const paymentChartData = {
-    labels: ["Espèces", "Mobile Money", "Banque", "Crédit"],
-    datasets: [
-      {
-        data: [
-          stats.paymentDistribution.cash,
-          stats.paymentDistribution.mobile,
-          stats.paymentDistribution.bank,
-          stats.paymentDistribution.credit,
-        ],
-        backgroundColor: [
-          "rgba(34, 197, 94, 0.8)",
-          "rgba(249, 115, 22, 0.8)",
-          "rgba(59, 130, 246, 0.8)",
-          "rgba(239, 68, 68, 0.8)",
-        ],
-      },
-    ],
-  };
-
-  const topProductsChartData = {
-    labels: stats.topProducts.map((p) =>
-      p.productName.length > 20
-        ? p.productName.substring(0, 20) + "..."
-        : p.productName,
-    ),
-    datasets: [
-      {
-        label: "Quantité vendue",
-        data: stats.topProducts.map((p) => p.totalQuantity),
-        backgroundColor: "oklch(0.55 0.20 280 / 0.85)",
-        borderRadius: 4,
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        grid: { color: "oklch(0.90 0.01 85)" },
-        ticks: { color: "oklch(0.52 0.02 50)", font: { size: 11 } },
-        border: { display: false },
-      },
-      x: {
-        grid: { display: false },
-        ticks: { color: "oklch(0.52 0.02 50)", font: { size: 11 } },
-        border: { display: false },
-      },
-    },
-  };
 
   return (
     <div className="space-y-6">

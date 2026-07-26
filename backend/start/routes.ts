@@ -193,6 +193,6 @@ router
           .post('supplier-credits/:id/payments', [SupplierCreditsController, 'addPayment'])
           .use(middleware.permission({ module: 'purchases', action: 'create' }))
       })
-      .use([middleware.auth(), middleware.tenancy()])
+      .use([middleware.auth(), middleware.tenancy(), middleware.throttle({ rate: 60, period: 60 })])
   })
   .prefix('/api/v1')

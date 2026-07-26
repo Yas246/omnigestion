@@ -21,11 +21,15 @@ export default class ThrottleMiddleware {
   ) {
     const rate = Number(options?.rate ?? 10)
     const periodSeconds = Number(options?.period ?? 60)
-    const ip = ctx.request.ip() || 'unknown'
+    // Key by authenticated user when available (authed routes), else by IP
+    // (public routes). Per-user buckets prevent one abuser behind a shared NAT
+    // from exhausting the limit for everyone else.
+    const userId = ctx.auth.user?.id
+    const bucketKey = userId ? `user:${userId}` : `ip:${ctx.request.ip() || 'unknown'}`
     const now = Date.now()
     const windowMs = periodSeconds * 1000
 
-    const hits = (buckets.get(ip) ?? []).filter((t) => now - t < windowMs)
+    const hits = (buckets.get(bucketKey) ?? []).filter((t) => now - t < windowMs)
     if (hits.length >= rate) {
       ctx.response.tooManyRequests({
         message: 'Trop de requêtes. Réessayez dans un instant.',
@@ -34,7 +38,7 @@ export default class ThrottleMiddleware {
       return
     }
     hits.push(now)
-    buckets.set(ip, hits)
+    buckets.set(bucketKey, hits)
     return next()
   }
 }

@@ -29,7 +29,9 @@ async function signup(client: any, email: string, companyName: string, fullName 
     passwordConfirmation: PASSWORD,
     companyName,
   })
-  return { status: res.status(), body: res.body() }
+  const cookie = res.cookie('omnigestion_token') as any
+  const token = cookie?.value ?? null
+  return { status: res.status(), body: { ...res.body(), token }, token }
 }
 
 test.group('Auth + Clients — multi-tenant', (group) => {
@@ -57,7 +59,8 @@ test.group('Auth + Clients — multi-tenant', (group) => {
       password: PASSWORD,
     })
     assert.equal(res.status(), 200)
-    assert.isTrue(!!res.body().token)
+    const cookie = res.cookie('omnigestion_token') as any
+    assert.isTrue(!!cookie?.value)
   })
 
   test('login with wrong password fails', async ({ client, assert }) => {

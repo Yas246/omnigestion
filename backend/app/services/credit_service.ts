@@ -98,6 +98,75 @@ export const CreditService = {
     })
   },
 
+  /** Create a manual client credit (opening balance / adjustment) atomically:
+   *  credit row + clients.current_credit increment + audit, all in ONE tx so a
+   *  failure can't leave the client balance out of sync with the credit record. */
+  async createManualCredit(
+    ctx: HttpContext,
+    input: {
+      clientId?: number | null
+      clientName?: string | null
+      amount: number
+      date?: Date | string | null
+      dueDate?: Date | string | null
+      notes?: string | null
+    },
+  ) {
+    const tenantId = ctx.tenantId
+    const companyId = ctx.companyId
+    if (!companyId) throw new Error('No company context')
+    const amount = Number(input.amount) || 0
+    if (amount <= 0) throw new Error('Credit amount must be positive')
+
+    const date = input.date ? new Date(input.date) : now()
+    const dueDate = input.dueDate ? new Date(input.dueDate) : null
+
+    return db.transaction(async (trx) => {
+      const inserted = await trx
+        .table('client_credits')
+        .insert({
+          tenant_id: tenantId,
+          company_id: companyId,
+          client_id: input.clientId ?? null,
+          client_name: input.clientName ?? '',
+          invoice_id: null,
+          invoice_number: null,
+          amount,
+          amount_paid: 0,
+          remaining_amount: amount,
+          status: 'active',
+          date,
+          due_date: dueDate,
+          notes: input.notes ?? null,
+          created_at: now(),
+          updated_at: now(),
+        })
+        .returning('id')
+      const creditId = (inserted[0] as any).id
+
+      if (input.clientId) {
+        await trx
+          .from('clients')
+          .where('id', input.clientId)
+          .where('tenant_id', tenantId)
+          .where('company_id', companyId)
+          .update({ current_credit: trx.raw('current_credit + ?', [amount]), updated_at: now() })
+      }
+
+      await AuditService.log(
+        ctx,
+        {
+          action: 'create',
+          entity: 'client_credit',
+          entityId: creditId,
+          after: { amount, clientId: input.clientId ?? null },
+        },
+        { client: trx },
+      )
+      return { id: creditId, amount, status: 'active' }
+    })
+  },
+
   /** Mirror of addClientPayment for supplier credits, but cash goes OUT. */
   async addSupplierPayment(ctx: HttpContext, creditId: number, input: PaymentInput) {
     const tenantId = ctx.tenantId

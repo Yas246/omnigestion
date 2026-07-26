@@ -1,3 +1,5 @@
+import { FONT_VAR_CLASS } from './fonts'
+
 /**
  * Single source of truth for storefront font pairings.
  *
@@ -81,3 +83,25 @@ export function resolveFonts(config: { template?: string; fontPair?: string | nu
 
 /** Sentinel value used by the customizer select to mean "use the template default". */
 export const DEFAULT_FONT_SENTINEL = '__default__'
+
+/**
+ * Build the className that loads ONLY the font families the selected pair
+ * references (display + body, + plex-mono for the Studio template's mono labels)
+ * instead of all 11. Cuts the storefront font payload to ~2-3 families per page.
+ */
+export function storefrontFontsClass(config: {
+  template?: string
+  fontPair?: string | null
+}): string {
+  const pair = resolveFonts(config)
+  const used = [pair.display, pair.body]
+  if (config.template === 'studio') used.push('var(--font-plex-mono)')
+  const names = [
+    ...new Set(
+      used
+        .map((v) => v.match(/var\((--font-[a-z-]+)\)/)?.[1])
+        .filter((v): v is string => !!v),
+    ),
+  ]
+  return names.map((n) => FONT_VAR_CLASS[n]).filter(Boolean).join(' ')
+}

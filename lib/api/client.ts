@@ -3,15 +3,14 @@
  *
  * Foundational fetch wrapper used by every rewired frontend module. Handles:
  *  - base URL (NEXT_PUBLIC_API_URL, default http://localhost:3333)
- *  - JWT access token (localStorage) -> Authorization: Bearer
+ *  - auth via HttpOnly cookie (credentials:'include') — no JS-accessible token
  *  - current company (localStorage)  -> X-Company-Id
  *  - JSON + error normalization (ApiError with status + server message)
  *
- * The auth context owns the token / company id via setToken / setCompanyId.
+ * The auth context owns the session flag / company id via setAuthed / setCompanyId.
  */
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333'
-const TOKEN_KEY = 'omnigestion_token'
 
 /** Backend origin (for media URLs + server-side public fetch). */
 export const API_ORIGIN = API_URL
@@ -44,19 +43,23 @@ function writeLocal(key: string, value: string | null) {
   else window.localStorage.setItem(key, value)
 }
 
-export function getToken(): string | null {
-  return readLocal(TOKEN_KEY)
+/**
+ * Auth rides the HttpOnly `omnigestion_token` cookie set by the backend
+ * (every fetch uses credentials:'include'). We keep NO token in JS — so an XSS
+ * can't steal it. This presence cookie only signals "has a session" for the
+ * Next.js middleware (server-side route protection) and the restore-on-mount.
+ */
+const AUTH_COOKIE = 'omnigestion-auth'
+
+export function isAuthed(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.cookie.split(';').some((c) => c.trim().startsWith(`${AUTH_COOKIE}=1`))
 }
-export function setToken(token: string | null) {
-  writeLocal(TOKEN_KEY, token)
-  // Sync a presence cookie so the Next.js middleware can do server-side route
-  // protection. The real token is now in the HttpOnly cookie set by the backend;
-  // this presence cookie just tells the middleware "the user has a session".
-  if (typeof document !== 'undefined') {
-    document.cookie = token
-      ? 'omnigestion-auth=1; path=/; max-age=604800; SameSite=Lax'
-      : 'omnigestion-auth=; path=/; max-age=0; SameSite=Lax'
-  }
+export function setAuthed(authed: boolean) {
+  if (typeof document === 'undefined') return
+  document.cookie = authed
+    ? `${AUTH_COOKIE}=1; path=/; max-age=604800; SameSite=Lax`
+    : `${AUTH_COOKIE}=; path=/; max-age=0; SameSite=Lax`
 }
 export function getCompanyId(): number | null {
   const raw = readLocal(COMPANY_KEY)
@@ -67,14 +70,13 @@ export function setCompanyId(id: number | null) {
 }
 
 export async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken()
   const companyId = getCompanyId()
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> | undefined),
   }
-  if (token) headers.Authorization = `Bearer ${token}`
+  // Auth rides the HttpOnly cookie (credentials:'include'). No JS token, no Bearer.
   if (companyId) headers['X-Company-Id'] = String(companyId)
 
   const res = await fetch(`${API_URL}/api/v1${path}`, { ...options, headers, credentials: 'include' })

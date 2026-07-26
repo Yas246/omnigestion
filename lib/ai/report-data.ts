@@ -138,22 +138,48 @@ export interface ReportSummary {
   caisse: { soldeTotal: number; entrees: number; sorties: number };
 }
 
+type DateLike = Date | string | null | undefined
+
+/** Lightweight input shapes (what the React Query hooks produce). Every field
+ *  is optional + coerced with Number() in the body, so partial / loosely-typed
+ *  sources still compile — replaces the previous `any[]` opts. */
+interface AiInvoiceItem {
+  productName?: string
+  quantity?: number
+  unitPrice?: number
+  price?: number
+  purchasePrice?: number
+}
+interface AiInvoice {
+  status?: string
+  date?: DateLike
+  paidAmount?: number
+  paymentMethod?: string
+  clientName?: string
+  items?: AiInvoiceItem[]
+}
+interface AiCreditPayment { amount?: number; createdAt?: DateLike; paymentMode?: string }
+interface AiCredit { status?: string; remainingAmount?: number }
+interface AiProduct { isActive?: boolean; deletedAt?: DateLike; currentStock?: number; purchasePrice?: number; status?: string }
+interface AiCashMovement { type?: string; amount?: number; createdAt?: DateLike }
+interface AiCashRegister { currentBalance?: number }
+
 export function compileReportSummary(opts: {
   period: PeriodType;
   customRange?: { from?: Date; to?: Date };
-  invoices: any[];
-  creditPayments?: any[];
-  credits?: any[];
-  products?: any[];
-  cashMovements?: any[];
-  cashRegisters?: any[];
+  invoices: AiInvoice[];
+  creditPayments?: AiCreditPayment[];
+  credits?: AiCredit[];
+  products?: AiProduct[];
+  cashMovements?: AiCashMovement[];
+  cashRegisters?: AiCashRegister[];
   currency?: string;
 }): ReportSummary {
   const { period, customRange, invoices, creditPayments = [], credits = [], products = [], cashMovements = [], cashRegisters = [], currency = 'FCFA' } = opts;
   const { start, end, label, name } = periodRange(period, customRange);
 
-  const inPeriod = (d: any) => {
-    const dt = new Date(d);
+  const inPeriod = (d: DateLike) => {
+    const dt = new Date(d ?? Date.now());
     return !isNaN(dt.getTime()) && dt >= start && dt <= end;
   };
 
@@ -190,7 +216,7 @@ export function compileReportSummary(opts: {
   let coutTotal = 0;
   inv.forEach((i) => {
     let venteInvoice = 0;
-    (i.items ?? []).forEach((it: any) => {
+    (i.items ?? []).forEach((it) => {
       const q = Number(it.quantity ?? 0);
       const pu = Number(it.unitPrice ?? it.price ?? 0);
       const pa = Number(it.purchasePrice ?? 0);

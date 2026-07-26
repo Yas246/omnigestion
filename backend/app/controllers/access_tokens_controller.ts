@@ -38,7 +38,6 @@ export default class AccessTokensController {
         tenantId: user.tenantId,
         isOwner: user.isOwner,
       },
-      token: tokenValue, // Still returned for backward compat (frontend transition)
     }
   }
 

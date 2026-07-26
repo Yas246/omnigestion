@@ -30,11 +30,14 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://www.gstatic.com",
+      // 'unsafe-eval' retiré (non requis en prod Next/React). 'unsafe-inline'
+      // conservé tant qu'on n'a pas d'infra de nonces par-requête (Next 16).
+      "script-src 'self' 'unsafe-inline' https://apis.google.com https://www.gstatic.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https://res.cloudinary.com https://firebasestorage.googleapis.com",
-      `connect-src 'self' ${API_ORIGIN} https://api.deepseek.com https://*.googleapis.com https://fcm.googleapis.com https://res.cloudinary.com https://omnigestion.vercel.app`,
+      `img-src 'self' data: blob: ${API_ORIGIN} https://res.cloudinary.com`,
+      // Domaines Firebase abandonnés retirés (*.googleapis.com, fcm, omnigestion.vercel.app).
+      `connect-src 'self' ${API_ORIGIN} https://api.deepseek.com https://res.cloudinary.com`,
       "frame-src 'none'",
       "object-src 'none'",
       "base-uri 'self'",

@@ -53,7 +53,6 @@ export default class NewAccountController {
         isOwner: user.isOwner,
       },
       company: { id: company.id, name: company.name, tenantId: company.tenantId },
-      token: tokenValue,
     }
   }
 }

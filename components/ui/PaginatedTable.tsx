@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
@@ -52,7 +52,7 @@ export function PaginatedTable<T>({
 
   const resolveRowKey = (row: T, index: number) => {
     if (getRowKey) return getRowKey(row, index);
-    const maybeId = (row as any)?.id;
+    const maybeId = (row as unknown as Record<string, unknown>)?.id;
     return maybeId != null ? String(maybeId) : String(index);
   };
 
@@ -95,7 +95,7 @@ export function PaginatedTable<T>({
                   <TableRow key={resolveRowKey(row, rowIndex)}>
                     {columns.map((column) => (
                       <TableCell key={column.key} className={column.className}>
-                        {column.render ? column.render(row, rowIndex) : (row as any)[column.key]}
+                        {column.render ? column.render(row, rowIndex) : ((row as unknown as Record<string, unknown>)[column.key] as ReactNode)}
                       </TableCell>
                     ))}
                   </TableRow>

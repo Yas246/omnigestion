@@ -11,8 +11,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { mediaUrl } from '@/lib/api/client';
-import { allFontsClass } from '@/components/storefront/fonts';
-import { resolveFonts } from '@/components/storefront/font-pairs';
+import { resolveFonts, storefrontFontsClass } from '@/components/storefront/font-pairs';
 import type { StorefrontConfig } from '@/components/storefront/types';
 
 type Template = string | undefined;
@@ -201,6 +200,7 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
   const bg = config?.colors.background ?? '#ffffff';
   const text = config?.colors.text ?? '#1f2937';
   const fonts = config ? resolveFonts(config) : null;
+  const fontsClass = config ? storefrontFontsClass(config) : '';
   const dispFont = fonts?.display;
   const bodyFont = fonts?.body;
 
@@ -249,7 +249,7 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
   // ===== Success screen =====
   if (ordered) {
     return (
-      <div style={{ ...themeStyle, backgroundColor: bg, color: text, fontFamily: bodyFont }} className={`${allFontsClass} flex min-h-screen flex-col items-center justify-center gap-6 px-4`}>
+      <div style={{ ...themeStyle, backgroundColor: bg, color: text, fontFamily: bodyFont }} className={`${fontsClass} flex min-h-screen flex-col items-center justify-center gap-6 px-4`}>
         <div className="flex h-20 w-20 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${accent} 15%, transparent)` }}>
           <Check className="h-10 w-10" style={{ color: accent }} />
         </div>
@@ -270,7 +270,7 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
   // ===== Empty cart =====
   if (count === 0) {
     return (
-      <div style={{ ...themeStyle, backgroundColor: bg, color: text, fontFamily: bodyFont }} className={`${allFontsClass} flex min-h-screen flex-col items-center justify-center gap-4 px-4`}>
+      <div style={{ ...themeStyle, backgroundColor: bg, color: text, fontFamily: bodyFont }} className={`${fontsClass} flex min-h-screen flex-col items-center justify-center gap-4 px-4`}>
         <ShoppingCart className="h-16 w-16 opacity-20" />
         <h1 className="text-xl" style={{ fontFamily: dispFont }}>Votre panier est vide</h1>
         <Link href={`/store/${slug}`}>
@@ -286,7 +286,7 @@ export default function CartPage({ params }: { params: Promise<{ slug: string }>
   const listWrap = isMinimal ? 'divide-y' : 'space-y-3';
 
   return (
-    <div style={{ ...themeStyle, backgroundColor: `color-mix(in srgb, ${bg} 97%, ${text} 3%)`, color: text, fontFamily: bodyFont }} className={`${allFontsClass} min-h-screen`}>
+    <div style={{ ...themeStyle, backgroundColor: `color-mix(in srgb, ${bg} 97%, ${text} 3%)`, color: text, fontFamily: bodyFont }} className={`${fontsClass} min-h-screen`}>
       <BuyerAuthModal open={authOpen} onOpenChange={setAuthOpen} />
       <div className="mx-auto max-w-3xl px-4 py-8">
         {/* Header */}

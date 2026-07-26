@@ -21,12 +21,14 @@ async function signup(client: any, email: string, companyName: string) {
     passwordConfirmation: PASSWORD,
     companyName,
   })
-  return res.body()
+  const cookie = res.cookie('omnigestion_token') as any
+  return { ...res.body(), token: cookie?.value ?? null }
 }
 
 async function login(client: any, email: string) {
   const res = await client.post('/api/v1/auth/login').json({ email, password: PASSWORD })
-  return res.body().token
+  const cookie = res.cookie('omnigestion_token') as any
+  return cookie?.value ?? null
 }
 
 const authed = (req: any, token: string, companyId: number) =>

@@ -4,6 +4,7 @@ import Client from '#models/client'
 import StoreAccount from '#models/store_account'
 import ProductReview from '#models/product_review'
 import { InvoiceService } from '#services/invoice_service'
+import { storeCheckoutValidator, storeReviewValidator } from '#validators/store_checkout'
 import { Secret } from '@adonisjs/core/helpers'
 import type { HttpContext } from '@adonisjs/core/http'
 
@@ -38,9 +39,7 @@ export default class PublicCommerceController {
     const buyer = await this.verifyBuyer(ctx)
     if (!buyer) return ctx.response.unauthorized({ message: 'Connectez-vous pour commander' })
 
-    const body = ctx.request.body()
-    const items: Array<{ productId: number; quantity: number }> = body.items ?? []
-    if (items.length === 0) return ctx.response.badRequest({ message: 'Panier vide' })
+    const { items } = await ctx.request.validateUsing(storeCheckoutValidator)
 
     // Set the company context manually (no tenancy middleware on public routes)
     ctx.tenantId = company.tenantId
@@ -143,11 +142,7 @@ export default class PublicCommerceController {
       .first()
     if (!company) return ctx.response.notFound({ message: 'Boutique introuvable' })
 
-    const body = ctx.request.body()
-    const rating = Number(body.rating)
-    if (!rating || rating < 1 || rating > 5) {
-      return ctx.response.badRequest({ message: 'Note invalide (1-5)' })
-    }
+    const { rating, comment } = await ctx.request.validateUsing(storeReviewValidator)
 
     // Check for existing review (one per buyer per product)
     const existing = await ProductReview.query()
@@ -167,7 +162,7 @@ export default class PublicCommerceController {
       productId: Number(ctx.params.productId),
       storeAccountId: buyer.id,
       rating,
-      comment: body.comment ?? null,
+      comment: comment ?? null,
     })
 
     return ctx.response.created({
