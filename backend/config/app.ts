@@ -72,9 +72,13 @@ export const http = defineConfig({
     httpOnly: true,
 
     /**
-     * Send cookies only over HTTPS in production.
+     * Send cookies only over HTTPS — but only when the app is actually served
+     * over HTTPS. A `Secure` cookie is REFUSED by the browser over HTTP, which
+     * silently breaks cookie-based auth (the session cookie never gets stored →
+     * 401 on every authenticated request). So: Secure in prod AND when APP_URL
+     * is https. Plain-HTTP prod deployments (e.g. http://<ip>) stay functional.
      */
-    secure: app.inProduction,
+    secure: app.inProduction && appUrl.startsWith('https'),
 
     /**
      * Cross-site policy for cookie sending.
