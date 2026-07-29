@@ -15,6 +15,13 @@ export type ScannedRoutes = {
     'public_commerce.checkout': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
     'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'public_commerce.add_review': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
+    'public_delivery.account': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_delivery.orders': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_delivery.order_qr': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'orderId': ParamValue} }
+    'public_delivery.addresses': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_delivery.create_address': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_delivery.update_address': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'id': ParamValue} }
+    'public_delivery.delete_address': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'id': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
     'dashboard.profits': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
@@ -85,12 +92,34 @@ export type ScannedRoutes = {
     'supplier_credits.index': { paramsTuple?: []; params?: {} }
     'supplier_credits.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'supplier_credits.add_payment': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.index': { paramsTuple?: []; params?: {} }
+    'deliveries.pending_invoices': { paramsTuple?: []; params?: {} }
+    'deliveries.drivers': { paramsTuple?: []; params?: {} }
+    'deliveries.live': { paramsTuple?: []; params?: {} }
+    'deliveries.performance': { paramsTuple?: []; params?: {} }
+    'deliveries.mine': { paramsTuple?: []; params?: {} }
+    'deliveries.settlements': { paramsTuple?: []; params?: {} }
+    'deliveries.store': { paramsTuple?: []; params?: {} }
+    'deliveries.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.assign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.pickup': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.start': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.update_position': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.complete': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.fail': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.cancel': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.settlement_create': { paramsTuple?: []; params?: {} }
+    'deliveries.settlement_validate': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   GET: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'public_store.show': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
     'public_store.show_product': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
+    'public_delivery.account': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_delivery.orders': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_delivery.order_qr': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'orderId': ParamValue} }
+    'public_delivery.addresses': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
     'dashboard.profits': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
@@ -122,12 +151,24 @@ export type ScannedRoutes = {
     'purchases.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'supplier_credits.index': { paramsTuple?: []; params?: {} }
     'supplier_credits.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.index': { paramsTuple?: []; params?: {} }
+    'deliveries.pending_invoices': { paramsTuple?: []; params?: {} }
+    'deliveries.drivers': { paramsTuple?: []; params?: {} }
+    'deliveries.live': { paramsTuple?: []; params?: {} }
+    'deliveries.performance': { paramsTuple?: []; params?: {} }
+    'deliveries.mine': { paramsTuple?: []; params?: {} }
+    'deliveries.settlements': { paramsTuple?: []; params?: {} }
+    'deliveries.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   HEAD: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'public_store.show': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
     'public_store.show_product': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
     'public_commerce.reviews': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
+    'public_delivery.account': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_delivery.orders': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
+    'public_delivery.order_qr': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'orderId': ParamValue} }
+    'public_delivery.addresses': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
     'dashboard.index': { paramsTuple?: []; params?: {} }
     'dashboard.profits': { paramsTuple?: []; params?: {} }
     'settings.index': { paramsTuple?: []; params?: {} }
@@ -159,6 +200,14 @@ export type ScannedRoutes = {
     'purchases.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'supplier_credits.index': { paramsTuple?: []; params?: {} }
     'supplier_credits.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.index': { paramsTuple?: []; params?: {} }
+    'deliveries.pending_invoices': { paramsTuple?: []; params?: {} }
+    'deliveries.drivers': { paramsTuple?: []; params?: {} }
+    'deliveries.live': { paramsTuple?: []; params?: {} }
+    'deliveries.performance': { paramsTuple?: []; params?: {} }
+    'deliveries.mine': { paramsTuple?: []; params?: {} }
+    'deliveries.settlements': { paramsTuple?: []; params?: {} }
+    'deliveries.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   POST: {
     'auth.new_account.store': { paramsTuple?: []; params?: {} }
@@ -168,6 +217,7 @@ export type ScannedRoutes = {
     'store_auth.login': { paramsTuple?: []; params?: {} }
     'public_commerce.checkout': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
     'public_commerce.add_review': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'productId': ParamValue} }
+    'public_delivery.create_address': { paramsTuple: [ParamValue]; params: {'slug': ParamValue} }
     'companies.store': { paramsTuple?: []; params?: {} }
     'clients.store': { paramsTuple?: []; params?: {} }
     'employees.store': { paramsTuple?: []; params?: {} }
@@ -188,8 +238,19 @@ export type ScannedRoutes = {
     'suppliers.store': { paramsTuple?: []; params?: {} }
     'purchases.store': { paramsTuple?: []; params?: {} }
     'supplier_credits.add_payment': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.store': { paramsTuple?: []; params?: {} }
+    'deliveries.assign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.pickup': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.start': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.update_position': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.complete': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.fail': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.cancel': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'deliveries.settlement_create': { paramsTuple?: []; params?: {} }
+    'deliveries.settlement_validate': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   PUT: {
+    'public_delivery.update_address': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'id': ParamValue} }
     'settings.update': { paramsTuple?: []; params?: {} }
     'clients.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'employees.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -200,12 +261,8 @@ export type ScannedRoutes = {
     'cash_registers.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'suppliers.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
-  PATCH: {
-    'companies.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
-    'storefronts.update_slug': { paramsTuple?: []; params?: {} }
-    'storefronts.update_enabled': { paramsTuple?: []; params?: {} }
-  }
   DELETE: {
+    'public_delivery.delete_address': { paramsTuple: [ParamValue,ParamValue]; params: {'slug': ParamValue,'id': ParamValue} }
     'clients.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'employees.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'warehouses.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -213,6 +270,11 @@ export type ScannedRoutes = {
     'products.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'cash_registers.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'suppliers.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+  }
+  PATCH: {
+    'companies.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'storefronts.update_slug': { paramsTuple?: []; params?: {} }
+    'storefronts.update_enabled': { paramsTuple?: []; params?: {} }
   }
 }
 declare module '@adonisjs/core/types/http' {

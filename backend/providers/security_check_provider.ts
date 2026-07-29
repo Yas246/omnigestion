@@ -17,9 +17,11 @@ export default class SecurityCheckProvider {
     const nodeEnv = env.get('NODE_ENV')
     if (appUrl.startsWith('https://') && nodeEnv !== 'production') {
       console.error(
-        `\n[FATAL] Refusing to boot: APP_URL (${appUrl}) is HTTPS but NODE_ENV=${nodeEnv}. Set NODE_ENV=production in production.\n`,
+        `\n[FATAL] Refusing to boot: APP_URL (${appUrl}) is HTTPS but NODE_ENV=${nodeEnv}. Set NODE_ENV=production in production.\n`
       )
-      throw new Error('Insecure production configuration — NODE_ENV must be production when APP_URL is HTTPS.')
+      throw new Error(
+        'Insecure production configuration — NODE_ENV must be production when APP_URL is HTTPS.'
+      )
     }
 
     if (nodeEnv !== 'production') return
@@ -32,10 +34,14 @@ export default class SecurityCheckProvider {
     const problems: string[] = []
 
     if (appKey.length < 16) {
-      problems.push('APP_KEY is missing or too short — generate a strong secret (node ace generate:key).')
+      problems.push(
+        'APP_KEY is missing or too short — generate a strong secret (node ace generate:key).'
+      )
     }
     if (!dbPassword || dbPassword === 'root') {
-      problems.push('DB_PASSWORD is the default "root" (or empty) — set a strong database password.')
+      problems.push(
+        'DB_PASSWORD is the default "root" (or empty) — set a strong database password.'
+      )
     }
 
     if (problems.length) {

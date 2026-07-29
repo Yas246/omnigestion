@@ -31,6 +31,15 @@ export interface ApiDefinition {
     reviews: typeof routes['public_commerce.reviews']
     addReview: typeof routes['public_commerce.add_review']
   }
+  publicDelivery: {
+    account: typeof routes['public_delivery.account']
+    orders: typeof routes['public_delivery.orders']
+    orderQr: typeof routes['public_delivery.order_qr']
+    addresses: typeof routes['public_delivery.addresses']
+    createAddress: typeof routes['public_delivery.create_address']
+    updateAddress: typeof routes['public_delivery.update_address']
+    deleteAddress: typeof routes['public_delivery.delete_address']
+  }
   dashboard: {
     index: typeof routes['dashboard.index']
     profits: typeof routes['dashboard.profits']
@@ -134,5 +143,25 @@ export interface ApiDefinition {
     index: typeof routes['supplier_credits.index']
     show: typeof routes['supplier_credits.show']
     addPayment: typeof routes['supplier_credits.add_payment']
+  }
+  deliveries: {
+    index: typeof routes['deliveries.index']
+    pendingInvoices: typeof routes['deliveries.pending_invoices']
+    drivers: typeof routes['deliveries.drivers']
+    live: typeof routes['deliveries.live']
+    performance: typeof routes['deliveries.performance']
+    mine: typeof routes['deliveries.mine']
+    settlements: typeof routes['deliveries.settlements']
+    store: typeof routes['deliveries.store']
+    show: typeof routes['deliveries.show']
+    assign: typeof routes['deliveries.assign']
+    pickup: typeof routes['deliveries.pickup']
+    start: typeof routes['deliveries.start']
+    updatePosition: typeof routes['deliveries.update_position']
+    complete: typeof routes['deliveries.complete']
+    fail: typeof routes['deliveries.fail']
+    cancel: typeof routes['deliveries.cancel']
+    settlementCreate: typeof routes['deliveries.settlement_create']
+    settlementValidate: typeof routes['deliveries.settlement_validate']
   }
 }

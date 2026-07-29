@@ -9,22 +9,22 @@ import type { StorefrontConfig } from '@/components/storefront/types';
  * Previously this was a single client component that fetched config on mount →
  * visible theme flash on arrival.
  */
-async function fetchConfig(slug: string): Promise<StorefrontConfig | null> {
+async function fetchStore(slug: string): Promise<{ config: StorefrontConfig | null; companyName: string | null }> {
   try {
     const res = await fetch(
       `${API_ORIGIN}/api/v1/public/store/${encodeURIComponent(slug)}`,
       { next: { revalidate: 300 } },
     );
-    if (!res.ok) return null;
+    if (!res.ok) return { config: null, companyName: null };
     const data = await res.json();
-    return (data?.config as StorefrontConfig) ?? null;
+    return { config: (data?.config as StorefrontConfig) ?? null, companyName: data?.company?.name ?? null };
   } catch {
-    return null;
+    return { config: null, companyName: null };
   }
 }
 
 export default async function CartPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const config = await fetchConfig(slug);
-  return <CartClient slug={slug} config={config} />;
+  const { config, companyName } = await fetchStore(slug);
+  return <CartClient slug={slug} config={config} companyName={companyName} />;
 }

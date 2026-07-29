@@ -10,7 +10,15 @@
  * The auth context owns the session flag / company id via setAuthed / setCompanyId.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333'
+// In the browser, when no explicit API URL is configured, call the backend on
+// the SAME host the page was loaded from. This makes LAN dev "just work": a
+// phone loading http://192.168.1.x:3000 hits 192.168.1.x:3333 instead of
+// `localhost` (which from the phone means the phone itself → NetworkError).
+// On the server (SSR/build) window is undefined → localhost:3333 (the dev
+// machine reaching its own backend). Prod sets NEXT_PUBLIC_API_URL explicitly.
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3333` : 'http://localhost:3333')
 
 /** Backend origin (for media URLs + server-side public fetch). */
 export const API_ORIGIN = API_URL

@@ -1,6 +1,5 @@
 import { StorefrontCartProvider } from '@/lib/storefront/cart-context';
 import { BuyerProvider } from '@/lib/storefront/buyer-context';
-import { FloatingCartButton } from '@/components/storefront/FloatingCartButton';
 
 export default async function StoreLayout({
   params,
@@ -12,10 +11,7 @@ export default async function StoreLayout({
   const { slug } = await params;
   return (
     <BuyerProvider>
-      <StorefrontCartProvider slug={slug}>
-        {children}
-        <FloatingCartButton slug={slug} />
-      </StorefrontCartProvider>
+      <StorefrontCartProvider slug={slug}>{children}</StorefrontCartProvider>
     </BuyerProvider>
   );
 }

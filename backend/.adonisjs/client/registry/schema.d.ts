@@ -139,6 +139,90 @@ export interface Registry {
       errorResponse: unknown
     }
   }
+  'public_delivery.account': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/public/store/:slug/account'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { slug: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'public_delivery.orders': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/public/store/:slug/account/orders'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { slug: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'public_delivery.order_qr': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/public/store/:slug/account/orders/:orderId/qr'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { slug: ParamValue; orderId: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'public_delivery.addresses': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/public/store/:slug/account/addresses'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { slug: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'public_delivery.create_address': {
+    methods: ["POST"]
+    pattern: '/api/v1/public/store/:slug/account/addresses'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { slug: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'public_delivery.update_address': {
+    methods: ["PUT"]
+    pattern: '/api/v1/public/store/:slug/account/addresses/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { slug: ParamValue; id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'public_delivery.delete_address': {
+    methods: ["DELETE"]
+    pattern: '/api/v1/public/store/:slug/account/addresses/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { slug: ParamValue; id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
   'dashboard.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/dashboard'
@@ -970,6 +1054,222 @@ export interface Registry {
   'supplier_credits.add_payment': {
     methods: ["POST"]
     pattern: '/api/v1/supplier-credits/:id/payments'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/deliveries'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.pending_invoices': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/deliveries/pending-invoices'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.drivers': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/deliveries/drivers'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.live': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/deliveries/live'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.performance': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/deliveries/performance'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.mine': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/deliveries/mine'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.settlements': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/deliveries/settlements'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.store': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/deliveries/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.assign': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries/:id/assign'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.pickup': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries/:id/pickup'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.start': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries/:id/start'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.update_position': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries/:id/position'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.complete': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries/:id/complete'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.fail': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries/:id/fail'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.cancel': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries/:id/cancel'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.settlement_create': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries/settlements'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'deliveries.settlement_validate': {
+    methods: ["POST"]
+    pattern: '/api/v1/deliveries/settlements/:id/validate'
     types: {
       body: {}
       paramsTuple: [ParamValue]

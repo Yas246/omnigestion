@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { mediaUrl } from '@/lib/api/client';
 import type { StorefrontCompany, StorefrontConfig, StorefrontProduct } from '../types';
 import { ProductCard } from '../ProductCard';
+import { HeaderActions } from '../HeaderActions';
 
 const disp = { fontFamily: 'var(--store-font-display)' } as React.CSSProperties;
 const mono = { fontFamily: 'var(--font-plex-mono), ui-monospace, monospace' } as React.CSSProperties;
@@ -47,9 +48,12 @@ export function StudioTemplate({
             )}
             <span className="text-xl tracking-tight" style={{ ...disp, fontWeight: 700 }}>{company.name}</span>
           </div>
-          <span className="text-xs uppercase tracking-widest opacity-50" style={mono}>
-            Index · {String(products.length).padStart(2, '0')}
-          </span>
+          <div className="flex items-center gap-4">
+            <span className="hidden text-xs uppercase tracking-widest opacity-50 sm:inline" style={mono}>
+              Index · {String(products.length).padStart(2, '0')}
+            </span>
+            <HeaderActions slug={company.storeSlug} />
+          </div>
         </div>
       </header>
 

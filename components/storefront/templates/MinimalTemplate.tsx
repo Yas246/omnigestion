@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { StorefrontCompany, StorefrontConfig, StorefrontProduct } from '../types';
+import { HeaderActions } from '../HeaderActions';
 
 const disp = { fontFamily: 'var(--store-font-display)' } as React.CSSProperties;
 const accent = { color: 'var(--store-accent)' } as React.CSSProperties;
@@ -29,9 +30,12 @@ export function MinimalTemplate({
     <>
       {/* Header — just the name + a thin index count */}
       <header className="border-b" style={hairline}>
-        <div className="flex items-baseline justify-between px-6 py-6 sm:px-16 sm:py-8">
+        <div className="flex items-center justify-between px-6 py-6 sm:px-16 sm:py-8">
           <span className="text-xl tracking-tight" style={disp}>{company.name}</span>
-          <span className="text-xs uppercase tracking-widest opacity-30">{products.length} pièces</span>
+          <div className="flex items-center gap-4">
+            <span className="hidden text-xs uppercase tracking-widest opacity-30 sm:inline">{products.length} pièces</span>
+            <HeaderActions slug={company.storeSlug} />
+          </div>
         </div>
       </header>
 

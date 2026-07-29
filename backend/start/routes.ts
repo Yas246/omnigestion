@@ -26,6 +26,8 @@ import StorefrontsController from '#controllers/storefronts_controller'
 import PublicStoreController from '#controllers/public_store_controller'
 import PublicCommerceController from '#controllers/public_commerce_controller'
 import StoreAuthController from '#controllers/store_auth_controller'
+import DeliveriesController from '#controllers/deliveries_controller'
+import PublicDeliveryController from '#controllers/public_delivery_controller'
 import AiReportsController from '#controllers/ai_reports_controller'
 
 router.get('/', () => {
@@ -59,18 +61,43 @@ router
 
     // Public storefront (no auth — resolved by company slug)
     router.get('public/store/:slug', [PublicStoreController, 'show'])
-        router.get('public/store/:slug/product/:productId', [PublicStoreController, 'showProduct'])
-        router
-          .post('public/auth/signup', [StoreAuthController, 'signup'])
-          .use(middleware.throttle({ rate: 3, period: 60 }))
-        router
-          .post('public/auth/login', [StoreAuthController, 'login'])
-          .use(middleware.throttle({ rate: 5, period: 60 }))
-        router
-          .post('public/store/:slug/checkout', [PublicCommerceController, 'checkout'])
-          .use(middleware.throttle({ rate: 10, period: 60 }))
-        router.get('public/store/:slug/product/:productId/reviews', [PublicCommerceController, 'reviews'])
-        router.post('public/store/:slug/product/:productId/reviews', [PublicCommerceController, 'addReview'])
+    router.get('public/store/:slug/product/:productId', [PublicStoreController, 'showProduct'])
+    router
+      .post('public/auth/signup', [StoreAuthController, 'signup'])
+      .use(middleware.throttle({ rate: 3, period: 60 }))
+    router
+      .post('public/auth/login', [StoreAuthController, 'login'])
+      .use(middleware.throttle({ rate: 5, period: 60 }))
+    router
+      .post('public/store/:slug/checkout', [PublicCommerceController, 'checkout'])
+      .use(middleware.throttle({ rate: 10, period: 60 }))
+    router.get('public/store/:slug/product/:productId/reviews', [
+      PublicCommerceController,
+      'reviews',
+    ])
+    router.post('public/store/:slug/product/:productId/reviews', [
+      PublicCommerceController,
+      'addReview',
+    ])
+
+    // Buyer account (storefront) — orders + delivery status, QR, addresses.
+    // Authenticated by the buyer's Bearer `sat_` token (no ERP auth/tenancy).
+    router.get('public/store/:slug/account', [PublicDeliveryController, 'account'])
+    router.get('public/store/:slug/account/orders', [PublicDeliveryController, 'orders'])
+    router.get('public/store/:slug/account/orders/:orderId/qr', [
+      PublicDeliveryController,
+      'orderQr',
+    ])
+    router.get('public/store/:slug/account/addresses', [PublicDeliveryController, 'addresses'])
+    router.post('public/store/:slug/account/addresses', [PublicDeliveryController, 'createAddress'])
+    router.put('public/store/:slug/account/addresses/:id', [
+      PublicDeliveryController,
+      'updateAddress',
+    ])
+    router.delete('public/store/:slug/account/addresses/:id', [
+      PublicDeliveryController,
+      'deleteAddress',
+    ])
 
     // Company-scoped business routes (auth + tenancy)
     router
@@ -121,10 +148,18 @@ router
         router.delete('warehouses/:id', [WarehousesController, 'destroy'])
 
         // AI reports ( Analyse IA ) — list/read open to reports readers; save/delete gated
-        router.get('ai-reports', [AiReportsController, 'index']).use(middleware.permission({ module: 'reports', action: 'read' }))
-        router.post('ai-reports', [AiReportsController, 'store']).use(middleware.permission({ module: 'reports', action: 'create' }))
-        router.get('ai-reports/:id', [AiReportsController, 'show']).use(middleware.permission({ module: 'reports', action: 'read' }))
-        router.delete('ai-reports/:id', [AiReportsController, 'destroy']).use(middleware.permission({ module: 'reports', action: 'delete' }))
+        router
+          .get('ai-reports', [AiReportsController, 'index'])
+          .use(middleware.permission({ module: 'reports', action: 'read' }))
+        router
+          .post('ai-reports', [AiReportsController, 'store'])
+          .use(middleware.permission({ module: 'reports', action: 'create' }))
+        router
+          .get('ai-reports/:id', [AiReportsController, 'show'])
+          .use(middleware.permission({ module: 'reports', action: 'read' }))
+        router
+          .delete('ai-reports/:id', [AiReportsController, 'destroy'])
+          .use(middleware.permission({ module: 'reports', action: 'delete' }))
 
         // Products
         router.get('products', [ProductsController, 'index'])
@@ -161,7 +196,9 @@ router
           .use(middleware.permission({ module: 'credits', action: 'create' }))
 
         // Cash registers
-        router.post('cash-registers/transfer', [CashController, 'transfer']).use(middleware.permission({ module: 'cash', action: 'create' }))
+        router
+          .post('cash-registers/transfer', [CashController, 'transfer'])
+          .use(middleware.permission({ module: 'cash', action: 'create' }))
         router.get('cash-registers', [CashRegistersController, 'index'])
         router.post('cash-registers', [CashRegistersController, 'store'])
         router.get('cash-registers/:id', [CashRegistersController, 'show'])
@@ -170,7 +207,9 @@ router
 
         // Cash movements (manual in/out + listing)
         router.get('cash-movements', [CashController, 'movements'])
-        router.post('cash-movements', [CashController, 'storeMovement']).use(middleware.permission({ module: 'cash', action: 'create' }))
+        router
+          .post('cash-movements', [CashController, 'storeMovement'])
+          .use(middleware.permission({ module: 'cash', action: 'create' }))
 
         // Suppliers
         router.get('suppliers', [SuppliersController, 'index'])
@@ -192,6 +231,47 @@ router
         router
           .post('supplier-credits/:id/payments', [SupplierCreditsController, 'addPayment'])
           .use(middleware.permission({ module: 'purchases', action: 'create' }))
+
+        // Deliveries (storefront order fulfilment) — dispatcher + driver app.
+        // Permission gating per action; `read` (default group) is the minimum.
+        router.get('deliveries', [DeliveriesController, 'index'])
+        router.get('deliveries/pending-invoices', [DeliveriesController, 'pendingInvoices'])
+        router.get('deliveries/drivers', [DeliveriesController, 'drivers'])
+        router.get('deliveries/live', [DeliveriesController, 'live'])
+        router.get('deliveries/performance', [DeliveriesController, 'performance'])
+        router.get('deliveries/mine', [DeliveriesController, 'mine'])
+        router.get('deliveries/settlements', [DeliveriesController, 'settlements'])
+        router
+          .post('deliveries', [DeliveriesController, 'store'])
+          .use(middleware.permission({ module: 'deliveries', action: 'create' }))
+        router.get('deliveries/:id', [DeliveriesController, 'show'])
+        router
+          .post('deliveries/:id/assign', [DeliveriesController, 'assign'])
+          .use(middleware.permission({ module: 'deliveries', action: 'assign' }))
+        router
+          .post('deliveries/:id/pickup', [DeliveriesController, 'pickup'])
+          .use(middleware.permission({ module: 'deliveries', action: 'complete' }))
+        router
+          .post('deliveries/:id/start', [DeliveriesController, 'start'])
+          .use(middleware.permission({ module: 'deliveries', action: 'complete' }))
+        router
+          .post('deliveries/:id/position', [DeliveriesController, 'updatePosition'])
+          .use(middleware.permission({ module: 'deliveries', action: 'complete' }))
+        router
+          .post('deliveries/:id/complete', [DeliveriesController, 'complete'])
+          .use(middleware.permission({ module: 'deliveries', action: 'complete' }))
+        router
+          .post('deliveries/:id/fail', [DeliveriesController, 'fail'])
+          .use(middleware.permission({ module: 'deliveries', action: 'complete' }))
+        router
+          .post('deliveries/:id/cancel', [DeliveriesController, 'cancel'])
+          .use(middleware.permission({ module: 'deliveries', action: 'assign' }))
+        router
+          .post('deliveries/settlements', [DeliveriesController, 'settlementCreate'])
+          .use(middleware.permission({ module: 'deliveries', action: 'assign' }))
+        router
+          .post('deliveries/settlements/:id/validate', [DeliveriesController, 'settlementValidate'])
+          .use(middleware.permission({ module: 'deliveries', action: 'assign' }))
       })
       .use([middleware.auth(), middleware.tenancy(), middleware.throttle({ rate: 60, period: 60 })])
   })

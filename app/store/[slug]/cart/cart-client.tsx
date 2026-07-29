@@ -167,7 +167,7 @@ function CartLine({
  * on the first paint (no flash). All interactivity (cart state, buyer, checkout)
  * lives here.
  */
-export function CartClient({ slug, config }: { slug: string; config: StorefrontConfig | null }) {
+export function CartClient({ slug, config, companyName }: { slug: string; config: StorefrontConfig | null; companyName: string | null }) {
   const { items, updateQty, remove, total, count, clear } = useCart();
   const { buyer, authHeader, logout } = useBuyer();
   const [authOpen, setAuthOpen] = useState(false);
@@ -272,16 +272,22 @@ export function CartClient({ slug, config }: { slug: string; config: StorefrontC
   const listWrap = isMinimal ? 'divide-y' : 'space-y-3';
 
   return (
-    <div style={{ ...themeStyle, backgroundColor: `color-mix(in srgb, ${bg} 97%, ${text} 3%)`, color: text, fontFamily: bodyFont }} className={`${fontsClass} min-h-screen`}>
+    <div style={{ ...themeStyle, backgroundColor: `color-mix(in srgb, ${bg} 97%, ${text} 3%)`, color: text, fontFamily: bodyFont }} className={`${fontsClass} min-h-screen flex flex-col`}>
       <BuyerAuthModal open={authOpen} onOpenChange={setAuthOpen} />
-      <div className="mx-auto max-w-3xl px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl tracking-tight" style={{ fontFamily: dispFont }}>Mon panier ({count})</h1>
-          <Link href={`/store/${slug}`}>
-            <Button variant="ghost" size="sm" style={{ color: text }}>
-              <ArrowLeft className="mr-1 h-4 w-4" /> Continuer
-            </Button>
+      <header className="border-b" style={{ ...itemBorder, backgroundColor: `color-mix(in srgb, ${bg} 92%, ${text} 8%)` }}>
+        <div className="relative mx-auto flex max-w-3xl items-center justify-center px-4 py-4">
+          <Link href={`/store/${slug}`} className="absolute left-4 inline-flex items-center gap-1 text-sm opacity-70 hover:opacity-100" style={{ color: text }}>
+            <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Boutique</span>
           </Link>
+          <span className="text-lg font-semibold tracking-tight" style={{ fontFamily: dispFont }}>
+            {companyName ?? 'Commande'}
+          </span>
+        </div>
+      </header>
+      <main className="flex flex-1 justify-center px-4">
+        <div className="my-auto w-full max-w-3xl py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl tracking-tight" style={{ fontFamily: dispFont }}>Mon panier ({count})</h1>
         </div>
 
         <div className={listWrap} style={isMinimal ? itemBorder : undefined}>
@@ -335,7 +341,8 @@ export function CartClient({ slug, config }: { slug: string; config: StorefrontC
             )}
           </Button>
         </div>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

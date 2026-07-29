@@ -18,6 +18,9 @@ const permissionAction = vine.enum([
   'purchase',
   'close',
   'reports',
+  // Deliveries module: attribute a delivery to a driver + confirm it (COD/QR).
+  'assign',
+  'complete',
 ])
 const permission = vine.object({
   module: vine.string().trim().minLength(1).maxLength(50),

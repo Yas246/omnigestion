@@ -22,9 +22,16 @@ export default class extends BaseSchema {
   async up() {
     // Clamp any historical negative quantity before adding the invariant.
     await db.rawQuery('UPDATE "product_stock_locations" SET quantity = 0 WHERE quantity < 0')
-    await db.rawQuery(
-      `ALTER TABLE "product_stock_locations" ADD CONSTRAINT "${QTY_CHECK}" CHECK (quantity >= 0)`
-    )
+    // Idempotent: on a fresh install the create migration may already have
+    // created this constraint, so ADD would fail with duplicate_object. Wrap in
+    // a DO block that no-ops if it already exists (safe on already-applied DBs
+    // too — this migration is only ever re-run on a fresh database).
+    await db.rawQuery(`
+      DO $$ BEGIN
+        ALTER TABLE "product_stock_locations" ADD CONSTRAINT "${QTY_CHECK}" CHECK (quantity >= 0);
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
+    `)
 
     // invoice_items — dashboard Top produits + per-invoice joins.
     this.schema.alterTable('invoice_items', (table) => {
@@ -55,7 +62,9 @@ export default class extends BaseSchema {
   }
 
   async down() {
-    await db.rawQuery(`ALTER TABLE "product_stock_locations" DROP CONSTRAINT IF EXISTS "${QTY_CHECK}"`)
+    await db.rawQuery(
+      `ALTER TABLE "product_stock_locations" DROP CONSTRAINT IF EXISTS "${QTY_CHECK}"`
+    )
     this.schema.alterTable('invoice_items', (table) => {
       table.dropIndex(['tenant_id', 'company_id', 'product_id'], 'invoice_items_tcp_index')
       table.dropIndex(['tenant_id', 'company_id', 'invoice_id'], 'invoice_items_tci_index')

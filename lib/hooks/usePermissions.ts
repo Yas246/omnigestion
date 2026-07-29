@@ -75,6 +75,7 @@ export function usePermissions() {
     const priorityOrder = [
       { module: 'dashboard', path: '/' },
       { module: 'sales', path: '/sales' },
+      { module: 'deliveries', path: '/deliveries' },
       { module: 'stock', path: '/stock' },
       { module: 'cash', path: '/cash' },
       { module: 'clients', path: '/clients' },
@@ -87,6 +88,12 @@ export function usePermissions() {
       if (hasPermission(module, 'read')) {
         return path;
       }
+    }
+
+    // Un livreur qui n'a que « Conduire & confirmer » (pas de lecture sur les
+    // autres modules) atterrit sur son app de tournée.
+    if (hasPermission('deliveries', 'complete')) {
+      return '/livreur';
     }
 
     // Fallback : si aucune permission, rediriger vers les paramètres (accès de base)
@@ -150,6 +157,11 @@ export function usePermissions() {
   /** CRÉDITS CLIENTS */
   const canRecordCreditPayment = useCallback(() => hasPermission('credits', 'payment'), [hasPermission]);
 
+  /** LIVRAISONS (dispatcheur + livreur) */
+  const canCreateDelivery = useCallback(() => hasPermission('deliveries', 'create'), [hasPermission]);
+  const canAssignDelivery = useCallback(() => hasPermission('deliveries', 'assign'), [hasPermission]);
+  const canCompleteDelivery = useCallback(() => hasPermission('deliveries', 'complete'), [hasPermission]);
+
   /** FOURNISSEURS */
   const canCreateSupplier = useCallback(() => hasPermission('suppliers', 'create'), [hasPermission]);
   const canCreatePurchase = useCallback(() => hasPermission('suppliers', 'purchase'), [hasPermission]);
@@ -205,6 +217,10 @@ export function usePermissions() {
       canDeleteClient,
       // Crédits clients
       canRecordCreditPayment,
+      // Livraisons
+      canCreateDelivery,
+      canAssignDelivery,
+      canCompleteDelivery,
       // Fournisseurs
       canCreateSupplier,
       canCreatePurchase,
@@ -246,6 +262,9 @@ export function usePermissions() {
       canUpdateClient,
       canDeleteClient,
       canRecordCreditPayment,
+      canCreateDelivery,
+      canAssignDelivery,
+      canCompleteDelivery,
       canCreateSupplier,
       canCreatePurchase,
       canUpdateSupplier,

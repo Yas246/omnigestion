@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { mediaUrl } from '@/lib/api/client';
 import type { StorefrontCompany, StorefrontConfig, StorefrontProduct } from '../types';
 import { ProductCard } from '../ProductCard';
+import { HeaderActions } from '../HeaderActions';
 
 const disp = { fontFamily: 'var(--store-font-display)' } as React.CSSProperties;
 const italic = { fontFamily: 'var(--store-font-display)', fontStyle: 'italic' } as React.CSSProperties;
@@ -41,9 +42,12 @@ export function BoutiqueTemplate({
       {/* Masthead — hairline-divided, season/N° stamp */}
       <header className="border-b" style={hairline}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <span className="text-xs uppercase tracking-eyebrow opacity-50">{tagline}</span>
+          <span className="hidden text-xs uppercase tracking-eyebrow opacity-50 sm:inline">{tagline}</span>
           <span className="text-lg tracking-wide" style={disp}>{company.name}</span>
-          <span className="text-xs uppercase tracking-eyebrow opacity-50">N°01</span>
+          <div className="flex items-center gap-4">
+            <span className="hidden text-xs uppercase tracking-eyebrow opacity-50 sm:inline">N°01</span>
+            <HeaderActions slug={company.storeSlug} />
+          </div>
         </div>
       </header>
 

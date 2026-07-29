@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { mediaUrl } from '@/lib/api/client';
 import type { StorefrontCompany, StorefrontConfig, StorefrontProduct } from '../types';
 import { ProductCard } from '../ProductCard';
+import { HeaderActions } from '../HeaderActions';
 
 const disp = { fontFamily: 'var(--store-font-display)' } as React.CSSProperties;
 const accent = { color: 'var(--store-accent)' } as React.CSSProperties;
@@ -58,9 +59,12 @@ export function MarcheTemplate({
             )}
             <span className="text-2xl tracking-tight sm:text-3xl" style={{ ...disp, fontWeight: 700 }}>{company.name}</span>
           </div>
-          <span className="hidden rounded-full px-4 py-1.5 text-xs font-medium sm:inline" style={{ ...softSurface, color: 'var(--store-accent)' }}>
-            ● {products.length} produit{products.length > 1 ? 's' : ''}
-          </span>
+          <div className="flex items-center gap-4">
+            <span className="hidden rounded-full px-4 py-1.5 text-xs font-medium sm:inline" style={{ ...softSurface, color: 'var(--store-accent)' }}>
+              ● {products.length} produit{products.length > 1 ? 's' : ''}
+            </span>
+            <HeaderActions slug={company.storeSlug} />
+          </div>
         </div>
       </header>
 

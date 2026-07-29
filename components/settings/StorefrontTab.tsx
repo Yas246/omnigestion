@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { useStorefront } from '@/lib/api/hooks/useStorefront';
 import { useProductsRealtime } from '@/lib/api/hooks/useProducts';
 import { StorefrontRenderer } from '@/components/storefront/StorefrontRenderer';
+import { StorefrontCartProvider } from '@/lib/storefront/cart-context';
+import { BuyerProvider } from '@/lib/storefront/buyer-context';
 import { FONT_PAIRS, DEFAULT_FONT_SENTINEL } from '@/components/storefront/font-pairs';
 import type { StorefrontConfig, StorefrontProduct, StorefrontCompany } from '@/components/storefront/types';
 import { Button } from '@/components/ui/button';
@@ -409,7 +411,7 @@ export function StorefrontTab() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-175 overflow-y-auto border-t">
-                <StorefrontRenderer company={previewCompany} config={draft} products={previewProducts} />
+                <StorefrontPreview company={previewCompany} config={draft} products={previewProducts} />
               </div>
             </CardContent>
           </Card>
@@ -432,10 +434,34 @@ export function StorefrontTab() {
             </Button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <StorefrontRenderer company={previewCompany} config={draft} products={previewProducts} />
+            <StorefrontPreview company={previewCompany} config={draft} products={previewProducts} />
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * StorefrontRenderer wrapped in the same providers the live storefront mounts
+ * (BuyerProvider + StorefrontCartProvider). The settings preview lives outside
+ * /store/[slug]/layout.tsx, so without this the template's HeaderActions would
+ * call useCart/useBuyer with no provider and crash.
+ */
+function StorefrontPreview({
+  company,
+  config,
+  products,
+}: {
+  company: StorefrontCompany;
+  config: StorefrontConfig;
+  products: StorefrontProduct[];
+}) {
+  return (
+    <BuyerProvider>
+      <StorefrontCartProvider slug={company.storeSlug ?? 'preview'}>
+        <StorefrontRenderer company={company} config={config} products={products} />
+      </StorefrontCartProvider>
+    </BuyerProvider>
   );
 }

@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, UserPlus, Shield, Trash2, Pencil } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useEmployees, type ApiEmployee } from '@/lib/api/employees';
@@ -30,6 +31,16 @@ const AVAILABLE_PERMISSIONS = [
       { value: 'read', label: 'Voir les ventes' },
       { value: 'create', label: 'Créer des factures' },
       { value: 'delete', label: 'Annuler/Supprimer' },
+    ],
+  },
+  {
+    module: 'deliveries',
+    label: 'Livraisons',
+    actions: [
+      { value: 'read', label: 'Voir les livraisons' },
+      { value: 'create', label: 'Créer une livraison' },
+      { value: 'assign', label: 'Attribuer / annuler (dispatcheur)' },
+      { value: 'complete', label: 'Conduire & confirmer (livreur)' },
     ],
   },
   {
@@ -114,6 +125,31 @@ function isFullPermissions(perms: Permission[]): boolean {
   });
 }
 
+/** "Livreur" preset = a driver who sees ONLY the /livreur app (deliveries:complete). */
+const LIVREUR_PERMISSIONS: Permission[] = [{ module: 'deliveries', actions: ['complete'] }];
+
+function isLivreurPermissions(perms: Permission[]): boolean {
+  if (perms.length !== 1) return false;
+  const p = perms[0];
+  return p.module === 'deliveries' && p.actions.length === 1 && p.actions[0] === 'complete';
+}
+
+type UserRole = 'admin' | 'livreur' | 'employee';
+
+/** Resolve the display role from a membership: owner/full-perm = admin, the
+ *  driver preset = livreur, anything else = employee. */
+function roleOf(emp: ApiEmployee): UserRole {
+  if (emp.isOwner || isFullPermissions(emp.permissions ?? [])) return 'admin';
+  if (isLivreurPermissions(emp.permissions ?? [])) return 'livreur';
+  return 'employee';
+}
+
+const ROLE_BADGE: Record<UserRole, { label: string; variant: 'default' | 'warning' | 'secondary' }> = {
+  admin: { label: 'Administrateur', variant: 'default' },
+  livreur: { label: 'Livreur', variant: 'warning' },
+  employee: { label: 'Employé', variant: 'secondary' },
+};
+
 function splitName(fullName: string | null): { firstName: string; lastName: string } {
   if (!fullName) return { firstName: '', lastName: '' };
   const parts = fullName.trim().split(/\s+/);
@@ -134,7 +170,7 @@ export function UsersTab() {
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [position, setPosition] = useState('');
-  const [role, setRole] = useState<'admin' | 'employee'>('employee');
+  const [role, setRole] = useState<'admin' | 'employee' | 'livreur'>('employee');
   const [permissions, setPermissions] = useState<Permission[]>([]);
 
   const togglePermission = (module: string, action: string) => {
@@ -181,7 +217,7 @@ export function UsersTab() {
     setPhone(emp.phone ?? '');
     setPosition(emp.position ?? '');
     const perms = emp.permissions ?? [];
-    setRole(isFullPermissions(perms) ? 'admin' : 'employee');
+    setRole(isFullPermissions(perms) ? 'admin' : isLivreurPermissions(perms) ? 'livreur' : 'employee');
     setPermissions(perms);
     setShowPasswordField(false);
     setIsDialogOpen(true);
@@ -220,7 +256,8 @@ export function UsersTab() {
     }
 
     const fullName = `${firstName} ${lastName}`.trim();
-    const finalPermissions = role === 'admin' ? ALL_PERMISSIONS : permissions;
+    const finalPermissions =
+      role === 'admin' ? ALL_PERMISSIONS : role === 'livreur' ? LIVREUR_PERMISSIONS : permissions;
     if (role === 'employee' && finalPermissions.length === 0) {
       toast.error("Veuillez sélectionner au moins une permission pour l'employé");
       return;
@@ -377,17 +414,20 @@ export function UsersTab() {
                     <h3 className="font-semibold">Rôle et permissions</h3>
                     <div className="space-y-2">
                       <Label htmlFor="role">Niveau d&apos;accès *</Label>
-                      <Select value={role} onValueChange={(v: 'admin' | 'employee') => setRole(v)}>
+                      <Select value={role} onValueChange={(v: 'admin' | 'employee' | 'livreur') => setRole(v)}>
                         <SelectTrigger id="role"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="employee">Employé</SelectItem>
+                          <SelectItem value="livreur">Livreur</SelectItem>
                           <SelectItem value="admin">Accès total</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
                         {role === 'admin'
                           ? 'Toutes les permissions sont accordées (équivalent administrateur).'
-                          : 'Accès limité selon les permissions ci-dessous'}
+                          : role === 'livreur'
+                            ? "Voit uniquement l'application livreur (/livreur) : tournées, scan QR, encaissement COD. Accès à rien d'autre."
+                            : 'Accès limité selon les permissions ci-dessous'}
                       </p>
                     </div>
 
@@ -473,12 +513,7 @@ export function UsersTab() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Shield className="h-4 w-4" />
-                      <span className="capitalize">
-                        {emp.isOwner || isFullPermissions(emp.permissions ?? []) ? 'Administrateur' : 'Employé'}
-                      </span>
-                    </div>
+                    <Badge variant={ROLE_BADGE[roleOf(emp)].variant}>{ROLE_BADGE[roleOf(emp)].label}</Badge>
                     <div className="flex gap-2">
                       {!emp.isOwner && (
                         <>

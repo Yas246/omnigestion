@@ -10,6 +10,14 @@ import { ProfitService } from '#services/profit_service'
  * remaining 10 000 counts the day the credit is settled. So every revenue figure
  * = sum(invoices.paid_amount) + sum(client_credit_payments.amount) over the scope.
  *
+ * COD EXCEPTION: storefront orders (channel='store') are paid on delivery, but
+ * the cash only enters the register when the driver's settlement is validated.
+ * So COD revenue + profit are counted on the day the compte de tournée is
+ * validated (driver_settlements.validated_at), NOT on sale_date nor on delivery.
+ * The sale_date-scoped sums exclude channel='store', and a parallel set of
+ * settlement-scoped sums adds COD. No double count: a POS invoice is counted by
+ * sale_date, a COD one by settlement-validated-at, never both.
+ *
  * PERF: all aggregates are independent → fired in a single Promise.all instead
  * of ~18 sequential round-trips (latency ÷3-5 on the most-visited screen).
  */
@@ -31,7 +39,10 @@ export default class DashboardController {
     sevenDaysAgo.setHours(0, 0, 0, 0)
 
     const invScope = (q: any) =>
-      q.where('tenant_id', tenantId).where('company_id', companyId).where('status', '!=', 'cancelled')
+      q
+        .where('tenant_id', tenantId)
+        .where('company_id', companyId)
+        .where('status', '!=', 'cancelled')
     const payScope = (q: any) => q.where('tenant_id', tenantId).where('company_id', companyId)
 
     const count = async (table: string, extra?: (q: any) => void) => {
@@ -45,6 +56,7 @@ export default class DashboardController {
     const [
       todayInv,
       todayCredits,
+      todayStoreCod,
       todayCountRow,
       creditsTodayRow,
       allTimeInv,
@@ -55,6 +67,7 @@ export default class DashboardController {
       totalClients,
       totalSuppliers,
       invByDay,
+      codByDay,
       payByDay,
       invByMethod,
       payByMode,
@@ -62,11 +75,33 @@ export default class DashboardController {
       lowStock,
       outOfStock,
       profitRow,
+      todayStoreProfit,
       recent,
     ] = await Promise.all([
-      invScope(db.from('invoices')).whereBetween('sale_date', [startOfDay, endOfDay]).sum('paid_amount as total').first(),
-      payScope(db.from('client_credit_payments')).whereBetween('created_at', [startOfDay, endOfDay]).sum('amount as total').first(),
-      invScope(db.from('invoices')).whereBetween('sale_date', [startOfDay, endOfDay]).count('* as c').first(),
+      invScope(db.from('invoices'))
+        .where((q: any) => q.whereNull('channel').orWhere('channel', '<>', 'store'))
+        .whereBetween('sale_date', [startOfDay, endOfDay])
+        .sum('paid_amount as total')
+        .first(),
+      payScope(db.from('client_credit_payments'))
+        .whereBetween('created_at', [startOfDay, endOfDay])
+        .sum('amount as total')
+        .first(),
+      // COD encaissé aujourd'hui = livraisons dont le compte de tournée a été
+      // VALIDÉ aujourd'hui (driver_settlements.validated_at). Le cash n'entre
+      // réellement en caisse qu'à la régularisation — pas à la livraison.
+      db
+        .from('deliveries')
+        .join('driver_settlements', 'driver_settlements.id', 'deliveries.settlement_id')
+        .where('deliveries.tenant_id', tenantId)
+        .where('deliveries.company_id', companyId)
+        .whereBetween('driver_settlements.validated_at', [startOfDay, endOfDay])
+        .sum('deliveries.cod_amount as total')
+        .first(),
+      invScope(db.from('invoices'))
+        .whereBetween('sale_date', [startOfDay, endOfDay])
+        .count('* as c')
+        .first(),
       db
         .from('client_credits')
         .where('tenant_id', tenantId)
@@ -91,17 +126,34 @@ export default class DashboardController {
       count('clients'),
       count('suppliers'),
       invScope(db.from('invoices'))
+        .where((q: any) => q.whereNull('channel').orWhere('channel', '<>', 'store'))
         .where('sale_date', '>=', sevenDaysAgo)
         .select(db.raw('DATE(sale_date) as date'))
         .sum('paid_amount as revenue')
         .groupByRaw('DATE(sale_date)'),
+      // COD par jour de validation du compte de tournée (graphique 7 jours).
+      db
+        .from('deliveries')
+        .join('driver_settlements', 'driver_settlements.id', 'deliveries.settlement_id')
+        .where('deliveries.tenant_id', tenantId)
+        .where('deliveries.company_id', companyId)
+        .where('driver_settlements.validated_at', '>=', sevenDaysAgo)
+        .select(db.raw('DATE(driver_settlements.validated_at) as date'))
+        .sum('deliveries.cod_amount as revenue')
+        .groupByRaw('DATE(driver_settlements.validated_at)'),
       payScope(db.from('client_credit_payments'))
         .where('created_at', '>=', sevenDaysAgo)
         .select(db.raw('DATE(created_at) as date'))
         .sum('amount as revenue')
         .groupByRaw('DATE(created_at)'),
-      invScope(db.from('invoices')).select('payment_method').sum('paid_amount as total').groupBy('payment_method'),
-      payScope(db.from('client_credit_payments')).select('payment_mode').sum('amount as total').groupBy('payment_mode'),
+      invScope(db.from('invoices'))
+        .select('payment_method')
+        .sum('paid_amount as total')
+        .groupBy('payment_method'),
+      payScope(db.from('client_credit_payments'))
+        .select('payment_mode')
+        .sum('amount as total')
+        .groupBy('payment_mode'),
       db
         .from('invoice_items')
         .where('tenant_id', tenantId)
@@ -119,7 +171,24 @@ export default class DashboardController {
         .where('invoices.tenant_id', tenantId)
         .where('invoices.company_id', companyId)
         .where('invoices.status', '!=', 'cancelled')
+        .where((q: any) =>
+          q.whereNull('invoices.channel').orWhere('invoices.channel', '<>', 'store')
+        )
         .whereBetween('invoices.sale_date', [startOfDay, endOfDay])
+        .select(
+          db.raw(
+            'SUM((invoice_items.unit_price - COALESCE(invoice_items.purchase_price, 0)) * invoice_items.quantity) as profit'
+          )
+        )
+        .first(),
+      // Bénéfice COD du jour = marge des livraisons régularisées aujourd'hui.
+      db
+        .from('deliveries')
+        .join('driver_settlements', 'driver_settlements.id', 'deliveries.settlement_id')
+        .join('invoice_items', 'invoice_items.invoice_id', 'deliveries.invoice_id')
+        .where('deliveries.tenant_id', tenantId)
+        .where('deliveries.company_id', companyId)
+        .whereBetween('driver_settlements.validated_at', [startOfDay, endOfDay])
         .select(
           db.raw(
             'SUM((invoice_items.unit_price - COALESCE(invoice_items.purchase_price, 0)) * invoice_items.quantity) as profit'
@@ -133,7 +202,10 @@ export default class DashboardController {
     ])
 
     // --- Derive the response from the parallel results ---
-    const todayRevenue = Number(todayInv?.total ?? 0) + Number(todayCredits?.total ?? 0)
+    const todayRevenue =
+      Number(todayInv?.total ?? 0) +
+      Number(todayStoreCod?.total ?? 0) +
+      Number(todayCredits?.total ?? 0)
     const todayInvoicesCount = Number(todayCountRow?.c ?? 0)
     const creditsCreatedToday = Number((creditsTodayRow as any)?.total ?? 0)
     const creditsCreatedTodayCount = Number((creditsTodayRow as any)?.c ?? 0)
@@ -141,20 +213,63 @@ export default class DashboardController {
 
     const dayMap = new Map<string, number>()
     for (const r of invByDay as any[]) dayMap.set(String(r.date), Number(r.revenue ?? 0))
-    for (const r of payByDay as any[]) dayMap.set(String(r.date), (dayMap.get(String(r.date)) ?? 0) + Number(r.revenue ?? 0))
+    for (const r of codByDay as any[])
+      dayMap.set(String(r.date), (dayMap.get(String(r.date)) ?? 0) + Number(r.revenue ?? 0))
+    for (const r of payByDay as any[])
+      dayMap.set(String(r.date), (dayMap.get(String(r.date)) ?? 0) + Number(r.revenue ?? 0))
     const salesLast7Days = [...dayMap.entries()]
       .map(([date, revenue]) => ({ date, revenue }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
     const methodMap = new Map<string, number>()
-    for (const r of invByMethod as any[]) methodMap.set(String(r.payment_method ?? 'non_défini'), Number(r.total ?? 0))
+    for (const r of invByMethod as any[])
+      methodMap.set(String(r.payment_method ?? 'non_défini'), Number(r.total ?? 0))
     for (const r of payByMode as any[]) {
       const k = String((r as any).payment_mode ?? 'non_défini')
       methodMap.set(k, (methodMap.get(k) ?? 0) + Number((r as any).total ?? 0))
     }
-    const paymentDistribution = [...methodMap.entries()].map(([method, revenue]) => ({ method, revenue }))
+    const paymentDistribution = [...methodMap.entries()].map(([method, revenue]) => ({
+      method,
+      revenue,
+    }))
 
-    const todayProfit = Number((profitRow as any)?.profit ?? 0)
+    const todayProfit =
+      Number((profitRow as any)?.profit ?? 0) + Number((todayStoreProfit as any)?.profit ?? 0)
+
+    // --- Deliveries KPIs (scoped) ---
+    const delScope = (q: any) => q.where('tenant_id', tenantId).where('company_id', companyId)
+    const [
+      pendingDeliveriesRow,
+      activeDeliveriesRow,
+      todayDeliveredRow,
+      todayCodRow,
+      failedDeliveriesRow,
+    ] = await Promise.all([
+      delScope(db.from('deliveries')).where('status', 'pending').count('* as c').first(),
+      delScope(db.from('deliveries'))
+        .whereIn('status', ['assigned', 'picked_up', 'in_transit'])
+        .count('* as c')
+        .first(),
+      delScope(db.from('deliveries'))
+        .where('status', 'delivered')
+        .whereBetween('delivered_at', [startOfDay, endOfDay])
+        .count('* as c')
+        .first(),
+      delScope(db.from('deliveries'))
+        .where('status', 'delivered')
+        .where('cod_collected', true)
+        .whereBetween('delivered_at', [startOfDay, endOfDay])
+        .sum('cod_amount as total')
+        .first(),
+      delScope(db.from('deliveries')).where('status', 'failed').count('* as c').first(),
+    ])
+    const deliveries = {
+      pending: Number(pendingDeliveriesRow?.c ?? 0),
+      active: Number(activeDeliveriesRow?.c ?? 0),
+      todayDelivered: Number(todayDeliveredRow?.c ?? 0),
+      todayCod: Number(todayCodRow?.total ?? 0),
+      failed: Number(failedDeliveriesRow?.c ?? 0),
+    }
 
     return {
       today: {
@@ -180,6 +295,7 @@ export default class DashboardController {
         totalQuantity: Number(r.total_quantity ?? 0),
       })),
       stock: { low: lowStock, out: outOfStock },
+      deliveries,
       recentInvoices: (recent as any[]).map((r) => ({
         id: r.id,
         invoiceNumber: r.invoice_number,

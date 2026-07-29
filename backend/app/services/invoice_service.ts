@@ -55,7 +55,11 @@ const toDate = (v: any): Date | null => {
   if (!v) return null
   if (v instanceof Date) return isNaN(v.getTime()) ? null : v
   if (v && typeof v.toJSDate === 'function') {
-    try { return v.toJSDate() } catch { return null }
+    try {
+      return v.toJSDate()
+    } catch {
+      return null
+    }
   }
   const d = new Date(v)
   return isNaN(d.getTime()) ? null : d
@@ -105,7 +109,10 @@ export const InvoiceService = {
       if (!warehouseId) {
         let stock = getCachedStock(companyId)
         if (stock === undefined) {
-          const settingsRow = await trx.from('company_settings').where('company_id', companyId).first()
+          const settingsRow = await trx
+            .from('company_settings')
+            .where('company_id', companyId)
+            .first()
           stock = settingsRow?.stock
             ? typeof settingsRow.stock === 'string'
               ? JSON.parse(settingsRow.stock)
@@ -167,11 +174,15 @@ export const InvoiceService = {
         .where('warehouse_id', warehouseId)
         .whereIn('product_id', productIds)
         .forUpdate()
-      const stockByProduct = new Map<number, any>(lockedRows.map((r: any) => [Number(r.product_id), r]))
+      const stockByProduct = new Map<number, any>(
+        lockedRows.map((r: any) => [Number(r.product_id), r])
+      )
       for (const item of input.items) {
         const loc = stockByProduct.get(item.productId)
         if (!loc) {
-          throw new Error(`No stock location for "${productById.get(item.productId).name}" in this warehouse`)
+          throw new Error(
+            `No stock location for "${productById.get(item.productId).name}" in this warehouse`
+          )
         }
         if (Number(loc.quantity) < item.quantity) {
           throw new Error(`Insufficient stock for "${productById.get(item.productId).name}"`)
@@ -181,13 +192,24 @@ export const InvoiceService = {
       // 4. totals (delegated to pure computeTotals — single source of truth)
       const discount = input.discount ?? 0
       const taxRate = input.taxRate ?? 0
+      // Default payment: a non-credit sale (cash / mobile / bank) with no
+      // explicit paidAmount is considered PAID IN FULL (a cash sale is settled
+      // at the counter). computeTotals clamps paidAmount to `total`, so passing
+      // MAX_SAFE_INTEGER means "everything paid". Credit sales default to 0.
+      // (The UI always sends paidAmount explicitly; this only fixes the API
+      // default so a cash sale can never silently end up "unpaid".)
       const requestedPaid =
         input.paidAmount != null
           ? input.paidAmount
           : input.paymentMethod === 'credit'
             ? 0
-            : undefined as any
-      const totals = computeTotals(input.items, input.taxRate ?? 0, input.discount ?? 0, requestedPaid ?? 0)
+            : Number.MAX_SAFE_INTEGER
+      const totals = computeTotals(
+        input.items,
+        input.taxRate ?? 0,
+        input.discount ?? 0,
+        requestedPaid
+      )
       const { subtotal, taxAmount, total, paidAmount, remainingAmount: remaining } = totals
       const status = totals.status
 
@@ -211,7 +233,6 @@ export const InvoiceService = {
           next_number: 2,
         })
       }
-
 
       // 6. insert invoice
       const [invoiceRow] = await trx
@@ -252,7 +273,15 @@ export const InvoiceService = {
       // 7. items + stock decrement + movements + recompute
       await this.applyItems(
         trx,
-        { tenantId, companyId, invoiceId, invoiceNumber, userId, userName, warehouseId: warehouseId! },
+        {
+          tenantId,
+          companyId,
+          invoiceId,
+          invoiceNumber,
+          userId,
+          userName,
+          warehouseId: warehouseId!,
+        },
         input.items,
         productById,
         stockByProduct
@@ -260,13 +289,18 @@ export const InvoiceService = {
 
       // 8. client stats (atomic)
       if (input.clientId) {
-        await trx.from('clients').where('id', input.clientId).where('tenant_id', tenantId).where('company_id', companyId).update({
-          total_purchases: trx.raw('total_purchases + 1'),
-          total_amount: trx.raw('total_amount + ?', [total]),
-          current_credit: trx.raw('current_credit + ?', [remaining]),
-          last_purchase_date: now(),
-          updated_at: now(),
-        })
+        await trx
+          .from('clients')
+          .where('id', input.clientId)
+          .where('tenant_id', tenantId)
+          .where('company_id', companyId)
+          .update({
+            total_purchases: trx.raw('total_purchases + 1'),
+            total_amount: trx.raw('total_amount + ?', [total]),
+            current_credit: trx.raw('current_credit + ?', [remaining]),
+            last_purchase_date: now(),
+            updated_at: now(),
+          })
       }
 
       // 9. cash movement (if paid)
@@ -274,17 +308,55 @@ export const InvoiceService = {
       if (paidAmount > 0) {
         const register = await this.getOrCreateMainRegister(trx, tenantId, companyId)
         cashRegisterId = register.id
-        await this.recordCashIn(trx, { tenantId, companyId, registerId: register.id, amount: paidAmount, invoiceId, invoiceNumber, userId, userName })
+        await this.recordCashIn(trx, {
+          tenantId,
+          companyId,
+          registerId: register.id,
+          amount: paidAmount,
+          invoiceId,
+          invoiceNumber,
+          userId,
+          userName,
+        })
       }
 
       // 10. client credit (if outstanding)
       if (remaining > 0 && input.clientId) {
-        await this.createCredit(trx, { tenantId, companyId, clientId: input.clientId, clientName: input.clientName ?? '', invoiceId, invoiceNumber, amount: remaining, paidAmount })
+        await this.createCredit(trx, {
+          tenantId,
+          companyId,
+          clientId: input.clientId,
+          clientName: input.clientName ?? '',
+          invoiceId,
+          invoiceNumber,
+          amount: remaining,
+          paidAmount,
+        })
       }
 
-      await AuditService.log(ctx, { action: 'create', entity: 'invoice', entityId: invoiceId, after: { invoiceNumber, total, paidAmount, remaining, status } }, { client: trx })
+      await AuditService.log(
+        ctx,
+        {
+          action: 'create',
+          entity: 'invoice',
+          entityId: invoiceId,
+          after: { invoiceNumber, total, paidAmount, remaining, status },
+        },
+        { client: trx }
+      )
 
-      return { id: invoiceId, invoiceNumber, subtotal, taxAmount, discount, total, paidAmount, remaining, status, cashRegisterId }
+      return {
+        id: invoiceId,
+        invoiceNumber,
+        subtotal,
+        taxAmount,
+        discount,
+        total,
+        paidAmount,
+        remaining,
+        status,
+        cashRegisterId,
+      }
     })
   },
 
@@ -326,16 +398,36 @@ export const InvoiceService = {
         const before = loc ? Number(loc.quantity) : 0
         const after = before + qty
         if (loc) {
-          await trx.from('product_stock_locations').where('id', loc.id).update({ quantity: after, updated_at: now() })
+          await trx
+            .from('product_stock_locations')
+            .where('id', loc.id)
+            .update({ quantity: after, updated_at: now() })
         } else {
           await trx.table('product_stock_locations').insert({
-            tenant_id: tenantId, company_id: companyId, product_id: m.product_id, warehouse_id: m.warehouse_id, quantity: after, alert_threshold: 0, updated_at: now(),
+            tenant_id: tenantId,
+            company_id: companyId,
+            product_id: m.product_id,
+            warehouse_id: m.warehouse_id,
+            quantity: after,
+            alert_threshold: 0,
+            updated_at: now(),
           })
         }
         await trx.table('stock_movements').insert({
-          tenant_id: tenantId, company_id: companyId, product_id: m.product_id, warehouse_id: m.warehouse_id, type: 'in', quantity: qty,
-          reason: `Cancellation of invoice ${inv.invoice_number}`, reference_type: 'invoice_cancellation', reference_id: invoiceId,
-          user_id: userId, user_name: userName, quantity_before: before, quantity_after: after, created_at: now(),
+          tenant_id: tenantId,
+          company_id: companyId,
+          product_id: m.product_id,
+          warehouse_id: m.warehouse_id,
+          type: 'in',
+          quantity: qty,
+          reason: `Cancellation of invoice ${inv.invoice_number}`,
+          reference_type: 'invoice_cancellation',
+          reference_id: invoiceId,
+          user_id: userId,
+          user_name: userName,
+          quantity_before: before,
+          quantity_after: after,
+          created_at: now(),
         })
         await StockService.recomputeProduct(trx, tenantId, companyId, m.product_id)
       }
@@ -350,11 +442,27 @@ export const InvoiceService = {
       if (cashIn) {
         const registerId = Number(cashIn.cash_register_id)
         await trx.table('cash_movements').insert({
-          tenant_id: tenantId, company_id: companyId, cash_register_id: registerId, type: 'out', amount: Number(cashIn.amount), category: 'cancellation',
-          description: `Cancellation of invoice ${inv.invoice_number}`, reference_type: 'invoice', reference_id: invoiceId, target_cash_register_id: null,
-          user_id: userId, user_name: userName, created_at: now(),
+          tenant_id: tenantId,
+          company_id: companyId,
+          cash_register_id: registerId,
+          type: 'out',
+          amount: Number(cashIn.amount),
+          category: 'cancellation',
+          description: `Cancellation of invoice ${inv.invoice_number}`,
+          reference_type: 'invoice',
+          reference_id: invoiceId,
+          target_cash_register_id: null,
+          user_id: userId,
+          user_name: userName,
+          created_at: now(),
         })
-        await trx.from('cash_registers').where('id', registerId).update({ current_balance: trx.raw('current_balance - ?', [Number(cashIn.amount)]), updated_at: now() })
+        await trx
+          .from('cash_registers')
+          .where('id', registerId)
+          .update({
+            current_balance: trx.raw('current_balance - ?', [Number(cashIn.amount)]),
+            updated_at: now(),
+          })
       }
 
       // reverse credit payments made against this invoice's credits
@@ -374,23 +482,43 @@ export const InvoiceService = {
         if (totalPaid > 0) {
           const register = await this.getOrCreateMainRegister(trx, tenantId, companyId)
           await trx.table('cash_movements').insert({
-            tenant_id: tenantId, company_id: companyId, cash_register_id: register.id,
-            type: 'out', amount: totalPaid, category: 'cancellation',
+            tenant_id: tenantId,
+            company_id: companyId,
+            cash_register_id: register.id,
+            type: 'out',
+            amount: totalPaid,
+            category: 'cancellation',
             description: `Reversal of credit payments — invoice ${inv.invoice_number}`,
-            reference_type: 'client_credit_cancellation', reference_id: credit.id,
-            target_cash_register_id: null, user_id: userId, user_name: userName, created_at: now(),
+            reference_type: 'client_credit_cancellation',
+            reference_id: credit.id,
+            target_cash_register_id: null,
+            user_id: userId,
+            user_name: userName,
+            created_at: now(),
           })
-          await trx.from('cash_registers').where('id', register.id)
-            .update({ current_balance: trx.raw('current_balance - ?', [totalPaid]), updated_at: now() })
+          await trx
+            .from('cash_registers')
+            .where('id', register.id)
+            .update({
+              current_balance: trx.raw('current_balance - ?', [totalPaid]),
+              updated_at: now(),
+            })
           // undo the payment deductions on the client's current_credit
           if (credit.client_id) {
-            await trx.from('clients').where('id', credit.client_id)
-              .where('tenant_id', tenantId).where('company_id', companyId)
-              .update({ current_credit: trx.raw('GREATEST(0, current_credit + ?)', [totalPaid]), updated_at: now() })
+            await trx
+              .from('clients')
+              .where('id', credit.client_id)
+              .where('tenant_id', tenantId)
+              .where('company_id', companyId)
+              .update({
+                current_credit: trx.raw('GREATEST(0, current_credit + ?)', [totalPaid]),
+                updated_at: now(),
+              })
           }
         }
         // delete the payments (fully reversed, not just marked)
-        await trx.from('client_credit_payments')
+        await trx
+          .from('client_credit_payments')
           .where('client_credit_id', credit.id)
           .where('tenant_id', tenantId)
           .where('company_id', companyId)
@@ -398,28 +526,54 @@ export const InvoiceService = {
       }
 
       // cancel client credit
-      await trx.from('client_credits').where('invoice_id', invoiceId).where('tenant_id', tenantId).where('company_id', companyId).update({ status: 'cancelled', updated_at: now() })
+      await trx
+        .from('client_credits')
+        .where('invoice_id', invoiceId)
+        .where('tenant_id', tenantId)
+        .where('company_id', companyId)
+        .update({ status: 'cancelled', updated_at: now() })
 
       // reverse client stats
       if (inv.client_id) {
-        await trx.from('clients').where('id', inv.client_id).where('tenant_id', tenantId).where('company_id', companyId).update({
-          total_purchases: trx.raw('GREATEST(0, total_purchases - 1)'),
-          total_amount: trx.raw('GREATEST(0, total_amount - ?)', [Number(inv.total)]),
-          current_credit: trx.raw('GREATEST(0, current_credit - ?)', [Number(inv.remaining_amount)]),
-          updated_at: now(),
-        })
+        await trx
+          .from('clients')
+          .where('id', inv.client_id)
+          .where('tenant_id', tenantId)
+          .where('company_id', companyId)
+          .update({
+            total_purchases: trx.raw('GREATEST(0, total_purchases - 1)'),
+            total_amount: trx.raw('GREATEST(0, total_amount - ?)', [Number(inv.total)]),
+            current_credit: trx.raw('GREATEST(0, current_credit - ?)', [
+              Number(inv.remaining_amount),
+            ]),
+            updated_at: now(),
+          })
       }
 
-      await trx.from('invoices').where('id', invoiceId).update({ status: 'cancelled', cancelled_at: now(), updated_at: now() })
+      await trx
+        .from('invoices')
+        .where('id', invoiceId)
+        .update({ status: 'cancelled', cancelled_at: now(), updated_at: now() })
 
-      await AuditService.log(ctx, { action: 'delete', entity: 'invoice', entityId: invoiceId, before: { status: inv.status, total: Number(inv.total) }, after: { status: 'cancelled' } }, { client: trx })
+      await AuditService.log(
+        ctx,
+        {
+          action: 'delete',
+          entity: 'invoice',
+          entityId: invoiceId,
+          before: { status: inv.status, total: Number(inv.total) },
+          after: { status: 'cancelled' },
+        },
+        { client: trx }
+      )
       return { id: invoiceId, status: 'cancelled' }
     })
   },
 
   /** Full edit: CLEAN reversal of the old effects + APPLY new on the same invoice (keeps the number). */
   async update(ctx: HttpContext, invoiceId: number, input: CreateInvoiceInput) {
-    if (!input.items || input.items.length === 0) throw new Error('Invoice must contain at least one item')
+    if (!input.items || input.items.length === 0)
+      throw new Error('Invoice must contain at least one item')
     const tenantId = ctx.tenantId
     const companyId = ctx.companyId
     if (!companyId) throw new Error('No company context')
@@ -427,52 +581,124 @@ export const InvoiceService = {
     const userName = ctx.auth.user?.fullName ?? null
 
     return db.transaction(async (trx) => {
-      const inv: any = await trx.from('invoices').where('id', invoiceId).where('tenant_id', tenantId).where('company_id', companyId).forUpdate().first()
+      const inv: any = await trx
+        .from('invoices')
+        .where('id', invoiceId)
+        .where('tenant_id', tenantId)
+        .where('company_id', companyId)
+        .forUpdate()
+        .first()
       if (!inv) throw new Error('Invoice not found')
       if (inv.status === 'cancelled') throw new Error('Cannot edit a cancelled invoice')
       const invoiceNumber = inv.invoice_number
-      const before = { status: inv.status, total: Number(inv.total), paid: Number(inv.paid_amount), remaining: Number(inv.remaining_amount) }
+      const before = {
+        status: inv.status,
+        total: Number(inv.total),
+        paid: Number(inv.paid_amount),
+        remaining: Number(inv.remaining_amount),
+      }
 
       // --- 1. CLEAN REVERSAL of the old effects ---
-      const oldOut = await trx.from('stock_movements').where('reference_type', 'invoice').where('reference_id', invoiceId).where('type', 'out')
+      const oldOut = await trx
+        .from('stock_movements')
+        .where('reference_type', 'invoice')
+        .where('reference_id', invoiceId)
+        .where('type', 'out')
       const warehouseId = oldOut.length ? Number(oldOut[0].warehouse_id) : null
       for (const m of oldOut) {
         const qty = Math.abs(Number(m.quantity))
-        const loc = await trx.from('product_stock_locations').where('tenant_id', tenantId).where('company_id', companyId).where('product_id', m.product_id).where('warehouse_id', m.warehouse_id).forUpdate().first()
+        const loc = await trx
+          .from('product_stock_locations')
+          .where('tenant_id', tenantId)
+          .where('company_id', companyId)
+          .where('product_id', m.product_id)
+          .where('warehouse_id', m.warehouse_id)
+          .forUpdate()
+          .first()
         if (loc) {
-          await trx.from('product_stock_locations').where('id', loc.id).update({ quantity: Number(loc.quantity) + qty, updated_at: now() })
+          await trx
+            .from('product_stock_locations')
+            .where('id', loc.id)
+            .update({ quantity: Number(loc.quantity) + qty, updated_at: now() })
         } else {
-          await trx.table('product_stock_locations').insert({ tenant_id: tenantId, company_id: companyId, product_id: m.product_id, warehouse_id: m.warehouse_id, quantity: qty, alert_threshold: 0, updated_at: now() })
+          await trx
+            .table('product_stock_locations')
+            .insert({
+              tenant_id: tenantId,
+              company_id: companyId,
+              product_id: m.product_id,
+              warehouse_id: m.warehouse_id,
+              quantity: qty,
+              alert_threshold: 0,
+              updated_at: now(),
+            })
         }
         await StockService.recomputeProduct(trx, tenantId, companyId, m.product_id)
       }
-      await trx.from('stock_movements').where('reference_type', 'invoice').where('reference_id', invoiceId).delete()
+      await trx
+        .from('stock_movements')
+        .where('reference_type', 'invoice')
+        .where('reference_id', invoiceId)
+        .delete()
 
-      const oldCashIn = await trx.from('cash_movements').where('reference_type', 'invoice').where('reference_id', invoiceId).where('type', 'in').first()
+      const oldCashIn = await trx
+        .from('cash_movements')
+        .where('reference_type', 'invoice')
+        .where('reference_id', invoiceId)
+        .where('type', 'in')
+        .first()
       if (oldCashIn) {
-        await trx.from('cash_registers').where('id', oldCashIn.cash_register_id).update({ current_balance: trx.raw('current_balance - ?', [Number(oldCashIn.amount)]), updated_at: now() })
+        await trx
+          .from('cash_registers')
+          .where('id', oldCashIn.cash_register_id)
+          .update({
+            current_balance: trx.raw('current_balance - ?', [Number(oldCashIn.amount)]),
+            updated_at: now(),
+          })
       }
-      await trx.from('cash_movements').where('reference_type', 'invoice').where('reference_id', invoiceId).delete()
-      await trx.from('client_credits').where('invoice_id', invoiceId).where('tenant_id', tenantId).where('company_id', companyId).delete()
+      await trx
+        .from('cash_movements')
+        .where('reference_type', 'invoice')
+        .where('reference_id', invoiceId)
+        .delete()
+      await trx
+        .from('client_credits')
+        .where('invoice_id', invoiceId)
+        .where('tenant_id', tenantId)
+        .where('company_id', companyId)
+        .delete()
       await trx.from('invoice_items').where('invoice_id', invoiceId).delete()
       if (inv.client_id) {
-        await trx.from('clients').where('id', inv.client_id).where('tenant_id', tenantId).where('company_id', companyId).update({
-          total_purchases: trx.raw('GREATEST(0, total_purchases - 1)'),
-          total_amount: trx.raw('GREATEST(0, total_amount - ?)', [Number(inv.total)]),
-          current_credit: trx.raw('GREATEST(0, current_credit - ?)', [Number(inv.remaining_amount)]),
-          updated_at: now(),
-        })
+        await trx
+          .from('clients')
+          .where('id', inv.client_id)
+          .where('tenant_id', tenantId)
+          .where('company_id', companyId)
+          .update({
+            total_purchases: trx.raw('GREATEST(0, total_purchases - 1)'),
+            total_amount: trx.raw('GREATEST(0, total_amount - ?)', [Number(inv.total)]),
+            current_credit: trx.raw('GREATEST(0, current_credit - ?)', [
+              Number(inv.remaining_amount),
+            ]),
+            updated_at: now(),
+          })
       }
 
       // --- 2. APPLY NEW ---
       if (!warehouseId) throw new Error('Original sale warehouse not found')
       const productIds = input.items.map((i) => i.productId)
-      const products = await trx.from('products').whereIn('id', productIds).where('tenant_id', tenantId).where('company_id', companyId).whereNull('deleted_at')
+      const products = await trx
+        .from('products')
+        .whereIn('id', productIds)
+        .where('tenant_id', tenantId)
+        .where('company_id', companyId)
+        .whereNull('deleted_at')
       const productById = new Map(products.map((p: any) => [p.id, p]))
       for (const item of input.items) {
         const p = productById.get(item.productId)
         if (!p) throw new Error(`Product ${item.productId} not found`)
-        if (item.unitPrice < Number(p.purchase_price)) throw new Error(`Anti-perte: "${p.name}" sold below its purchase price`)
+        if (item.unitPrice < Number(p.purchase_price))
+          throw new Error(`Anti-perte: "${p.name}" sold below its purchase price`)
       }
       const stockByProduct = new Map<number, any>()
       const lockedRows = await trx
@@ -485,65 +711,136 @@ export const InvoiceService = {
       for (const loc of lockedRows) stockByProduct.set(Number(loc.product_id), loc)
       for (const item of input.items) {
         const loc = stockByProduct.get(item.productId)
-        if (!loc) throw new Error(`No stock location for "${productById.get(item.productId).name}" in this warehouse`)
-        if (Number(loc.quantity) < item.quantity) throw new Error(`Insufficient stock for "${productById.get(item.productId).name}"`)
+        if (!loc)
+          throw new Error(
+            `No stock location for "${productById.get(item.productId).name}" in this warehouse`
+          )
+        if (Number(loc.quantity) < item.quantity)
+          throw new Error(`Insufficient stock for "${productById.get(item.productId).name}"`)
       }
 
-      const totals = computeTotals(input.items, input.taxRate ?? 0, input.discount ?? 0, input.paidAmount != null ? input.paidAmount : input.paymentMethod === 'credit' ? 0 : 0)
+      const totals = computeTotals(
+        input.items,
+        input.taxRate ?? 0,
+        input.discount ?? 0,
+        input.paidAmount != null
+          ? input.paidAmount
+          : input.paymentMethod === 'credit'
+            ? 0
+            : Number.MAX_SAFE_INTEGER
+      )
       const { subtotal, taxAmount, total, paidAmount, remainingAmount: remaining } = totals
       const status = totals.status
       const taxRate = input.taxRate ?? 0
       const discount = input.discount ?? 0
-      const clientId = input.clientId != null ? input.clientId : inv.client_id ?? null
-      const clientName = input.clientName != null ? input.clientName : inv.client_name ?? null
+      const clientId = input.clientId != null ? input.clientId : (inv.client_id ?? null)
+      const clientName = input.clientName != null ? input.clientName : (inv.client_name ?? null)
 
-      await this.applyItems(trx, { tenantId, companyId, invoiceId, invoiceNumber, userId, userName, warehouseId }, input.items, productById, stockByProduct, '(edited)')
+      await this.applyItems(
+        trx,
+        { tenantId, companyId, invoiceId, invoiceNumber, userId, userName, warehouseId },
+        input.items,
+        productById,
+        stockByProduct,
+        '(edited)'
+      )
 
       if (clientId) {
-        await trx.from('clients').where('id', clientId).where('tenant_id', tenantId).where('company_id', companyId).update({
-          total_purchases: trx.raw('total_purchases + 1'),
-          total_amount: trx.raw('total_amount + ?', [total]),
-          current_credit: trx.raw('current_credit + ?', [remaining]),
-          last_purchase_date: now(),
-          updated_at: now(),
-        })
+        await trx
+          .from('clients')
+          .where('id', clientId)
+          .where('tenant_id', tenantId)
+          .where('company_id', companyId)
+          .update({
+            total_purchases: trx.raw('total_purchases + 1'),
+            total_amount: trx.raw('total_amount + ?', [total]),
+            current_credit: trx.raw('current_credit + ?', [remaining]),
+            last_purchase_date: now(),
+            updated_at: now(),
+          })
       }
       let cashRegisterId: number | null = null
       if (paidAmount > 0) {
         const register = await this.getOrCreateMainRegister(trx, tenantId, companyId)
         cashRegisterId = register.id
-        await this.recordCashIn(trx, { tenantId, companyId, registerId: register.id, amount: paidAmount, invoiceId, invoiceNumber, userId, userName }, '(edited)')
+        await this.recordCashIn(
+          trx,
+          {
+            tenantId,
+            companyId,
+            registerId: register.id,
+            amount: paidAmount,
+            invoiceId,
+            invoiceNumber,
+            userId,
+            userName,
+          },
+          '(edited)'
+        )
       }
       if (remaining > 0 && clientId) {
-        await this.createCredit(trx, { tenantId, companyId, clientId, clientName: clientName ?? '', invoiceId, invoiceNumber, amount: remaining, paidAmount })
+        await this.createCredit(trx, {
+          tenantId,
+          companyId,
+          clientId,
+          clientName: clientName ?? '',
+          invoiceId,
+          invoiceNumber,
+          amount: remaining,
+          paidAmount,
+        })
       }
 
-      await trx.from('invoices').where('id', invoiceId).update({
-        client_id: clientId,
-        client_name: clientName,
+      await trx
+        .from('invoices')
+        .where('id', invoiceId)
+        .update({
+          client_id: clientId,
+          client_name: clientName,
+          subtotal,
+          tax_rate: taxRate,
+          tax_amount: taxAmount,
+          discount,
+          total,
+          status,
+          payment_method: input.paymentMethod ?? (remaining === 0 ? 'cash' : 'credit'),
+          paid_amount: paidAmount,
+          remaining_amount: remaining,
+          paid_at: remaining === 0 ? now() : null,
+          notes: input.notes ?? inv.notes,
+          sale_date: toDate(input.saleDate) ?? inv.sale_date,
+          mobile_number: input.mobileNumber || null,
+          bank_name: input.bankName || null,
+          account_number: input.accountNumber || null,
+          transaction_number: input.transactionNumber || null,
+          cancelled_at: null,
+          updated_at: now(),
+        })
+
+      await AuditService.log(
+        ctx,
+        {
+          action: 'update',
+          entity: 'invoice',
+          entityId: invoiceId,
+          before,
+          after: { total, paidAmount, remaining, status },
+        },
+        { client: trx }
+      )
+
+      return {
+        id: invoiceId,
+        invoiceNumber,
         subtotal,
-        tax_rate: taxRate,
-        tax_amount: taxAmount,
+        taxAmount,
         discount,
         total,
+        paidAmount,
+        remaining,
         status,
-        payment_method: input.paymentMethod ?? (remaining === 0 ? 'cash' : 'credit'),
-        paid_amount: paidAmount,
-        remaining_amount: remaining,
-        paid_at: remaining === 0 ? now() : null,
-        notes: input.notes ?? inv.notes,
-        sale_date: toDate(input.saleDate) ?? inv.sale_date,
-        mobile_number: input.mobileNumber || null,
-        bank_name: input.bankName || null,
-        account_number: input.accountNumber || null,
-        transaction_number: input.transactionNumber || null,
-        cancelled_at: null,
-        updated_at: now(),
-      })
-
-      await AuditService.log(ctx, { action: 'update', entity: 'invoice', entityId: invoiceId, before, after: { total, paidAmount, remaining, status } }, { client: trx })
-
-      return { id: invoiceId, invoiceNumber, subtotal, taxAmount, discount, total, paidAmount, remaining, status, cashRegisterId }
+        cashRegisterId,
+      }
     })
   },
 
@@ -564,7 +861,15 @@ export const InvoiceService = {
    */
   async applyItems(
     trx: any,
-    ctx: { tenantId: number; companyId: number; invoiceId: number; invoiceNumber: string; userId: number | null; userName: string | null; warehouseId: number },
+    ctx: {
+      tenantId: number
+      companyId: number
+      invoiceId: number
+      invoiceNumber: string
+      userId: number | null
+      userName: string | null
+      warehouseId: number
+    },
     items: InvoiceItemInput[],
     productById: Map<number, any>,
     stockByProduct: Map<number, any>,
@@ -653,7 +958,16 @@ export const InvoiceService = {
   /** Record a cash 'in' movement for a sale + credit the register. */
   async recordCashIn(
     trx: any,
-    ctx: { tenantId: number; companyId: number; registerId: number; amount: number; invoiceId: number; invoiceNumber: string; userId: number | null; userName: string | null },
+    ctx: {
+      tenantId: number
+      companyId: number
+      registerId: number
+      amount: number
+      invoiceId: number
+      invoiceNumber: string
+      userId: number | null
+      userName: string | null
+    },
     suffix: string = ''
   ) {
     await trx.table('cash_movements').insert({
@@ -671,13 +985,25 @@ export const InvoiceService = {
       user_name: ctx.userName,
       created_at: now(),
     })
-    await trx.from('cash_registers').where('id', ctx.registerId).update({ current_balance: trx.raw('current_balance + ?', [ctx.amount]), updated_at: now() })
+    await trx
+      .from('cash_registers')
+      .where('id', ctx.registerId)
+      .update({ current_balance: trx.raw('current_balance + ?', [ctx.amount]), updated_at: now() })
   },
 
   /** Create the client_credit row for an outstanding invoice. */
   async createCredit(
     trx: any,
-    ctx: { tenantId: number; companyId: number; clientId: number; clientName: string; invoiceId: number; invoiceNumber: string; amount: number; paidAmount: number }
+    ctx: {
+      tenantId: number
+      companyId: number
+      clientId: number
+      clientName: string
+      invoiceId: number
+      invoiceNumber: string
+      amount: number
+      paidAmount: number
+    }
   ) {
     await trx.table('client_credits').insert({
       tenant_id: ctx.tenantId,
@@ -699,12 +1025,30 @@ export const InvoiceService = {
   },
 
   async getOrCreateMainRegister(trx: any, tenantId: number, companyId: number) {
-    let reg = await trx.from('cash_registers').where('tenant_id', tenantId).where('company_id', companyId).where('is_main', true).first()
+    let reg = await trx
+      .from('cash_registers')
+      .where('tenant_id', tenantId)
+      .where('company_id', companyId)
+      .where('is_main', true)
+      .first()
     if (!reg) {
       await trx.table('cash_registers').insert({
-        tenant_id: tenantId, company_id: companyId, name: 'Caisse principale', code: 'MAIN', is_main: true, is_active: true, current_balance: 0, created_at: now(), updated_at: now(),
+        tenant_id: tenantId,
+        company_id: companyId,
+        name: 'Caisse principale',
+        code: 'MAIN',
+        is_main: true,
+        is_active: true,
+        current_balance: 0,
+        created_at: now(),
+        updated_at: now(),
       })
-      reg = await trx.from('cash_registers').where('tenant_id', tenantId).where('company_id', companyId).where('is_main', true).first()
+      reg = await trx
+        .from('cash_registers')
+        .where('tenant_id', tenantId)
+        .where('company_id', companyId)
+        .where('is_main', true)
+        .first()
     }
     return reg
   },

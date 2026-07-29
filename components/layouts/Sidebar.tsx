@@ -15,9 +15,10 @@ import {
   CreditCard,
   TrendingUp,
   Sparkles,
+  Truck,
 } from "lucide-react";
 
-type NavItem = { name: string; href: string; icon: any; module: string };
+type NavItem = { name: string; href: string; icon: any; module: string; action?: string };
 
 /**
  * Atelier navigation.
@@ -32,11 +33,21 @@ const STANDALONE: NavItem = {
   module: "dashboard",
 };
 
+/** Driver mobile app — standalone, visible with deliveries:complete only. */
+const LIVREUR: NavItem = {
+  name: "Mes livraisons",
+  href: "/livreur",
+  icon: Truck,
+  module: "deliveries",
+  action: "complete",
+};
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Commercial",
     items: [
       { name: "Ventes", href: "/sales", icon: ShoppingCart, module: "sales" },
+      { name: "Livraisons", href: "/deliveries", icon: Truck, module: "deliveries" },
       { name: "Clientèle", href: "/clients", icon: Users, module: "clients" },
       { name: "Crédits clients", href: "/credits/clients", icon: CreditCard, module: "credits" },
     ],
@@ -72,9 +83,13 @@ interface SidebarProps {
 
 export function Sidebar({ showLogo = true, onMobileMenuClose }: SidebarProps) {
   const pathname = usePathname();
-  const { isAdmin, canAccessModule, getFirstAccessiblePage } = usePermissions();
+  const { isAdmin, canAccessModule, hasPermission, getFirstAccessiblePage } = usePermissions();
 
-  const isVisible = (item: NavItem) => isAdmin || canAccessModule(item.module);
+  // An item is visible if the user has its required action (default 'read').
+  // The "Mes livraisons" entry requires 'complete' so a driver-only employee
+  // (no 'read' on deliveries) still sees their tour app.
+  const isVisible = (item: NavItem) =>
+    isAdmin || hasPermission(item.module, item.action ?? 'read');
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
 
@@ -144,8 +159,9 @@ export function Sidebar({ showLogo = true, onMobileMenuClose }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {/* Tableau de bord — standalone, no eyebrow */}
-        {isVisible(STANDALONE) && <div className="mb-5">{renderItem(STANDALONE)}</div>}
+        {/* Tableau de bord + Mes livraisons — standalone, no eyebrow */}
+        {isVisible(STANDALONE) && <div className="mb-1">{renderItem(STANDALONE)}</div>}
+        {isVisible(LIVREUR) && <div className="mb-5">{renderItem(LIVREUR)}</div>}
 
         {NAV_GROUPS.map((group) => {
           const items = group.items.filter(isVisible);

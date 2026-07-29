@@ -58,8 +58,16 @@ export default class PublicCommerceController {
         companyId: company.id,
         name: buyer.fullName ?? buyer.email,
         phone,
+        email: buyer.email,
         storeAccountId: buyer.id,
       })
+    } else if (client.storeAccountId !== buyer.id || (client.email == null && buyer.email)) {
+      // Backfill the storefront link + email on a pre-existing ERP client
+      // (e.g. created manually with the same phone) so the buyer's orders and
+      // contact info stay attached to their account.
+      if (client.storeAccountId == null) client.storeAccountId = buyer.id
+      if (client.email == null && buyer.email) client.email = buyer.email
+      await client.save()
     }
 
     // Build invoice items (look up products for price + validation)
@@ -109,14 +117,10 @@ export default class PublicCommerceController {
 
     // Enrich with buyer name
     const accountIds = [...new Set(reviews.map((r) => r.storeAccountId))]
-    const accounts = accountIds.length
-      ? await StoreAccount.query().whereIn('id', accountIds)
-      : []
+    const accounts = accountIds.length ? await StoreAccount.query().whereIn('id', accountIds) : []
     const nameById = new Map(accounts.map((a) => [a.id, a.fullName ?? a.email]))
 
-    const avg = reviews.length
-      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-      : 0
+    const avg = reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0
 
     return {
       avg: Math.round(avg * 10) / 10,

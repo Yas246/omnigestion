@@ -5,8 +5,12 @@ import { defineConfig } from '@adonisjs/lucid'
 const dbConfig = defineConfig({
   /**
    * Default connection used for all queries.
+   *
+   * Tests run against a SEPARATE database (`omnigestion_test`) so the Japa
+   * suite's TRUNCATE cleanup never wipes the developer's `omnigestion_dev`
+   * data. Only the test runner (NODE_ENV=test) uses pg_test; dev/prod keep pg.
    */
-  connection: 'pg',
+  connection: process.env.NODE_ENV === 'test' ? 'pg_test' : 'pg',
 
   connections: {
     /**
@@ -44,6 +48,31 @@ const dbConfig = defineConfig({
       },
 
       debug: app.inDev,
+    },
+
+    /**
+     * Test database — same server/role as `pg`, different database. Used only
+     * when NODE_ENV=test (bin/test.ts). Schema is applied via
+     * `node ace migration:run --connection=pg_test`.
+     */
+    pg_test: {
+      client: 'pg',
+
+      connection: {
+        host: env.get('DB_HOST'),
+        port: env.get('DB_PORT'),
+        user: env.get('DB_USER'),
+        password: env.get('DB_PASSWORD'),
+        database: 'omnigestion_test',
+      },
+
+      migrations: {
+        naturalSort: true,
+        paths: ['database/migrations'],
+      },
+
+      schemaGeneration: { enabled: false },
+      debug: false,
     },
   },
 })
