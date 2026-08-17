@@ -18,9 +18,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
-import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, CloudOff, RefreshCw, Cloud, Calendar, X } from 'lucide-react';
+import { Plus, FileText, TrendingUp, DollarSign, AlertCircle, CloudOff, RefreshCw, Cloud, Calendar, X, Receipt } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fr } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -316,6 +317,47 @@ export default function SalesPage() {
     });
   }, [invoices, targetDate]);
 
+  // Paiements de crédits de la période (règlements de factures à crédit plus
+  // anciennes) — affichés dans une carte DÉDIÉE sous les factures (un paiement
+  // n'est pas une facture : ne compte ni dans le KPI Factures ni dans la
+  // liste). Pur affichage — cache React Query (listener existant), 0 lecture
+  // Firestore supplémentaire.
+  const creditById = useMemo(() => new Map(credits.map(c => [c.id, c])), [credits]);
+
+  const dayCreditPayments = useMemo(() => {
+    if (!targetDate) return []; // vue « Toutes » : carte du jour masquée
+    return payments
+      .filter(cp => {
+        const payDate = new Date(cp.createdAt);
+        payDate.setHours(0, 0, 0, 0);
+        return payDate.getTime() === targetDate.getTime();
+      })
+      .filter(cp => {
+        if (!searchQuery || searchQuery.length < 2) return true;
+        const q = searchQuery.toLowerCase();
+        const credit = creditById.get(cp.creditId);
+        return (
+          (credit?.invoiceNumber ?? '').toLowerCase().includes(q) ||
+          (credit?.clientName ?? '').toLowerCase().includes(q)
+        );
+      })
+      .map(cp => {
+        const credit = creditById.get(cp.creditId);
+        return {
+          id: String(cp.id),
+          invoiceNumber: credit?.invoiceNumber ?? '—',
+          clientName: credit?.clientName ?? '—',
+          amount: cp.amount ?? 0,
+          remainingOnCredit: credit?.remainingAmount ?? 0,
+          paymentMode: String(cp.paymentMode ?? ''),
+          createdAt: cp.createdAt,
+        };
+      })
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [payments, creditById, targetDate, searchQuery]);
+
+  const dayCreditPaymentsTotal = dayCreditPayments.reduce((s, p) => s + p.amount, 0);
+
   // CA = encaissé uniquement
   const periodCreditPaymentsTotal = payments
     .filter(cp => {
@@ -517,6 +559,75 @@ export default function SalesPage() {
           />
         </CardContent>
       </Card>
+
+      {/* Paiements de crédit de la journée (règlements de factures plus anciennes) */}
+      {targetDate && dayCreditPayments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-green-600" />
+                  Paiements de crédit
+                </CardTitle>
+                <CardDescription>
+                  Règlements de factures à crédit plus anciennes — {periodLabel}
+                </CardDescription>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold tabular-nums text-green-600">
+                  {dayCreditPaymentsTotal.toLocaleString()} FCFA
+                </p>
+                <p className="text-xs text-muted-foreground">Encaissé</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>N° Facture</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Montant réglé</TableHead>
+                    <TableHead>Reste sur le crédit</TableHead>
+                    <TableHead className="hidden sm:table-cell">Mode</TableHead>
+                    <TableHead className="hidden sm:table-cell">Heure</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dayCreditPayments.map(p => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">{p.invoiceNumber}</TableCell>
+                      <TableCell>{p.clientName}</TableCell>
+                      <TableCell className="font-medium tabular-nums text-green-600">
+                        {p.amount.toLocaleString()} FCFA
+                      </TableCell>
+                      <TableCell className="tabular-nums text-orange-600">
+                        {p.remainingOnCredit > 0
+                          ? `${p.remainingOnCredit.toLocaleString()} FCFA`
+                          : 'Soldé'}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        {p.paymentMode === 'cash'
+                          ? 'Espèces'
+                          : p.paymentMode === 'mobile'
+                            ? 'Mobile'
+                            : p.paymentMode === 'bank'
+                              ? 'Banque'
+                              : p.paymentMode || '—'}
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground sm:table-cell">
+                        {format(new Date(p.createdAt), 'HH:mm')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Dialog création facture */}
       <InvoiceDialog
