@@ -245,14 +245,22 @@ export default function StockPage() {
         // Mode simple : diff sur le dépôt par défaut
         const oldStock = editingProduct.currentStock || 0;
         const newStock = currentStock || 0;
-        if (newStock !== oldStock) {
-          const diff = newStock - oldStock;
-          const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
-          if (primaryWarehouseId) {
+        const primaryWarehouseId = settings?.stock?.defaultWarehouseId;
+        if (primaryWarehouseId) {
+          if (newStock !== oldStock) {
+            const diff = newStock - oldStock;
             const { updateProductStockInWarehouse } = await import('@/lib/firestore/products');
             await updateProductStockInWarehouse(currentCompanyId, editingProduct.id, primaryWarehouseId, diff);
           }
+        } else {
+          // Pas de dépôt par défaut : le stock du document produit est la source d'affichage
+          productData.currentStock = newStock;
         }
+        // Recalculer le statut (nouveau seuil si modifié dans le même formulaire)
+        productData.status = getStockStatus(
+          newStock,
+          (productData.alertThreshold ?? editingProduct.alertThreshold) || 0
+        );
       }
 
       // 2. Mettre à jour le document produit (sans currentStock ni stockAllocations)
