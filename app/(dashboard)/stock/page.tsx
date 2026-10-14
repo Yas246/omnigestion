@@ -10,6 +10,7 @@ import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useAuth } from '@/lib/auth-context';
 import { PermissionGate } from '@/components/auth';
 import type { Product } from '@/types';
+import { getStockStatus } from '@/lib/utils/stock';
 import { ProductDialog } from '@/components/products/ProductDialog';
 import { ProductsTable } from '@/components/products/ProductsTable';
 import { TransferDialog } from '@/components/stock/TransferDialog';
@@ -228,6 +229,17 @@ export default function StockPage() {
             quantities: updatedQuantities,
             updatedAt: fsServerTimestamp(),
           }, { merge: true });
+
+          // Recalculer le statut depuis la nouvelle répartition (même logique que recordInMovement)
+          const productRef = firestoreDoc(db, `companies/${currentCompanyId}/products`, editingProduct.id);
+          const productSnap = await fsGetDoc(productRef);
+          if (productSnap.exists()) {
+            // Nouveau seuil si modifié dans le même formulaire, sinon celui du doc
+            const alertThreshold = (productData.alertThreshold ?? productSnap.data().alertThreshold) || 0;
+            const newTotalStock = updatedQuantities.reduce((sum: number, q: any) => sum + q.quantity, 0);
+            const status = getStockStatus(newTotalStock, alertThreshold);
+            transaction.update(productRef, { status, updatedAt: fsServerTimestamp() });
+          }
         });
       } else {
         // Mode simple : diff sur le dépôt par défaut
