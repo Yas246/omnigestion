@@ -193,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await setDoc(companyRef, {
         name: companyName,
         businessSector: businessSector,
-        currency: 'FCFA',
+        currency: 'XOF',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });

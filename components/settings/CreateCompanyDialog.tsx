@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
+import { CURRENCIES } from "@/lib/constants/currencies";
 
 const createCompanySchema = z.object({
   name: z.string().min(1, "Le nom est requis"),
@@ -73,7 +74,7 @@ export function CreateCompanyDialog({
       slogan: "",
       description: "",
       businessSector: "commerce",
-      currency: "FCFA",
+      currency: "XOF",
       address: "",
       phone: "",
       email: "",
@@ -202,9 +203,20 @@ export function CreateCompanyDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Devise *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="FCFA" {...field} />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner une devise" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {CURRENCIES.map((c) => (
+                            <SelectItem key={c.code} value={c.code}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

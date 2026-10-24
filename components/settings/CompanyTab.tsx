@@ -13,7 +13,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Upload } from 'lucide-react';
+import { CURRENCIES, getCurrency } from '@/lib/constants/currencies';
 
 interface CompanyTabProps {
   company: Company | null;
@@ -39,7 +41,7 @@ export function CompanyTab({ company, onSaved }: CompanyTabProps) {
       phone: '',
       email: '',
       website: '',
-      currency: 'FCFA',
+      currency: 'XOF',
       invoiceFooter: '',
     },
   });
@@ -59,7 +61,7 @@ export function CompanyTab({ company, onSaved }: CompanyTabProps) {
         phone: company.phone || '',
         email: company.email || '',
         website: company.website || '',
-        currency: company.currency || 'FCFA',
+        currency: getCurrency(company.currency).code,
         invoiceFooter: company.invoiceFooter || '',
       });
     }
@@ -316,9 +318,20 @@ export function CompanyTab({ company, onSaved }: CompanyTabProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Devise</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une devise" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => (
+                        <SelectItem key={c.code} value={c.code}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

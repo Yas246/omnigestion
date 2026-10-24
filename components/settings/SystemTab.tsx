@@ -19,6 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import { Loader2, Moon, Sun, Monitor, Download, Upload, Building2, Plus, Bell, BellOff, UserPlus } from 'lucide-react';
 import { useFCM } from '@/lib/hooks/useFCM';
 import { CreateCompanyDialog } from '@/components/settings/CreateCompanyDialog';
+import { getCurrency } from '@/lib/constants/currencies';
 
 interface SystemTabProps {
   settings?: SystemSettings;
@@ -144,7 +145,7 @@ export function SystemTab({ settings, onSaved }: SystemTabProps) {
                     <div>
                       <p className="font-medium">{company.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {company.businessSector === 'commerce' ? 'Commerce' : 'Commerce et services'} • {company.currency}
+                        {company.businessSector === 'commerce' ? 'Commerce' : 'Commerce et services'} • {getCurrency(company.currency).label}
                       </p>
                     </div>
                   </div>
