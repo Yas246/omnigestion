@@ -61,7 +61,7 @@ interface CashMovementDialogProps {
 
 export function CashMovementDialog({ open, onOpenChange, cashRegisterId, cashRegisters, onSuccess }: CashMovementDialogProps) {
   const { user } = useAuth();
-  const { currencyLabel } = useCurrency();
+  const { currencyLabel, currencyCode } = useCurrency();
   const createMovement = useCashRegistersStore((state) => state.createMovement);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -109,7 +109,7 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, cashReg
         description: data.description || undefined,
         targetCashRegisterId: data.type === 'transfer' ? data.targetCashRegisterId : undefined,
         userId: user.id,
-      }, user.currentCompanyId);
+      }, user.currentCompanyId, currencyCode);
 
       toast.success('Mouvement créé avec succès');
       onOpenChange(false);

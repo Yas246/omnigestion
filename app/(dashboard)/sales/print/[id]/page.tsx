@@ -9,7 +9,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { Loader2, ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, formatMoney } from '@/lib/utils';
 
 interface InvoiceItem {
   productName: string;
@@ -53,6 +53,7 @@ interface Company {
   businessRegister?: string;
   ifu?: string;
   rccm?: string;
+  currency?: string;
 }
 
 export default function PrintInvoicePage() {
@@ -61,6 +62,7 @@ export default function PrintInvoicePage() {
   const router = useRouter();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
+  const formatAmount = (amount: number) => formatMoney(amount, company?.currency);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasPrinted = useRef(false);
@@ -356,8 +358,8 @@ export default function PrintInvoicePage() {
                   {item.isWholesale && <span className="wholesale-badge">Gros</span>}
                 </td>
                 <td className="col-qty">{item.quantity} {item.unit}</td>
-                <td className="col-price">{formatPrice(item.unitPrice)} FCFA</td>
-                <td className="col-total">{formatPrice(item.total)} FCFA</td>
+                <td className="col-price">{formatAmount(item.unitPrice)}</td>
+                <td className="col-total">{formatAmount(item.total)}</td>
               </tr>
             ))}
           </tbody>
@@ -369,36 +371,36 @@ export default function PrintInvoicePage() {
         <div className="totals-block">
           <div className="total-row">
             <span className="total-label">Sous-total:</span>
-            <span className="total-value">{formatPrice(invoice.subtotal)} FCFA</span>
+            <span className="total-value">{formatAmount(invoice.subtotal)}</span>
           </div>
           {invoice.taxRate > 0 && (
             <div className="total-row">
               <span className="total-label">TVA ({invoice.taxRate}%):</span>
-              <span className="total-value">{formatPrice(invoice.taxAmount)} FCFA</span>
+              <span className="total-value">{formatAmount(invoice.taxAmount)}</span>
             </div>
           )}
           {invoice.discount > 0 && (
             <div className="total-row discount">
               <span className="total-label">Remise:</span>
-              <span className="total-value">-{formatPrice(invoice.discount)} FCFA</span>
+              <span className="total-value">-{formatAmount(invoice.discount)}</span>
             </div>
           )}
           <div className="divider" />
           <div className="total-row grand-total">
             <span className="total-label">Total:</span>
-            <span className="total-value">{formatPrice(invoice.total)} FCFA</span>
+            <span className="total-value">{formatAmount(invoice.total)}</span>
           </div>
           {invoice.paidAmount > 0 && (
             <>
               <div className="divider" />
               <div className="total-row">
                 <span className="total-label">Montant payé:</span>
-                <span className="total-value paid">{formatPrice(invoice.paidAmount)} FCFA</span>
+                <span className="total-value paid">{formatAmount(invoice.paidAmount)}</span>
               </div>
               {invoice.remainingAmount > 0 && (
                 <div className="total-row">
                   <span className="total-label remaining">Reste à payer:</span>
-                  <span className="total-value remaining">{formatPrice(invoice.remainingAmount)} FCFA</span>
+                  <span className="total-value remaining">{formatAmount(invoice.remainingAmount)}</span>
                 </div>
               )}
             </>

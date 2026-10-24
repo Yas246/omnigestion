@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector, persist } from 'zustand/middleware';
+import { formatMoney } from '@/lib/utils';
 import {
   collection,
   doc,
@@ -69,7 +70,7 @@ interface CashStoreActions {
   // Mouvements avec mise à jour automatique des soldes
   fetchMovements: (cashRegisterId?: string, reset?: boolean) => Promise<void>;
   loadMoreMovements: () => Promise<void>;
-  createMovement: (movement: Omit<CashMovement, 'id' | 'companyId' | 'createdAt'>, companyId?: string) => Promise<string>;
+  createMovement: (movement: Omit<CashMovement, 'id' | 'companyId' | 'createdAt'>, companyId?: string, currencyCode?: string) => Promise<string>;
   deleteMovement: (id: string) => Promise<void>;
 
   // Gestion des soldes
@@ -265,7 +266,7 @@ export const useCashRegistersStore = create<CashStore>()(
        * Utilise un optimistic update pour une UX fluide
        * @param companyId Optionnel : utilise le currentCompanyId du store si non fourni
        */
-      createMovement: async (movement: Omit<CashMovement, 'id' | 'companyId' | 'createdAt'>, companyId?: string) => {
+      createMovement: async (movement: Omit<CashMovement, 'id' | 'companyId' | 'createdAt'>, companyId?: string, currencyCode?: string) => {
         const targetCompanyId = companyId || get().currentCompanyId;
         if (!targetCompanyId) {
           throw new Error('Utilisateur non connecté');
@@ -351,7 +352,7 @@ export const useCashRegistersStore = create<CashStore>()(
             // Vérifier le solde pour les sorties et transferts
             if (movement.type === 'out' || movement.type === 'transfer') {
               if (firestoreBalance < movement.amount) {
-                throw new Error(`Solde insuffisant (${firestoreBalance.toLocaleString('fr-FR')} FCFA disponibles pour ${movement.amount.toLocaleString('fr-FR')} FCFA demandés)`);
+                throw new Error(`Solde insuffisant (${formatMoney(firestoreBalance, currencyCode)} disponibles pour ${formatMoney(movement.amount, currencyCode)} demandés)`);
               }
             }
 

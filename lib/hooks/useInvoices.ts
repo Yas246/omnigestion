@@ -63,7 +63,7 @@ export interface InvoiceCreateInput {
 }
 
 export function useInvoices() {
-  const { user } = useAuth();
+  const { user, currentCompany } = useAuth();
   const { settings } = useSettings();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
@@ -867,7 +867,7 @@ export function useInvoices() {
           total: result.total,
           employeeName: user.displayName || user.email || 'Employé',
           clientName: data.clientName,
-        }, user.currentCompanyId);
+        }, user.currentCompanyId, currentCompany?.currency);
 
         // ✅ CORRECTION: Logger le résultat pour plus de visibilité
         if (notifResult.success) {

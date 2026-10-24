@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatMoney } from '@/lib/utils';
 import {
   collection,
   addDoc,
@@ -34,7 +35,7 @@ export interface CashMovementInput {
 }
 
 export function useCashRegisters() {
-  const { user } = useAuth();
+  const { user, currentCompany } = useAuth();
   const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([]);
   const [movements, setMovements] = useState<CashMovement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,7 +252,7 @@ export function useCashRegisters() {
       if (data.type === 'out' || data.type === 'transfer') {
         const currentBalance = await calculateBalance(data.cashRegisterId);
         if (currentBalance < data.amount) {
-          throw new Error(`Solde insuffisant dans la caisse (${currentBalance.toLocaleString('fr-FR')} FCFA disponibles pour ${data.amount.toLocaleString('fr-FR')} FCFA demandés)`);
+          throw new Error(`Solde insuffisant dans la caisse (${formatMoney(currentBalance, currentCompany?.currency)} disponibles pour ${formatMoney(data.amount, currentCompany?.currency)} demandés)`);
         }
       }
 

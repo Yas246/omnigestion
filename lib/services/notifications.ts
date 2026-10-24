@@ -4,6 +4,7 @@
  */
 
 import { auth } from '@/lib/firebase';
+import { formatMoney } from '@/lib/utils';
 
 /**
  * Récupère le token d'authentification Firebase de l'utilisateur courant
@@ -64,7 +65,7 @@ export interface StockAlertData {
  * @param data Données de la vente
  * @param companyId ID de la compagnie
  */
-export async function notifyNewSale(data: SaleNotificationData, companyId: string) {
+export async function notifyNewSale(data: SaleNotificationData, companyId: string, currencyCode: string = 'XOF') {
   try {
     const response = await authedFetch('/api/notifications/send', {
       method: 'POST',
@@ -72,7 +73,7 @@ export async function notifyNewSale(data: SaleNotificationData, companyId: strin
       body: JSON.stringify({
         type: 'new_sale',
         title: '\u{1F389} Nouvelle vente enregistr\u00E9e',
-        body: `Facture ${data.invoiceNumber} - ${data.total.toLocaleString('fr-FR')} FCFA\nPar: ${data.employeeName}${data.clientName ? `\nClient: ${data.clientName}` : ''}`,
+        body: `Facture ${data.invoiceNumber} - ${formatMoney(data.total, currencyCode)}\nPar: ${data.employeeName}${data.clientName ? `\nClient: ${data.clientName}` : ''}`,
         data: {
           invoiceId: data.invoiceId,
           type: 'sale',
