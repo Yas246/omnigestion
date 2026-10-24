@@ -26,6 +26,7 @@ import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
 type PurchaseStatusFilter = 'all' | 'paid' | 'active' | 'partial';
@@ -33,6 +34,7 @@ type TabType = 'suppliers' | 'credits' | 'purchases';
 
 export default function SuppliersPage() {
   const router = useRouter();
+  const { format: formatAmount } = useCurrency();
   const { canAccessModule, getFirstAccessiblePage } = usePermissions();
 
   // NOUVEAUX hooks React Query + onSnapshot pour temps réel
@@ -349,7 +351,7 @@ export default function SuppliersPage() {
                 iconVariant="danger"
               />
               <KpiCardValue
-                value={`${formatPrice(totalCredits)} FCFA`}
+                value={formatAmount(totalCredits)}
                 label={`${activeCreditsCount} crédit(s)`}
                 variant="danger"
               />
@@ -362,7 +364,7 @@ export default function SuppliersPage() {
                 iconVariant="success"
               />
               <KpiCardValue
-                value={`${formatPrice(totalPaid)} FCFA`}
+                value={formatAmount(totalPaid)}
                 variant="success"
               />
             </KpiCard>
@@ -374,7 +376,7 @@ export default function SuppliersPage() {
                 iconVariant="warning"
               />
               <KpiCardValue
-                value={`${formatPrice(totalRemaining)} FCFA`}
+                value={formatAmount(totalRemaining)}
                 variant="warning"
               />
             </KpiCard>
@@ -444,13 +446,13 @@ export default function SuppliersPage() {
                         </div>
                         <div className="flex items-center gap-4 text-sm">
                           <span className="text-muted-foreground">
-                            Total : {formatPrice(credit.amount || 0)} FCFA
+                            Total : {formatAmount(credit.amount || 0)}
                           </span>
                           <span className="text-[oklch(0.65_0.12_145)]">
-                            Payé : {formatPrice(credit.amountPaid || 0)} FCFA
+                            Payé : {formatAmount(credit.amountPaid || 0)}
                           </span>
                           <span className="text-[oklch(0.75_0.15_75)] font-medium">
-                            Reste : {formatPrice(credit.remainingAmount || 0)} FCFA
+                            Reste : {formatAmount(credit.remainingAmount || 0)}
                           </span>
                           <span className="text-muted-foreground flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
@@ -540,14 +542,14 @@ export default function SuppliersPage() {
                       </div>
                       <div className="flex items-center gap-4 text-sm">
                         <span className="text-muted-foreground">
-                          Total : {formatPrice(purchase.total || 0)} FCFA
+                          Total : {formatAmount(purchase.total || 0)}
                         </span>
                         <span className="text-[oklch(0.65_0.12_145)]">
-                          Payé : {formatPrice(purchase.paidAmount || 0)} FCFA
+                          Payé : {formatAmount(purchase.paidAmount || 0)}
                         </span>
                         {purchase.remainingAmount > 0 && (
                           <span className="text-[oklch(0.75_0.15_75)] font-medium">
-                            Reste : {formatPrice(purchase.remainingAmount || 0)} FCFA
+                            Reste : {formatAmount(purchase.remainingAmount || 0)}
                           </span>
                         )}
                         <span className="text-muted-foreground">

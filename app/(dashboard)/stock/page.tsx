@@ -25,9 +25,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { KpiCard, KpiCardHeader, KpiCardValue } from '@/components/ui/kpi-card';
 import { Plus, Package, AlertTriangle, Upload, RefreshCw, DollarSign } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 export default function StockPage() {
   const { user } = useAuth();
+  const { format: formatAmount } = useCurrency();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -504,7 +506,7 @@ export default function StockPage() {
             iconVariant="success"
           />
           <KpiCardValue
-            value={isLoading ? '...' : `${globalStats.estimatedProfit.toLocaleString()} FCFA`}
+            value={isLoading ? '...' : formatAmount(globalStats.estimatedProfit)}
             label="Basé sur le stock actuel"
             variant="success"
           />

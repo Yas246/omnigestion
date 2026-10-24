@@ -20,11 +20,13 @@ import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 type StatusFilter = 'all' | 'active' | 'overdue' | 'paid';
 
 export default function CreditsPage() {
   const router = useRouter();
+  const { format: formatAmount } = useCurrency();
   const { canAccessModule, getFirstAccessiblePage } = usePermissions();
 
   // NOUVEAU hook React Query + onSnapshot pour temps réel
@@ -131,7 +133,7 @@ export default function CreditsPage() {
             iconVariant="warning"
           />
           <KpiCardValue
-            value={`${formatPrice(totalCredits)} FCFA`}
+            value={formatAmount(totalCredits)}
             label={`${activeCreditsCount} crédit(s) actif(s)`}
             variant="warning"
           />
@@ -144,7 +146,7 @@ export default function CreditsPage() {
             iconVariant="success"
           />
           <KpiCardValue
-            value={`${formatPrice(totalPaid)} FCFA`}
+            value={formatAmount(totalPaid)}
             variant="success"
           />
         </KpiCard>
@@ -156,7 +158,7 @@ export default function CreditsPage() {
             iconVariant="info"
           />
           <KpiCardValue
-            value={`${formatPrice(totalRemaining)} FCFA`}
+            value={formatAmount(totalRemaining)}
             variant="info"
           />
         </KpiCard>
@@ -218,13 +220,13 @@ export default function CreditsPage() {
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-muted-foreground">
-                        Total : {formatPrice(credit.amount || 0)} FCFA
+                        Total : {formatAmount(credit.amount || 0)}
                       </span>
                       <span className="text-[oklch(0.65_0.12_145)]">
-                        Payé : {formatPrice(credit.amountPaid || 0)} FCFA
+                        Payé : {formatAmount(credit.amountPaid || 0)}
                       </span>
                       <span className="text-[oklch(0.75_0.15_75)] font-medium">
-                        Reste : {formatPrice(credit.remainingAmount || 0)} FCFA
+                        Reste : {formatAmount(credit.remainingAmount || 0)}
                       </span>
                       <span className="text-muted-foreground flex items-center gap-1">
                         <Calendar className="h-3 w-3" />

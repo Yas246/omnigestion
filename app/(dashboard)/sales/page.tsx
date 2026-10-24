@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { fr } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 // Type pour le résultat de création de facture (avec ou sans pending)
 type InvoiceCreateResult = {
@@ -39,6 +40,7 @@ type InvoiceCreateResult = {
 export default function SalesPage() {
   // Utiliser React Query + onSnapshot pour les factures temps réel
   const { invoices: rawInvoices, isLoading } = useInvoicesRealtime();
+  const { format: formatAmount } = useCurrency();
 
   // État local pour la recherche
   const [searchQuery, setSearchQuery] = useState('');
@@ -519,7 +521,7 @@ export default function SalesPage() {
             iconVariant="primary"
           />
           <KpiCardValue
-            value={`${periodRevenue.toLocaleString()} FCFA`}
+            value={formatAmount(periodRevenue)}
             label={`Encaissé — ${periodLabel}`}
             variant="primary"
           />
@@ -532,7 +534,7 @@ export default function SalesPage() {
             iconVariant="warning"
           />
           <KpiCardValue
-            value={`${activeCredits.toLocaleString()} FCFA`}
+            value={formatAmount(activeCredits)}
             label={`Crédits — ${periodLabel}`}
             variant="warning"
           />
@@ -576,7 +578,7 @@ export default function SalesPage() {
               </div>
               <div className="text-right">
                 <p className="text-lg font-bold tabular-nums text-green-600">
-                  {dayCreditPaymentsTotal.toLocaleString()} FCFA
+                  {formatAmount(dayCreditPaymentsTotal)}
                 </p>
                 <p className="text-xs text-muted-foreground">Encaissé</p>
               </div>
@@ -601,11 +603,11 @@ export default function SalesPage() {
                       <TableCell className="font-medium">{p.invoiceNumber}</TableCell>
                       <TableCell>{p.clientName}</TableCell>
                       <TableCell className="font-medium tabular-nums text-green-600">
-                        {p.amount.toLocaleString()} FCFA
+                        {formatAmount(p.amount)}
                       </TableCell>
                       <TableCell className="tabular-nums text-orange-600">
                         {p.remainingOnCredit > 0
-                          ? `${p.remainingOnCredit.toLocaleString()} FCFA`
+                          ? formatAmount(p.remainingOnCredit)
                           : 'Soldé'}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">

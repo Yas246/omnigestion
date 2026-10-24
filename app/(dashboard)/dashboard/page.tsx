@@ -41,6 +41,7 @@ import {
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 import { formatPrice } from "@/lib/utils";
 import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
+import { useCurrency } from "@/lib/hooks/useCurrency";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -73,7 +74,7 @@ export default function DashboardPage() {
     }
   }, [hasPermission, getFirstAccessiblePage, router]);
 
-  const currency = "FCFA"; // TODO: Récupérer depuis les paramètres de l'entreprise
+  const { currencyLabel: currency } = useCurrency();
 
   // Afficher un message si l'utilisateur n'a pas accès au dashboard
   if (!hasPermission('dashboard', 'read')) {

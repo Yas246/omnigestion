@@ -36,9 +36,11 @@ import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { CashRegister } from '@/types';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 export default function CashPage() {
   const router = useRouter();
+  const { format: formatAmount } = useCurrency();
 
   // NOUVEAUX hooks React Query + onSnapshot pour temps réel
   const { cashRegisters, isLoading: registersLoading } = useCashRegistersRealtime();
@@ -220,7 +222,7 @@ export default function CashPage() {
             iconVariant="primary"
           />
           <KpiCardValue
-            value={`${formatPrice(totalBalance)} FCFA`}
+            value={formatAmount(totalBalance)}
             label={`${cashRegisters.length} caisse(s)`}
             variant="primary"
           />
@@ -233,7 +235,7 @@ export default function CashPage() {
             iconVariant="success"
           />
           <KpiCardValue
-            value={`${formatPrice(todayStats.todayIn)} FCFA`}
+            value={formatAmount(todayStats.todayIn)}
             label={`${todayInCount} mouvement(s)`}
             variant="success"
           />
@@ -246,7 +248,7 @@ export default function CashPage() {
             iconVariant="danger"
           />
           <KpiCardValue
-            value={`${formatPrice(todayStats.todayOut)} FCFA`}
+            value={formatAmount(todayStats.todayOut)}
             label={`${todayOutCount} mouvement(s)`}
             variant="danger"
           />
@@ -294,7 +296,7 @@ export default function CashPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p className="font-bold">{formatPrice(cr.currentBalance || 0)} FCFA</p>
+                        <p className="font-bold">{formatAmount(cr.currentBalance || 0)}</p>
                         {cr.isMain && (
                           <Badge variant="outline" className="text-xs">Principale</Badge>
                         )}
@@ -373,7 +375,7 @@ export default function CashPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`font-semibold ${isIn ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
-                            {isIn ? '+' : '-'}{formatPrice(movement.amount)} FCFA
+                            {isIn ? '+' : '-'}{formatAmount(movement.amount)}
                           </span>
                           <Badge variant={isIn ? 'default' : 'destructive'} className="text-xs">
                             {isIn ? 'Entrée' : 'Sortie'}

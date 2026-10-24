@@ -25,6 +25,7 @@ import {
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'custom';
 type ReportTab = 'sales' | 'profits' | 'stock' | 'cash';
@@ -33,6 +34,7 @@ type ExportFormat = 'excel' | 'csv';
 export default function ReportsPage() {
   const router = useRouter();
   const { canAccessModule, getFirstAccessiblePage } = usePermissions();
+  const { currencyLabel } = useCurrency();
 
   const [period, setPeriod] = useState<PeriodType>('month');
   const [activeTab, setActiveTab] = useState<ReportTab>('sales');
@@ -171,9 +173,9 @@ export default function ReportsPage() {
       { key: 'invoiceNumber', header: 'N° Facture', width: 15 },
       { key: 'date', header: 'Date', format: (v) => format(new Date(v), 'dd/MM/yyyy HH:mm', { locale: fr }), width: 20 },
       { key: 'clientName', header: 'Client', width: 25 },
-      { key: 'total', header: 'Montant (FCFA)', format: (v) => formatPrice(v), width: 15 },
-      { key: 'paidAmount', header: 'Payé (FCFA)', format: (v) => formatPrice(v), width: 15 },
-      { key: 'remainingAmount', header: 'Reste (FCFA)', format: (v) => formatPrice(v), width: 15 },
+      { key: 'total', header: `Montant (${currencyLabel})`, format: (v) => formatPrice(v), width: 15 },
+      { key: 'paidAmount', header: `Payé (${currencyLabel})`, format: (v) => formatPrice(v), width: 15 },
+      { key: 'remainingAmount', header: `Reste (${currencyLabel})`, format: (v) => formatPrice(v), width: 15 },
       { key: 'paymentMethod', header: 'Mode paiement', width: 15 },
       { key: 'status', header: 'Statut', width: 12 },
     ];
@@ -224,9 +226,9 @@ export default function ReportsPage() {
     const columns: ExportColumn[] = [
       { key: 'name', header: 'Produit', width: 30 },
       { key: 'quantity', header: 'Quantité vendue', width: 15 },
-      { key: 'revenue', header: 'CA (FCFA)', format: (v) => formatPrice(v), width: 15 },
-      { key: 'cost', header: 'Coût (FCFA)', format: (v) => formatPrice(v), width: 15 },
-      { key: 'margin', header: 'Marge (FCFA)', format: (v) => formatPrice(v), width: 15 },
+      { key: 'revenue', header: `CA (${currencyLabel})`, format: (v) => formatPrice(v), width: 15 },
+      { key: 'cost', header: `Coût (${currencyLabel})`, format: (v) => formatPrice(v), width: 15 },
+      { key: 'margin', header: `Marge (${currencyLabel})`, format: (v) => formatPrice(v), width: 15 },
       { key: 'marginRate', header: 'Taux marge (%)', format: (v) => v.toFixed(1), width: 12 },
     ];
 
@@ -253,11 +255,11 @@ export default function ReportsPage() {
       { key: 'currentStock', header: 'Stock actuel', width: 12 },
       { key: 'unit', header: 'Unité', width: 10 },
       { key: 'alertThreshold', header: 'Seuil alerte', width: 12 },
-      { key: 'purchasePrice', header: 'Prix achat (FCFA)', format: (v) => formatPrice(v || 0), width: 15 },
-      { key: 'retailPrice', header: 'Prix vente (FCFA)', format: (v) => formatPrice(v || 0), width: 15 },
+      { key: 'purchasePrice', header: `Prix achat (${currencyLabel})`, format: (v) => formatPrice(v || 0), width: 15 },
+      { key: 'retailPrice', header: `Prix vente (${currencyLabel})`, format: (v) => formatPrice(v || 0), width: 15 },
       {
         key: 'value',
-        header: 'Valeur stock (FCFA)',
+        header: `Valeur stock (${currencyLabel})`,
         format: (v, row) => formatPrice((row.currentStock || 0) * (row.purchasePrice || 0)),
         width: 18,
       },
@@ -286,7 +288,7 @@ export default function ReportsPage() {
       { key: 'createdAt', header: 'Date', format: (v) => format(new Date(v), 'dd/MM/yyyy HH:mm', { locale: fr }), width: 20 },
       { key: 'category', header: 'Catégorie', width: 15 },
       { key: 'description', header: 'Description', width: 30 },
-      { key: 'amount', header: 'Montant (FCFA)', format: (v) => formatPrice(v), width: 15 },
+      { key: 'amount', header: `Montant (${currencyLabel})`, format: (v) => formatPrice(v), width: 15 },
       { key: 'type', header: 'Type', width: 12 },
       { key: 'cashRegisterId', header: 'Caisse ID', width: 30 },
     ];
