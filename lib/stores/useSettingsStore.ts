@@ -26,11 +26,6 @@ export interface CompanySettings {
   lowStockAlertEnabled: boolean;
   autoStockTransferEnabled: boolean;
 
-  // Paramètres de devise
-  currency: string; // 'USD', 'EUR', 'XOF', etc.
-  currencySymbol: string;
-  currencyPosition: "before" | "after";
-
   // Paramètres d'affichage
   dateFormat: string; // 'DD/MM/YYYY', 'MM/DD/YYYY', etc.
   timezone: string;
@@ -63,7 +58,6 @@ interface SettingsState {
 
   // Getters
   getInvoiceNumber: () => string;
-  formatCurrency: (amount: number) => string;
   formatDate: (date: Date) => string;
 }
 
@@ -86,9 +80,6 @@ const defaultSettings: CompanySettings = {
   primaryWarehouseId: "",
   lowStockAlertEnabled: true,
   autoStockTransferEnabled: true,
-  currency: "XOF",
-  currencySymbol: "FCFA",
-  currencyPosition: "after",
   dateFormat: "DD/MM/YYYY",
   timezone: "Africa/Douala",
   emailNotificationsEnabled: true,
@@ -186,28 +177,6 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       /**
-       * Formater un montant en devise
-       */
-      formatCurrency: (amount) => {
-        const { settings } = get();
-
-        if (!settings) {
-          return `${amount.toFixed(2)} FCFA`;
-        }
-
-        const formattedAmount = amount.toLocaleString("fr-FR", {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        });
-
-        if (settings.currencyPosition === "before") {
-          return `${settings.currencySymbol} ${formattedAmount}`;
-        } else {
-          return `${formattedAmount} ${settings.currencySymbol}`;
-        }
-      },
-
-      /**
        * Formater une date
        */
       formatDate: (date) => {
@@ -252,15 +221,12 @@ export const useSettingsActions = () =>
     updateSettings: state.updateSettings,
     clearSettings: state.clearSettings,
     getInvoiceNumber: state.getInvoiceNumber,
-    formatCurrency: state.formatCurrency,
     formatDate: state.formatDate,
   }));
 
 /**
  * Hooks utilitaires
  */
-export const useFormatCurrency = () =>
-  useSettingsStore((state) => state.formatCurrency);
 export const useFormatDate = () =>
   useSettingsStore((state) => state.formatDate);
 export const usePrimaryWarehouseId = () =>
