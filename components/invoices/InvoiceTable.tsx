@@ -21,6 +21,7 @@ import { PermissionGate } from '@/components/auth';
 import { getInvoiceStatusBadge } from '@/lib/utils/invoice-helpers';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 interface InvoiceTableProps {
   invoices: Invoice[];
@@ -50,6 +51,7 @@ export function InvoiceTable({
   totalLoaded = 0,
 }: InvoiceTableProps) {
   const [searchTerm, setSearchTerm] = useState(searchQuery);
+  const { format: formatAmount } = useCurrency();
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
   // Debouncing de 300ms pour la recherche
@@ -177,10 +179,10 @@ export function InvoiceTable({
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{formatPrice(invoice.total)} FCFA</span>
+                      <span className="font-medium">{formatAmount(invoice.total)}</span>
                       {invoice.remainingAmount > 0 && invoice.status !== 'cancelled' && (
                         <span className="text-xs text-orange-600">
-                          Reste: {formatPrice(invoice.remainingAmount)} FCFA
+                          Reste: {formatAmount(invoice.remainingAmount)}
                         </span>
                       )}
                     </div>

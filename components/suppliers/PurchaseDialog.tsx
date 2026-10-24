@@ -20,6 +20,7 @@ import { useSupplierPurchases } from '@/lib/hooks/useSupplierPurchases';
 import type { Product } from '@/types';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 const purchaseSchema = z.object({
   supplierId: z.string().min(1, 'Le fournisseur est requis'),
@@ -47,6 +48,7 @@ interface PurchaseDialogProps {
 
 export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialogProps) {
   const { products } = useProductsRealtime();
+  const { format: formatAmount } = useCurrency();
   const { warehouses } = useWarehousesRealtime();
   const { createPurchase } = useSupplierPurchases();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -323,7 +325,7 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
                             </div>
                             <div className="text-right">
                               <span className="text-xs text-muted-foreground">
-                                Prix actuel: {product.purchasePrice?.toLocaleString() || 0} FCFA
+                                Prix actuel: {formatAmount(product.purchasePrice || 0)}
                               </span>
                             </div>
                           </div>
@@ -400,15 +402,15 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
                           </div>
                           {product && (
                             <div className="text-xs text-muted-foreground mt-1">
-                              Système: {formatPrice(systemPrice)} FCFA
+                              Système: {formatAmount(systemPrice)}
                               {priceChanged && (
-                                <span className="text-orange-600 ml-1">→ {formatPrice(item.unitPrice)} FCFA</span>
+                                <span className="text-orange-600 ml-1">→ {formatAmount(item.unitPrice)}</span>
                               )}
                             </div>
                           )}
                         </div>
                         <div className="col-span-2 text-right">
-                          <div className="font-medium">{formatPrice(item.unitPrice * item.quantity)} FCFA</div>
+                          <div className="font-medium">{formatAmount(item.unitPrice * item.quantity)}</div>
                         </div>
                         <div className="col-span-1 flex justify-end">
                           <Button
@@ -473,11 +475,11 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
                       <FormDescription>
                         {remainingAmount > 0 ? (
                           <span className="text-orange-600">
-                            Reste à payer: {formatPrice(remainingAmount)} FCFA
+                            Reste à payer: {formatAmount(remainingAmount)}
                           </span>
                         ) : remainingAmount < 0 ? (
                           <span className="text-green-600">
-                            À rendre: {formatPrice(Math.abs(remainingAmount))} FCFA
+                            À rendre: {formatAmount(Math.abs(remainingAmount))}
                           </span>
                         ) : (
                           <span className="text-green-600">Payé intégralement</span>
@@ -572,19 +574,19 @@ export function PurchaseDialog({ open, onOpenChange, suppliers }: PurchaseDialog
                   <span>Total:</span>
                   <span className="flex items-center gap-1 font-bold text-lg">
                     <Package className="h-4 w-4" />
-                    {formatPrice(total)} FCFA
+                    {formatAmount(total)}
                   </span>
                 </div>
                 {paymentMethod !== 'credit' && (
                   <>
                     <div className="flex justify-between text-sm text-green-600">
                       <span>Payé:</span>
-                      <span>{formatPrice(form.watch('paidAmount'))} FCFA</span>
+                      <span>{formatAmount(form.watch('paidAmount'))}</span>
                     </div>
                     {remainingAmount > 0 && (
                       <div className="flex justify-between text-sm text-orange-600 font-medium">
                         <span>Reste à payer:</span>
-                        <span>{formatPrice(remainingAmount)} FCFA</span>
+                        <span>{formatAmount(remainingAmount)}</span>
                       </div>
                     )}
                   </>

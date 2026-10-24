@@ -19,6 +19,7 @@ import {
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 import { PaginatedTable } from '@/components/ui/PaginatedTable';
 
 // Enregistrer les composants Chart.js
@@ -40,6 +41,7 @@ interface CashReportProps {
 
 export function CashReport({ period, customRange }: CashReportProps) {
   const { movements, cashRegisters } = useCashRegisters();
+  const { format: formatAmount, currencyLabel } = useCurrency();
   const [filteredMovements, setFilteredMovements] = useState(movements);
   const [selectedCashRegister, setSelectedCashRegister] = useState<string>('all');
 
@@ -160,7 +162,7 @@ export function CashReport({ period, customRange }: CashReportProps) {
     labels: inByCategory.map(([cat]) => categoryLabels[cat] || cat),
     datasets: [
       {
-        label: 'Entrées (FCFA)',
+        label: `Entrées (${currencyLabel})`,
         data: inByCategory.map(([, amount]) => amount),
         backgroundColor: 'rgba(34, 197, 94, 0.8)',
       },
@@ -171,7 +173,7 @@ export function CashReport({ period, customRange }: CashReportProps) {
     labels: outByCategory.map(([cat]) => categoryLabels[cat] || cat),
     datasets: [
       {
-        label: 'Sorties (FCFA)',
+        label: `Sorties (${currencyLabel})`,
         data: outByCategory.map(([, amount]) => amount),
         backgroundColor: 'rgba(239, 68, 68, 0.8)',
       },
@@ -224,7 +226,7 @@ export function CashReport({ period, customRange }: CashReportProps) {
             iconVariant="success"
           />
           <KpiCardValue
-            value={`${formatPrice(totalIn)} FCFA`}
+            value={formatAmount(totalIn)}
             label="Entrées de trésorerie"
             variant="success"
           />
@@ -237,7 +239,7 @@ export function CashReport({ period, customRange }: CashReportProps) {
             iconVariant="danger"
           />
           <KpiCardValue
-            value={`${formatPrice(totalOut)} FCFA`}
+            value={formatAmount(totalOut)}
             label="Sorties de trésorerie"
             variant="danger"
           />
@@ -250,7 +252,7 @@ export function CashReport({ period, customRange }: CashReportProps) {
             iconVariant={netFlow >= 0 ? 'primary' : 'danger'}
           />
           <KpiCardValue
-            value={`${formatPrice(netFlow)} FCFA`}
+            value={formatAmount(netFlow)}
             label={netFlow >= 0 ? 'Excédent' : 'Déficit'}
             variant={netFlow >= 0 ? 'primary' : 'danger'}
           />
@@ -346,7 +348,7 @@ export function CashReport({ period, customRange }: CashReportProps) {
                   const isIn = movement.type === 'in' || (movement.type === 'transfer' && movement.sourceCashRegisterId);
                   return (
                     <span className={`font-semibold ${isIn ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>
-                      {isIn ? '+' : '-'}{formatPrice(movement.amount)} FCFA
+                      {isIn ? '+' : '-'}{formatAmount(movement.amount)}
                     </span>
                   );
                 },

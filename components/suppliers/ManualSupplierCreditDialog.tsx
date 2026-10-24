@@ -14,6 +14,7 @@ import { fr } from 'date-fns/locale';
 import { useSuppliersRealtime } from '@/lib/react-query/useSuppliersRealtime';
 import { useSupplierCredits } from '@/lib/hooks/useSupplierCredits';
 import { toast } from 'sonner';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 interface ManualSupplierCreditDialogProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface ManualSupplierCreditDialogProps {
 
 export function ManualSupplierCreditDialog({ open, onOpenChange }: ManualSupplierCreditDialogProps) {
   const { suppliers } = useSuppliersRealtime();
+  const { currencyLabel } = useCurrency();
   const { createCredit } = useSupplierCredits();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,7 +135,7 @@ export function ManualSupplierCreditDialog({ open, onOpenChange }: ManualSupplie
 
           {/* Montant */}
           <div className="space-y-2">
-            <Label>Montant de la dette (FCFA) *</Label>
+            <Label>{`Montant de la dette (${currencyLabel}) *`}</Label>
             <Input
               type="number"
               placeholder="0"

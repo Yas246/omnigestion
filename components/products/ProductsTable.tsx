@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { PermissionGate } from "@/components/auth";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import { useCurrency } from "@/lib/hooks/useCurrency";
 
 interface ProductsTableProps {
   products: Array<Product & { displayQuantity?: number }>;
@@ -74,6 +75,7 @@ export function ProductsTable({
   totalLoaded = 0,
 }: ProductsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const { format: formatAmount } = useCurrency();
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(
     null,
   );
@@ -179,14 +181,7 @@ export function ProductsTable({
     }
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "XOF",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
-  };
+  const formatPrice = (price: number) => formatAmount(price);
 
   return (
     <div className="space-y-4">

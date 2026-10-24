@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { ClientCredit, PaymentMode } from '@/types';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 const paymentSchema = z.object({
   amount: z.number().min(1, 'Le montant doit être positif'),
@@ -35,6 +36,7 @@ interface CreditPaymentDialogProps {
 
 export function CreditPaymentDialog({ open, onOpenChange, credit, onSubmit }: CreditPaymentDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { format: formatAmount, currencyLabel } = useCurrency();
 
   const form = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
@@ -83,7 +85,7 @@ export function CreditPaymentDialog({ open, onOpenChange, credit, onSubmit }: Cr
             {credit && (
               <span>
                 Paiement pour {credit.clientName} - Reste à payer :{' '}
-                <span className="font-bold">{formatPrice(credit.remainingAmount)} FCFA</span>
+                <span className="font-bold">{formatAmount(credit.remainingAmount)}</span>
               </span>
             )}
           </DialogDescription>
@@ -96,7 +98,7 @@ export function CreditPaymentDialog({ open, onOpenChange, credit, onSubmit }: Cr
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Montant payé (FCFA)</FormLabel>
+                  <FormLabel>{`Montant payé (${currencyLabel})`}</FormLabel>
                   <FormControl>
                     <NumberInput
                       min={0}

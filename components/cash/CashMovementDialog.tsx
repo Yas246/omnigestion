@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 const movementSchema = z.object({
   cashRegisterId: z.string().min(1, 'La caisse est requise'),
@@ -60,6 +61,7 @@ interface CashMovementDialogProps {
 
 export function CashMovementDialog({ open, onOpenChange, cashRegisterId, cashRegisters, onSuccess }: CashMovementDialogProps) {
   const { user } = useAuth();
+  const { currencyLabel } = useCurrency();
   const createMovement = useCashRegistersStore((state) => state.createMovement);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -230,7 +232,7 @@ export function CashMovementDialog({ open, onOpenChange, cashRegisterId, cashReg
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Montant (FCFA)</FormLabel>
+                  <FormLabel>{`Montant (${currencyLabel})`}</FormLabel>
                   <FormControl>
                     <NumberInput
                       min={0}

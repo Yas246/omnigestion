@@ -27,6 +27,7 @@ import { Separator } from '@/components/ui/separator';
 import { FileText, Printer, Share, Mail, Edit } from 'lucide-react';
 import { getInvoiceStatusBadge } from '@/lib/utils/invoice-helpers';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 interface InvoiceDetailDialogProps {
   open: boolean;
@@ -48,6 +49,7 @@ export function InvoiceDetailDialog({
   onEdit,
 }: InvoiceDetailDialogProps) {
   const { settings } = useSettings();
+  const { format: formatAmount } = useCurrency();
   const router = useRouter();
   const [isPrinting, setIsPrinting] = useState(false);
 
@@ -254,11 +256,11 @@ export function InvoiceDetailDialog({
                       </TableCell>
                       {showUnitPrice && (
                         <TableCell className="text-right">
-                          {formatPrice(item.unitPrice)} FCFA
+                          {formatAmount(item.unitPrice)}
                         </TableCell>
                       )}
                       <TableCell className="text-right font-medium">
-                        {formatPrice(item.total)} FCFA
+                        {formatAmount(item.total)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -272,36 +274,36 @@ export function InvoiceDetailDialog({
             <div className="w-64 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Sous-total:</span>
-                <span>{formatPrice(invoice.subtotal)} FCFA</span>
+                <span>{formatAmount(invoice.subtotal)}</span>
               </div>
               {showTax && invoice.taxRate > 0 && (
                 <div className="flex justify-between text-sm">
                   <span>TVA ({invoice.taxRate}%):</span>
-                  <span>{formatPrice(invoice.taxAmount)} FCFA</span>
+                  <span>{formatAmount(invoice.taxAmount)}</span>
                 </div>
               )}
               {invoice.discount > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Remise:</span>
-                  <span>-{formatPrice(invoice.discount)} FCFA</span>
+                  <span>-{formatAmount(invoice.discount)}</span>
                 </div>
               )}
               <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <span>Total:</span>
-                <span>{formatPrice(invoice.total)} FCFA</span>
+                <span>{formatAmount(invoice.total)}</span>
               </div>
               {invoice.paidAmount > 0 && (
                 <>
                   <Separator />
                   <div className="flex justify-between text-sm">
                     <span>Montant payé:</span>
-                    <span className="text-green-600">{formatPrice(invoice.paidAmount)} FCFA</span>
+                    <span className="text-green-600">{formatAmount(invoice.paidAmount)}</span>
                   </div>
                   {invoice.remainingAmount > 0 && (
                     <div className="flex justify-between text-sm font-medium text-orange-600">
                       <span>Reste à payer:</span>
-                      <span>{formatPrice(invoice.remainingAmount)} FCFA</span>
+                      <span>{formatAmount(invoice.remainingAmount)}</span>
                     </div>
                   )}
                 </>

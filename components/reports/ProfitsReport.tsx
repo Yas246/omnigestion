@@ -24,6 +24,7 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, 
 import { fr } from 'date-fns/locale';
 import { PaginatedTable } from '@/components/ui/PaginatedTable';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 // Enregistrer les composants Chart.js
 ChartJS.register(
@@ -47,6 +48,7 @@ interface ProfitsReportProps {
 
 export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
   const { invoices } = useInvoicesRealtime();
+  const { format: formatAmount, currencyLabel } = useCurrency();
   const { credits, payments: allCreditPaymentsFlat } = useClientCreditsRealtime();
   const [filteredInvoices, setFilteredInvoices] = useState(invoices);
 
@@ -229,7 +231,7 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
     labels: Object.keys(salesByDay),
     datasets: [
       {
-        label: 'Marge brute (FCFA)',
+        label: `Marge brute (${currencyLabel})`,
         data: Object.values(salesByDay).map(d => d.margin),
         borderColor: 'rgb(34, 197, 94)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
@@ -244,7 +246,7 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
     labels: topProducts.map(p => p.name.length > 20 ? p.name.substring(0, 20) + '...' : p.name),
     datasets: [
       {
-        label: 'Marge brute (FCFA)',
+        label: `Marge brute (${currencyLabel})`,
         data: topProducts.map(p => p.margin),
         backgroundColor: topProducts.map(p =>
           p.marginRate >= 30 ? 'rgba(34, 197, 94, 0.8)' :
@@ -281,7 +283,7 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
             iconVariant="primary"
           />
           <KpiCardValue
-            value={`${formatPrice(totalRevenue)} FCFA`}
+            value={formatAmount(totalRevenue)}
             label="Total des ventes"
             variant="primary"
           />
@@ -294,7 +296,7 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
             iconVariant="danger"
           />
           <KpiCardValue
-            value={`${formatPrice(totalCost)} FCFA`}
+            value={formatAmount(totalCost)}
             label="Prix d'achat total"
             variant="danger"
           />
@@ -307,7 +309,7 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
             iconVariant="success"
           />
           <KpiCardValue
-            value={`${formatPrice(totalMargin)} FCFA`}
+            value={formatAmount(totalMargin)}
             label="Bénéfice brut"
             variant="success"
           />
@@ -385,19 +387,19 @@ export function ProfitsReport({ period, customRange }: ProfitsReportProps) {
               },
               {
                 key: 'revenue',
-                header: 'CA (FCFA)',
+                header: `CA (${currencyLabel})`,
                 className: 'text-right',
                 render: (product) => formatPrice(product.revenue),
               },
               {
                 key: 'cost',
-                header: 'Coût (FCFA)',
+                header: `Coût (${currencyLabel})`,
                 className: 'text-right',
                 render: (product) => formatPrice(product.cost),
               },
               {
                 key: 'margin',
-                header: 'Marge (FCFA)',
+                header: `Marge (${currencyLabel})`,
                 className: 'text-right',
                 render: (product) => (
                   <span className={`font-semibold ${product.margin >= 0 ? 'text-[oklch(0.65_0.12_145)]' : 'text-[oklch(0.58_0.22_25)]'}`}>

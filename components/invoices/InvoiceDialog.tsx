@@ -36,6 +36,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus, Trash2, AlertTriangle, DollarSign, Receipt } from 'lucide-react';
 import { useDebounce } from '@/lib/hooks/useDebounce';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 interface InvoiceDialogProps {
   open: boolean;
@@ -84,6 +85,7 @@ export function InvoiceDialog({
   isSubmitting = false,
 }: InvoiceDialogProps) {
   const { products } = useProductsRealtime();
+  const { format: formatAmount, currencyLabel } = useCurrency();
   const { clients } = useClientsRealtime();
   const { settings } = useSettings();
   const { isAdmin } = usePermissions();
@@ -518,7 +520,7 @@ export function InvoiceDialog({
                               )}
                             </div>
                             <span className="text-xs text-muted-foreground">
-                              {product.currentStock} {product.unit} - {product.retailPrice.toLocaleString()} FCFA
+                              {product.currentStock} {product.unit} - {formatAmount(product.retailPrice)}
                             </span>
                           </div>
                         </div>
@@ -625,7 +627,7 @@ export function InvoiceDialog({
                             </div>
                           </div>
                           <div className="col-span-2 text-right">
-                            <div className="font-medium">{itemTotal.toLocaleString()} FCFA</div>
+                            <div className="font-medium">{formatAmount(itemTotal)}</div>
                           </div>
                           <div className="col-span-2 flex justify-end">
                             <Button
@@ -706,7 +708,7 @@ export function InvoiceDialog({
                             ) : (
                               <span></span>
                             )}
-                            <div className="font-medium">{itemTotal.toLocaleString()} FCFA</div>
+                            <div className="font-medium">{formatAmount(itemTotal)}</div>
                           </div>
                         </div>
                       </div>
@@ -745,7 +747,7 @@ export function InvoiceDialog({
                 name="discount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Remise (FCFA)</FormLabel>
+                    <FormLabel>{`Remise (${currencyLabel})`}</FormLabel>
                     <FormControl>
                       <NumberInput
                         min={0}
@@ -894,11 +896,11 @@ export function InvoiceDialog({
                           </span>
                         ) : remainingAmount > 0 ? (
                           <span className="text-orange-600">
-                            Reste à payer: {remainingAmount.toLocaleString()} FCFA
+                            Reste à payer: {formatAmount(remainingAmount)}
                           </span>
                         ) : remainingAmount < 0 ? (
                           <span className="text-green-600">
-                            À rendre: {Math.abs(remainingAmount).toLocaleString()} FCFA
+                            À rendre: {formatAmount(Math.abs(remainingAmount))}
                           </span>
                         ) : (
                           <span className="text-green-600">Payé intégralement</span>
@@ -935,25 +937,25 @@ export function InvoiceDialog({
             <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Sous-total:</span>
-                <span>{subtotal.toLocaleString()} FCFA</span>
+                <span>{formatAmount(subtotal)}</span>
               </div>
               {showTax && taxRate > 0 && (
                 <div className="flex justify-between text-sm">
                   <span>TVA ({taxRate}%):</span>
-                  <span>{taxAmount.toLocaleString()} FCFA</span>
+                  <span>{formatAmount(taxAmount)}</span>
                 </div>
               )}
               {discount > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Remise:</span>
-                  <span>-{discount.toLocaleString()} FCFA</span>
+                  <span>-{formatAmount(discount)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>Total:</span>
                 <span className="flex items-center gap-1">
                   <DollarSign className="h-4 w-4" />
-                  {total.toLocaleString()} FCFA
+                  {formatAmount(total)}
                 </span>
               </div>
             </div>

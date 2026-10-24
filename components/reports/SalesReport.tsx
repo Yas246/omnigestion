@@ -23,6 +23,7 @@ import {
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 // Enregistrer les composants Chart.js
 ChartJS.register(
@@ -47,6 +48,7 @@ interface SalesReportProps {
 
 export function SalesReport({ period, customRange }: SalesReportProps) {
   const { invoices } = useInvoicesRealtime();
+  const { format: formatAmount, currencyLabel } = useCurrency();
   const { credits, payments: allCreditPayments } = useClientCreditsRealtime();
   const [filteredInvoices, setFilteredInvoices] = useState(invoices);
   const [filteredCreditPayments, setFilteredCreditPayments] = useState<any[]>([]);
@@ -225,7 +227,7 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
     labels: topClients.map(([name]) => name),
     datasets: [
       {
-        label: 'Montant total (FCFA)',
+        label: `Montant total (${currencyLabel})`,
         data: topClients.map(([, amount]) => amount),
         backgroundColor: 'oklch(0.62 0.14 35 / 0.85)',
         borderRadius: 4,
@@ -273,7 +275,7 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
             iconVariant="primary"
           />
           <KpiCardValue
-            value={`${formatPrice(totalRevenue)} FCFA`}
+            value={formatAmount(totalRevenue)}
             label="Total encaissé de la période"
             variant="primary"
           />
@@ -299,7 +301,7 @@ export function SalesReport({ period, customRange }: SalesReportProps) {
             iconVariant="warning"
           />
           <KpiCardValue
-            value={`${formatPrice(Math.round(avgBasket))} FCFA`}
+            value={formatAmount(Math.round(avgBasket))}
             label="Moyenne par vente"
             variant="warning"
           />

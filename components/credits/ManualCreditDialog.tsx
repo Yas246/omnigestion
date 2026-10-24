@@ -14,6 +14,7 @@ import { fr } from 'date-fns/locale';
 import { useClientsRealtime } from '@/lib/react-query/useClientsRealtime';
 import { useClientCredits } from '@/lib/hooks/useClientCredits';
 import { toast } from 'sonner';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 interface ManualCreditDialogProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface ManualCreditDialogProps {
 
 export function ManualCreditDialog({ open, onOpenChange }: ManualCreditDialogProps) {
   const { clients } = useClientsRealtime();
+  const { currencyLabel } = useCurrency();
   const { createCredit } = useClientCredits();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,7 +135,7 @@ export function ManualCreditDialog({ open, onOpenChange }: ManualCreditDialogPro
 
           {/* Montant */}
           <div className="space-y-2">
-            <Label>Montant du crédit (FCFA) *</Label>
+            <Label>{`Montant du crédit (${currencyLabel}) *`}</Label>
             <Input
               type="number"
               placeholder="0"

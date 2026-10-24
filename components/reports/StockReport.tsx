@@ -19,6 +19,7 @@ import {
   Legend,
 } from 'chart.js';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 ChartJS.register(
   CategoryScale,
@@ -32,6 +33,7 @@ ChartJS.register(
 
 export function StockReport() {
   const { products: rawProducts, isLoading } = useProductsRealtime();
+  const { format: formatAmount, currencyLabel } = useCurrency();
 
   const { activeProducts, stockStats } = useMemo(() => {
     const active = rawProducts.filter(p => !p.deletedAt);
@@ -96,7 +98,7 @@ export function StockReport() {
     labels: topValue.map(p => p.name.length > 20 ? p.name.substring(0, 20) + '...' : p.name),
     datasets: [
       {
-        label: 'Valeur stock (FCFA)',
+        label: `Valeur stock (${currencyLabel})`,
         data: topValue.map(p => p.value),
         backgroundColor: 'rgba(34, 197, 94, 0.8)',
       },
@@ -157,7 +159,7 @@ export function StockReport() {
             iconVariant="primary"
           />
           <KpiCardValue
-            value={isLoading ? '...' : `${formatPrice(stockStats.totalValue)} FCFA`}
+            value={isLoading ? '...' : formatAmount(stockStats.totalValue)}
             label="Valorisation totale"
             variant="primary"
           />
@@ -303,7 +305,7 @@ export function StockReport() {
                 key: 'purchasePrice',
                 header: 'Prix achat',
                 className: 'text-right',
-                render: (product) => `${formatPrice(product.purchasePrice || 0)} FCFA`,
+                render: (product) => formatAmount(product.purchasePrice || 0),
               },
               {
                 key: 'value',
@@ -311,7 +313,7 @@ export function StockReport() {
                 className: 'text-right',
                 render: (product) => {
                   const value = (product.currentStock || 0) * (product.purchasePrice || 0);
-                  return <span className="font-medium">{formatPrice(value)} FCFA</span>;
+                  return <span className="font-medium">{formatAmount(value)}</span>;
                 },
               },
               {

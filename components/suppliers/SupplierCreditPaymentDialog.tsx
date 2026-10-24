@@ -15,6 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Loader2 } from 'lucide-react';
 import type { SupplierCredit, PaymentMode } from '@/types';
 import { formatPrice } from '@/lib/utils';
+import { useCurrency } from '@/lib/hooks/useCurrency';
 
 const paymentSchema = z.object({
   amount: z.number().min(1, 'Le montant doit être positif'),
@@ -33,6 +34,7 @@ interface SupplierCreditPaymentDialogProps {
 
 export function SupplierCreditPaymentDialog({ open, onOpenChange, credit, onSubmit }: SupplierCreditPaymentDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { format: formatAmount, currencyLabel } = useCurrency();
 
   const form = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
@@ -81,7 +83,7 @@ export function SupplierCreditPaymentDialog({ open, onOpenChange, credit, onSubm
             {credit && (
               <span>
                 Paiement à {credit.supplierName} - Reste à payer :{' '}
-                <span className="font-bold">{formatPrice(credit.remainingAmount)} FCFA</span>
+                <span className="font-bold">{formatAmount(credit.remainingAmount)}</span>
               </span>
             )}
           </DialogDescription>
@@ -94,7 +96,7 @@ export function SupplierCreditPaymentDialog({ open, onOpenChange, credit, onSubm
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Montant payé (FCFA)</FormLabel>
+                  <FormLabel>{`Montant payé (${currencyLabel})`}</FormLabel>
                   <FormControl>
                     <NumberInput
                       min={0}
